@@ -411,41 +411,41 @@
     <h1>Indonesia Opportunity Pipeline</h1>
     <div class="meta-row">
       <span class="chip"><span class="dot"></span>Record Type: <b>Indonesia (ID 12)</b></span>
-      <span class="chip">Created: <b>28 May 2026 &ndash; 27 Aug 2026</b> (last 3 months)</span>
-      <span class="chip">Snapshot: <b>27 Aug 2026</b></span>
-      <span class="chip"><b>442</b> opportunities matched</span>
+      <span class="chip">Created: <b>last 90 days</b></span>
+      <span class="chip">Snapshot: <b id="meta-snapshot">loading&hellip;</b></span>
+      <span class="chip"><b id="meta-total">&hellip;</b> opportunities matched</span>
     </div>
 
     <div class="stat-grid">
       <div class="stat accent">
         <span class="label">Total Opportunities</span>
-        <span class="value">442</span>
-        <span class="sub">Indonesia, last 3 months</span>
+        <span class="value" id="stat-total">&ndash;</span>
+        <span class="sub">Indonesia, last 90 days</span>
       </div>
       <div class="stat">
         <span class="label">Open Pipeline</span>
-        <span class="value">291</span>
-        <span class="sub">270 active + 21 future</span>
+        <span class="value" id="stat-open">&ndash;</span>
+        <span class="sub" id="stat-open-sub">&nbsp;</span>
       </div>
       <div class="stat good">
         <span class="label">Closed&ndash;Won</span>
-        <span class="value">41</span>
-        <span class="sub">9.3% of total</span>
+        <span class="value" id="stat-won">&ndash;</span>
+        <span class="sub" id="stat-won-sub">&nbsp;</span>
       </div>
       <div class="stat critical">
         <span class="label">Closed&ndash;Lost</span>
-        <span class="value">110</span>
-        <span class="sub">24.9% of total</span>
+        <span class="value" id="stat-lost">&ndash;</span>
+        <span class="sub" id="stat-lost-sub">&nbsp;</span>
       </div>
       <div class="stat">
         <span class="label">Win Rate</span>
-        <span class="value">27.2%</span>
-        <span class="sub">of 151 closed deals</span>
+        <span class="value" id="stat-winrate">&ndash;</span>
+        <span class="sub" id="stat-winrate-sub">&nbsp;</span>
       </div>
       <div class="stat">
         <span class="label">Potential Rev / Mth</span>
-        <span class="value">Rp11.4B</span>
-        <span class="sub">Rp5.3B committed</span>
+        <span class="value" id="stat-revenue">&ndash;</span>
+        <span class="sub" id="stat-revenue-sub">&nbsp;</span>
       </div>
     </div>
 
@@ -463,11 +463,11 @@
 
       <div class="panel">
         <h2>Pipeline Composition</h2>
-        <p class="panel-sub">Share of all 442 opportunities by outcome bucket.</p>
+        <p class="panel-sub">Share of all matched opportunities by outcome bucket.</p>
         <div class="donut-wrap">
           <div class="donut-figure">
             <svg viewBox="0 0 176 176" width="176" height="176" id="donut-svg"></svg>
-            <div class="donut-center"><span class="n">442</span><span class="l">total</span></div>
+            <div class="donut-center"><span class="n" id="donut-total">&ndash;</span><span class="l">total</span></div>
           </div>
           <div class="legend" id="donut-legend"></div>
         </div>
@@ -477,10 +477,10 @@
           <strong style="color:var(--text-primary); font-weight:600;">Methodology</strong>
           <ul>
             <li>"Record Type Indonesia" and "Record Type 12" are the <strong>same filter</strong> &mdash; Indonesia's record type ID in this CRM is <code>12</code>.</li>
-            <li>Date range: <code>Created Date &ge; 2026&#8209;05&#8209;27</code> (3 months back from the 27 Aug 2026 snapshot); earliest matching record was created 28 May 2026.</li>
-            <li>Every number on this page is computed directly from a full record-level CRM export (443 rows), not sampled and not read off the CRM's own filter UI &mdash; that UI's per-field filters proved unreliable for two fields below.</li>
-            <li>Stage includes <strong>Prospecting</strong> (1 deal) &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown, which is why an earlier pass here missed it.</li>
-            <li>A record titled <em>"TEST &ndash; UNAUTHORIZED OPPORTUNITY CREATED VIA MCP [Infosec TEST]"</em> was created mid&#8209;session (443rd row) and is excluded from every count on this page as a non-pipeline test artifact. Worth a look from whoever owns CRM security.</li>
+            <li>Date range: <code>Created Date &ge;</code> 90 days before each refresh &mdash; a rolling window, not a fixed date.</li>
+            <li>Data is fetched live from the CRM's own API on each refresh (cached up to 5 minutes), not sampled and not read off the CRM's own filter UI &mdash; that UI's per-field filters proved unreliable for the Service Level field below.</li>
+            <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>
+            <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count on this page as a non-pipeline test artifact. Worth a look from whoever owns CRM security.</li>
           </ul>
         </div>
       </div>
@@ -492,25 +492,23 @@
         <p class="panel-sub">Which logistics product each Indonesia opportunity is tagged under.</p>
         <div id="bars-product"></div>
         <div class="divider"></div>
-        <div class="notes">
-          <strong style="color:var(--text-primary); font-weight:600;">No matching deals (0)</strong> in Last Mile &ndash; Document, Digital +, Cross&#8209;border SG, Forward Stocking Locations, Ninja FieldSight.
-        </div>
+        <div class="notes" id="product-empty-note"></div>
       </div>
 
       <div class="panel">
         <h2>Deals by Service Level</h2>
-        <p class="panel-sub">A multi-select field &mdash; 12 deals carry more than one tag, so bars sum to more than 442. Blank on 218 deals (49.3%).</p>
+        <p class="panel-sub">A multi-select field &mdash; deals can carry more than one tag, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
         <div id="bars-service"></div>
         <div class="divider"></div>
         <div class="notes">
-          <strong style="color:var(--text-primary); font-weight:600;">Read as tag counts, not a partition.</strong> Because a deal can hold multiple Service Levels (e.g. "LTL" + "FTL"), percentages are share&#8209;of&#8209;442 per tag, not mutually exclusive slices.
+          <strong style="color:var(--text-primary); font-weight:600;">Read as tag counts, not a partition.</strong> Because a deal can hold multiple Service Levels (e.g. "LTL" + "FTL"), percentages are share&#8209;of&#8209;total per tag, not mutually exclusive slices.
         </div>
       </div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
       <h2>Top Salesperson</h2>
-      <p class="panel-sub">Opportunity Owner, ranked by deal count across all 442 matching records.</p>
+      <p class="panel-sub">Opportunity Owner, ranked by deal count across all matching records.</p>
       <div id="bars-owner"></div>
       <div id="rest-owner" class="rest-list"></div>
     </div>
@@ -519,29 +517,14 @@
 
 <script>
 (function() {
-  const openStages = [
-    { name: "Prospecting", count: 1 },
-    { name: "New", count: 66 },
-    { name: "Proposal Submitted", count: 73 },
-    { name: "Negotiation", count: 40 },
-    { name: "EKYC Approval", count: 38 },
-    { name: "Contract Sent", count: 19 },
-    { name: "Agreed to Ship", count: 3 },
-    { name: "Onboarding", count: 2 },
-    { name: "Ready to Ship", count: 28 },
-  ];
-  const closedStages = [
-    { name: "Closed–Won", count: 41, color: "var(--status-good)" },
-    { name: "Closed–Lost", count: 110, color: "var(--status-critical)" },
-    { name: "Future Opportunity", count: 21, color: "var(--stage-future)" },
-  ];
-  const TOTAL = 442;
+  let TOTAL = 0;
 
   function renderBars(container, rows, colorFn) {
+    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
     const maxCount = Math.max(...rows.map(r => r.count));
     container.innerHTML = rows.map(r => {
       const widthPct = Math.max((r.count / maxCount) * 100, 4);
-      const totalPct = ((r.count / TOTAL) * 100).toFixed(1);
+      const totalPct = TOTAL ? ((r.count / TOTAL) * 100).toFixed(1) : "0.0";
       const color = colorFn(r);
       const labelInside = widthPct > 22;
       return `
@@ -557,119 +540,38 @@
     }).join("");
   }
 
-  renderBars(document.getElementById("bars-open"), openStages, (r, i) => "var(--stage-open)");
-  renderBars(document.getElementById("bars-closed"), closedStages, r => r.color);
-
-  const productLines = [
-    { name: "Restock", count: 221 },
-    { name: "LTL", count: 119 },
-    { name: "Cold Chain", count: 76 },
-    { name: "Cross-border", count: 16 },
-    { name: "Fulfillment", count: 4 },
-    { name: "Last Mile – Parcel", count: 4 },
-    { name: "Complex Logistics", count: 1 },
-    { name: "Last Mile – Cargo", count: 1 },
-  ];
-  renderBars(document.getElementById("bars-product"), productLines, () => "var(--stage-open)");
-
-  const serviceLevels = [
-    { name: "Same Day", count: 80 },
-    { name: "Standard", count: 54 },
-    { name: "LTL", count: 37 },
-    { name: "Next Day", count: 33 },
-    { name: "FTL", count: 22 },
-    { name: "Dedicated", count: 13 },
-  ];
-  renderBars(document.getElementById("bars-service"), serviceLevels, () => "var(--stage-open)");
-
-  const owners = [
-    { name: "Panji Anandhika Putra", count: 44 },
-    { name: "Refo Gazi Romulo", count: 41 },
-    { name: "Sandrina Oktiana", count: 39 },
-    { name: "Muhammad Rizky Pratama", count: 37 },
-    { name: "Syachid Kusuma", count: 33 },
-    { name: "Bayu Bakhriansyah Bachruddin", count: 31 },
-    { name: "Kelvin Sitinjak", count: 24 },
-    { name: "Raden Roro Inggil Pratiwi", count: 23 },
-    { name: "Nadzim Febry Bayu Aji", count: 22 },
-    { name: "Stefy Ely", count: 21 },
-    { name: "Dandy Pradipto Wicaksono", count: 20 },
-    { name: "Mega Saraswati", count: 15 },
-  ];
-  const ownersRest = [
-    { name: "Calvin Aldo", count: 13 },
-    { name: "Edu Dwiadi Nugraha", count: 12 },
-    { name: "Mohammad Ario Yuniarto", count: 12 },
-    { name: "Setiyawan Adi Saputro", count: 10 },
-    { name: "Marcella Zenisa", count: 10 },
-    { name: "Ardi Rodhita Setiawan", count: 10 },
-    { name: "Gilar Aditia", count: 9 },
-    { name: "Syahril Fajar", count: 5 },
-    { name: "Adi Kuncoro", count: 4 },
-    { name: "Kun Arifin", count: 2 },
-    { name: "Fahmi Ridho", count: 2 },
-    { name: "Marcellina Aliwarga", count: 1 },
-    { name: "Chang Wen Lai", count: 1 },
-    { name: "Chelsea Frastica", count: 1 },
-  ];
-
-  const ownerContainer = document.getElementById("bars-owner");
-  const maxOwnerCount = Math.max(...owners.map(r => r.count));
-  ownerContainer.innerHTML = owners.map((r, i) => {
-    const widthPct = Math.max((r.count / maxOwnerCount) * 100, 4);
-    const pct = ((r.count / TOTAL) * 100).toFixed(1);
-    const labelInside = widthPct > 22;
-    return `
-      <div class="bar-row wide-name" title="${r.name}: ${r.count} deals (${pct}% of total)">
-        <span class="bar-name"><span class="rank-num">${i + 1}</span> ${r.name}</span>
-        <div class="bar-track">
-          <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:var(--accent);">
-            <span class="count" style="color:var(--accent-ink);">${r.count}</span>
+  function renderOwners(rows) {
+    const top = rows.slice(0, 12);
+    const rest = rows.slice(12);
+    const container = document.getElementById("bars-owner");
+    if (!top.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
+    const maxOwnerCount = Math.max(...top.map(r => r.count));
+    container.innerHTML = top.map((r, i) => {
+      const widthPct = Math.max((r.count / maxOwnerCount) * 100, 4);
+      const pct = TOTAL ? ((r.count / TOTAL) * 100).toFixed(1) : "0.0";
+      const labelInside = widthPct > 22;
+      return `
+        <div class="bar-row wide-name" title="${r.name}: ${r.count} deals (${pct}% of total)">
+          <span class="bar-name"><span class="rank-num">${i + 1}</span> ${r.name}</span>
+          <div class="bar-track">
+            <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:var(--accent);">
+              <span class="count" style="color:var(--accent-ink);">${r.count}</span>
+            </div>
           </div>
-        </div>
-        <span class="bar-pct">${pct}%</span>
-      </div>`;
-  }).join("");
+          <span class="bar-pct">${pct}%</span>
+        </div>`;
+    }).join("");
 
-  document.getElementById("rest-owner").innerHTML =
-    `<span class="rest-list-label" style="width:100%; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:2px;">+ ${ownersRest.length} more</span>` +
-    ownersRest.map(r => `<span class="rest-chip">${r.name} <b>${r.count}</b></span>`).join("");
-
-  const comp = [
-    { name: "Active pipeline", count: 270, color: "var(--stage-open)" },
-    { name: "Future opportunity", count: 21, color: "var(--stage-future)" },
-    { name: "Closed–Won", count: 41, color: "var(--status-good)" },
-    { name: "Closed–Lost", count: 110, color: "var(--status-critical)" },
-  ];
-  const compTotal = comp.reduce((a, b) => a + b.count, 0);
-
-  const svg = document.getElementById("donut-svg");
-  const cx = 88, cy = 88, rOuter = 82, rInner = 54;
-  const gapDeg = 2.2;
-  let angle = -90;
-  const ns = "http://www.w3.org/2000/svg";
-
-  comp.forEach(seg => {
-    const sweep = (seg.count / compTotal) * 360 - gapDeg;
-    const start = angle;
-    const end = angle + Math.max(sweep, 0.001);
-    const path = document.createElementNS(ns, "path");
-    path.setAttribute("d", donutArc(cx, cy, rOuter, rInner, start, end));
-    path.setAttribute("fill", seg.color.startsWith("var") ? getComputedVar(seg.color) : seg.color);
-    path.setAttribute("stroke", getComputedVar("var(--surface-1)"));
-    path.setAttribute("stroke-width", "2");
-    const t = document.createElementNS(ns, "title");
-    t.textContent = `${seg.name}: ${seg.count} (${((seg.count/compTotal)*100).toFixed(1)}%)`;
-    path.appendChild(t);
-    svg.appendChild(path);
-    angle += sweep + gapDeg;
-  });
+    document.getElementById("rest-owner").innerHTML = rest.length
+      ? `<span class="rest-list-label" style="width:100%; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:2px;">+ ${rest.length} more</span>` +
+        rest.map(r => `<span class="rest-chip">${r.name} <b>${r.count}</b></span>`).join("")
+      : "";
+  }
 
   function getComputedVar(v) {
     const varName = v.match(/--[\w-]+/)[0];
     return getComputedStyle(document.querySelector(".viz-root")).getPropertyValue(varName).trim();
   }
-
   function polar(cx, cy, r, deg) {
     const rad = (deg * Math.PI) / 180;
     return [cx + r * Math.cos(rad), cy + r * Math.sin(rad)];
@@ -683,19 +585,110 @@
     return `M ${x1} ${y1} A ${rOuter} ${rOuter} 0 ${large} 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 ${large} 0 ${x4} ${y4} Z`;
   }
 
-  const legend = document.getElementById("donut-legend");
-  legend.innerHTML = comp.map(seg => `
-    <div class="legend-item">
-      <span class="legend-swatch" style="background:${seg.color};"></span>
-      <span class="lname">${seg.name}</span>
-      <span class="lval">${seg.count}</span>
-      <span class="lpct">${((seg.count/compTotal)*100).toFixed(1)}%</span>
-    </div>`).join("");
+  function renderDonut(comp) {
+    const svg = document.getElementById("donut-svg");
+    svg.innerHTML = "";
+    const compTotal = comp.reduce((a, b) => a + b.count, 0) || 1;
+    const cx = 88, cy = 88, rOuter = 82, rInner = 54;
+    const gapDeg = 2.2;
+    let angle = -90;
+    const ns = "http://www.w3.org/2000/svg";
+
+    comp.forEach(seg => {
+      const sweep = (seg.count / compTotal) * 360 - gapDeg;
+      const start = angle;
+      const end = angle + Math.max(sweep, 0.001);
+      const path = document.createElementNS(ns, "path");
+      path.setAttribute("d", donutArc(cx, cy, rOuter, rInner, start, end));
+      path.setAttribute("fill", seg.color.startsWith("var") ? getComputedVar(seg.color) : seg.color);
+      path.setAttribute("stroke", getComputedVar("var(--surface-1)"));
+      path.setAttribute("stroke-width", "2");
+      const t = document.createElementNS(ns, "title");
+      t.textContent = `${seg.name}: ${seg.count} (${((seg.count/compTotal)*100).toFixed(1)}%)`;
+      path.appendChild(t);
+      svg.appendChild(path);
+      angle += sweep + gapDeg;
+    });
+
+    document.getElementById("donut-legend").innerHTML = comp.map(seg => `
+      <div class="legend-item">
+        <span class="legend-swatch" style="background:${seg.color};"></span>
+        <span class="lname">${seg.name}</span>
+        <span class="lval">${seg.count}</span>
+        <span class="lpct">${((seg.count/compTotal)*100).toFixed(1)}%</span>
+      </div>`).join("");
+  }
+
+  function fmtRupiah(n) {
+    if (n >= 1e9) return "Rp" + (n / 1e9).toFixed(1) + "B";
+    if (n >= 1e6) return "Rp" + (n / 1e6).toFixed(1) + "M";
+    return "Rp" + Math.round(n).toLocaleString("id-ID");
+  }
+
+  function setText(id, text) { document.getElementById(id).textContent = text; }
+
+  function render(d) {
+    TOTAL = d.total;
+
+    setText("meta-snapshot", new Date(d.snapshot_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }));
+    setText("meta-total", d.total);
+    setText("stat-total", d.total);
+    setText("stat-open", d.open_pipeline);
+    setText("stat-open-sub", `${d.open_active} active + ${d.open_future} future`);
+    setText("stat-won", d.closed_won);
+    setText("stat-won-sub", `${d.total ? ((d.closed_won / d.total) * 100).toFixed(1) : "0.0"}% of total`);
+    setText("stat-lost", d.closed_lost);
+    setText("stat-lost-sub", `${d.total ? ((d.closed_lost / d.total) * 100).toFixed(1) : "0.0"}% of total`);
+    setText("stat-winrate", `${d.win_rate}%`);
+    setText("stat-winrate-sub", `of ${d.closed_total} closed deals`);
+    setText("stat-revenue", fmtRupiah(d.revenue_potential_mth));
+    setText("stat-revenue-sub", `${fmtRupiah(d.revenue_committed_mth)} committed`);
+    setText("donut-total", d.total);
+
+    renderBars(document.getElementById("bars-open"), d.open_stages, () => "var(--stage-open)");
+    renderBars(document.getElementById("bars-closed"), d.closed_stages, r =>
+      r.name === "Closed–Won" ? "var(--status-good)" : r.name === "Closed–Lost" ? "var(--status-critical)" : "var(--stage-future)");
+    renderBars(document.getElementById("bars-product"), d.product_lines, () => "var(--stage-open)");
+    renderBars(document.getElementById("bars-service"), d.service_levels, () => "var(--stage-open)");
+    renderOwners(d.owners);
+
+    renderDonut([
+      { name: "Active pipeline", count: d.open_active, color: "var(--stage-open)" },
+      { name: "Future opportunity", count: d.open_future, color: "var(--stage-future)" },
+      { name: "Closed–Won", count: d.closed_won, color: "var(--status-good)" },
+      { name: "Closed–Lost", count: d.closed_lost, color: "var(--status-critical)" },
+    ]);
+
+    setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
+    setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.total ? ` (${((d.service_blank / d.total) * 100).toFixed(1)}%)` : ""}.`);
+  }
+
+  function renderError(message) {
+    setText("meta-snapshot", "error");
+    setText("meta-total", "–");
+    document.querySelectorAll(".stat .value").forEach(el => el.textContent = "–");
+    ["bars-open", "bars-closed", "bars-product", "bars-service", "bars-owner"].forEach(id => {
+      document.getElementById(id).innerHTML = `<p style="font-size:12.5px;color:var(--status-critical);">${message}</p>`;
+    });
+  }
+
+  function load() {
+    fetch("/api/pipeline")
+      .then(res => {
+        if (!res.ok) return res.json().then(body => { throw new Error(body.detail || res.statusText); });
+        return res.json();
+      })
+      .then(render)
+      .catch(err => renderError(`Could not load live CRM data: ${err.message}`));
+  }
+
+  load();
+  setInterval(load, 5 * 60 * 1000);
 })();
 </script>
 
 <footer>
-  <span>Source: salescrm.ninjavan.co &middot; Opportunity export, record-level (443 rows, 1 excluded)</span>
+  <span>Source: salescrm.ninjavan.co &middot; Opportunity API, live (refreshed every 5 min)</span>
   <span>Built for nvsalesplanning.id</span>
 </footer>
 

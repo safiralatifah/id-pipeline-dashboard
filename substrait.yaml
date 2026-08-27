@@ -1,8 +1,8 @@
 description: >
-  Static snapshot dashboard of Ninja Van's Indonesia sales opportunity
-  pipeline (stage funnel, win/loss split, product line and service level
-  breakdowns, and top salesperson leaderboard) sourced from the Ninja Van
-  CRM. For the Indonesia sales planning team.
+  Live dashboard of Ninja Van's Indonesia sales opportunity pipeline (stage
+  funnel, win/loss split, product line and service level breakdowns, and top
+  salesperson leaderboard), refreshed every 5 minutes from the Ninja Van
+  SalesCRM API. For the Indonesia sales planning team.
 
 # Skill/plugin version this app was last deployed with — stamped by
 # /substrait:deploy; do not edit by hand.

@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Indonesia Pipeline Dashboard",
-    "description": "Serves a static snapshot dashboard of Ninja Van's Indonesia sales opportunity pipeline.",
-    "version": "1.0.0"
+    "description": "Serves a live dashboard of Ninja Van's Indonesia sales opportunity pipeline, fetched from the Ninja Van SalesCRM API and cached for up to 5 minutes.",
+    "version": "2.0.0"
   },
   "paths": {
     "/health": {
@@ -28,9 +28,94 @@
         }
       }
     },
+    "/api/pipeline": {
+      "get": {
+        "summary": "Returns aggregated Indonesia opportunity pipeline metrics fetched live from the CRM (cached up to 5 minutes).",
+        "operationId": "get_pipeline",
+        "responses": {
+          "200": {
+            "description": "Aggregated pipeline metrics.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "open_pipeline": { "type": "integer" },
+                    "open_active": { "type": "integer" },
+                    "open_future": { "type": "integer" },
+                    "closed_won": { "type": "integer" },
+                    "closed_lost": { "type": "integer" },
+                    "closed_total": { "type": "integer" },
+                    "win_rate": { "type": "number" },
+                    "revenue_potential_mth": { "type": "number" },
+                    "revenue_committed_mth": { "type": "number" },
+                    "open_stages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "closed_stages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "product_lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "service_levels": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "service_blank": { "type": "integer" },
+                    "owners": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "lookback_days": { "type": "integer" },
+                    "snapshot_at": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "502": { "description": "The CRM rejected the API key (expired or revoked)." },
+          "503": { "description": "CRM_API_KEY is not configured on this app." }
+        }
+      }
+    },
     "/{full_path}": {
       "get": {
-        "summary": "Serves the static Indonesia opportunity pipeline dashboard page for any path.",
+        "summary": "Serves the Indonesia opportunity pipeline dashboard page for any path.",
         "operationId": "serve_dashboard",
         "parameters": [
           {
