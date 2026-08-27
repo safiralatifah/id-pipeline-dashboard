@@ -3,3 +3,7 @@ description: >
   pipeline (stage funnel, win/loss split, product line and service level
   breakdowns, and top salesperson leaderboard) sourced from the Ninja Van
   CRM. For the Indonesia sales planning team.
+
+# Skill/plugin version this app was last deployed with — stamped by
+# /substrait:deploy; do not edit by hand.
+scaffold_version: 2026.08.11.220000
