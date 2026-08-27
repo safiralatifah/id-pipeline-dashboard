@@ -170,6 +170,28 @@ async def get_pipeline():
     return result
 
 
+@app.get("/api/debug/sample")
+async def debug_sample():
+    """TEMPORARY — inspect one raw CRM record's field names. Remove after use."""
+    api_key = os.environ.get("CRM_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
+
+    async with httpx.AsyncClient() as client:
+        resp = await client.get(
+            f"{CRM_BASE}/objects/Opportunity/records",
+            headers={"X-API-Key": api_key},
+            params={"page_size": 1, "page": 1},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    items = data.get("items") or []
+    sample = items[0] if items else None
+    return {"field_names": sorted(sample.keys()) if sample else [], "sample": sample}
+
+
 @app.get("/{full_path:path}")
 def serve_dashboard(full_path: str):
     return FileResponse(STATIC_DIR / "index.html")
