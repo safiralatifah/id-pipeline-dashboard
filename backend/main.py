@@ -170,26 +170,53 @@ async def get_pipeline():
     return result
 
 
+_SENSITIVE_KEY_RE = re.compile(r"password|token|secret|api_key", re.IGNORECASE)
+
+
 @app.get("/api/debug/sample")
 async def debug_sample():
-    """TEMPORARY — inspect one raw CRM record's field names. Remove after use."""
+    """TEMPORARY — inspect raw CRM field names per stage. Remove after use."""
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
 
+    filters = {
+        "logic": "AND",
+        "conditions": [
+            {"field": "record_type_id", "operator": "equals", "value": RECORD_TYPE_INDONESIA},
+        ],
+    }
     async with httpx.AsyncClient() as client:
         resp = await client.get(
             f"{CRM_BASE}/objects/Opportunity/records",
             headers={"X-API-Key": api_key},
-            params={"page_size": 1, "page": 1},
+            params={"filters": json.dumps(filters), "page_size": 100, "page": 1},
             timeout=20,
         )
         resp.raise_for_status()
         data = resp.json()
 
-    items = data.get("items") or []
-    sample = items[0] if items else None
-    return {"field_names": sorted(sample.keys()) if sample else [], "sample": sample}
+    items = [
+        {k: v for k, v in r.items() if not _SENSITIVE_KEY_RE.search(k)}
+        for r in (data.get("items") or [])
+    ]
+
+    all_field_names = sorted({k for r in items for k in r.keys()})
+    date_fields = sorted(k for k in all_field_names if "date" in k.lower())
+
+    # One example row per distinct stage, showing only its stage + date-like fields.
+    by_stage: dict[str, dict] = {}
+    for r in items:
+        stage = r.get("stage") or "(blank)"
+        if stage not in by_stage:
+            by_stage[stage] = {"stage": stage, **{k: r.get(k) for k in date_fields}}
+
+    return {
+        "record_count": len(items),
+        "all_field_names": all_field_names,
+        "date_fields": date_fields,
+        "example_per_stage": by_stage,
+    }
 
 
 @app.get("/{full_path:path}")
