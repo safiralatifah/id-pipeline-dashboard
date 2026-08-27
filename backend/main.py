@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import time
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -36,6 +37,12 @@ SERVICE_LEVEL_VALUES = ["Same Day", "Standard", "LTL", "Next Day", "FTL", "Dedic
 
 _cache: dict[str, Any] = {"data": None, "fetched_at": 0.0}
 CACHE_TTL_SECONDS = 300
+
+_DASH_RE = re.compile("[-‐‑‒–—―]")
+
+
+def _normalize_stage(s: str) -> str:
+    return _DASH_RE.sub("-", s).strip().lower()
 
 
 async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
@@ -80,12 +87,16 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
 
 def build_dashboard(items: list[dict]) -> dict:
     total = len(items)
-    stage_counts = Counter(r.get("stage") or "" for r in items)
+    # Stage names come back from the CRM with inconsistent dash characters
+    # (hyphen vs en dash) — normalize before matching against known buckets.
+    stage_counts = Counter(_normalize_stage(r.get("stage") or "") for r in items)
 
-    won = stage_counts.get("Closed–Won", 0)
-    lost = stage_counts.get("Closed–Lost", 0)
-    future = stage_counts.get("Future Opportunity", 0)
-    open_stages = [{"name": s, "count": stage_counts.get(s, 0)} for s in OPEN_STAGE_ORDER]
+    won = stage_counts.get(_normalize_stage("Closed–Won"), 0)
+    lost = stage_counts.get(_normalize_stage("Closed–Lost"), 0)
+    future = stage_counts.get(_normalize_stage("Future Opportunity"), 0)
+    open_stages = [
+        {"name": s, "count": stage_counts.get(_normalize_stage(s), 0)} for s in OPEN_STAGE_ORDER
+    ]
     open_active = sum(s["count"] for s in open_stages)
     closed_total = won + lost
 
