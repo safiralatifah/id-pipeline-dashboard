@@ -1,7 +1,7 @@
 <!-- BEGIN substrait-app contract (v6) — managed by the substrait plugin (link/deploy); edits inside this block are overwritten on update. Delete the whole block to opt out. -->
 ## Substrait deployment
 
-**Linked app:** not linked yet — run /substrait:link
+**Linked app:** `id-pipeline-dashboard-2` — https://id-pipeline-dashboard-2.ninjavan.apps.substrait.build
 
 This project deploys to the **Substrait platform** (linked via the gitignored
 `.substrait/config.json`). Deploy with **`/substrait:deploy`** (packages source-only,
