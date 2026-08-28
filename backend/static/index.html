@@ -38,6 +38,13 @@
     --status-critical:#d03b3b;
     --status-critical-soft: #fae1e0;
 
+    --age-0: #2e9e46;
+    --age-1: #7fb93f;
+    --age-2: #d9a441;
+    --age-3: #d9782c;
+    --age-4: #c1502e;
+    --age-5: #b8322c;
+
     --shadow: 0 1px 2px rgba(26,21,18,0.06), 0 8px 24px -12px rgba(26,21,18,0.18);
   }
   @media (prefers-color-scheme: dark) {
@@ -66,6 +73,13 @@
       --status-critical:#e66767;
       --status-critical-soft: #3d211f;
 
+      --age-0: #3fb85a;
+      --age-1: #93cf55;
+      --age-2: #e0b354;
+      --age-3: #e08a44;
+      --age-4: #d16443;
+      --age-5: #e2554c;
+
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
     }
   }
@@ -93,6 +107,13 @@
     --status-good-soft: #16351a;
     --status-critical:#e66767;
     --status-critical-soft: #3d211f;
+
+    --age-0: #3fb85a;
+    --age-1: #93cf55;
+    --age-2: #e0b354;
+    --age-3: #e08a44;
+    --age-4: #d16443;
+    --age-5: #e2554c;
 
     --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
   }
@@ -391,6 +412,60 @@
     gap: 8px;
   }
 
+  .age-mode-toggle {
+    display: inline-flex;
+    background: var(--surface-2);
+    border-radius: 8px;
+    padding: 3px;
+    gap: 2px;
+    flex: none;
+  }
+  .age-mode-btn {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .age-mode-btn.active { background: var(--accent); color: var(--accent-ink); }
+
+  .stage-age-row { padding: 8px 0; }
+  .stage-age-row + .stage-age-row { border-top: 1px solid var(--gridline); }
+  .stage-age-row .stage-age-head {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+  .stage-age-row .stage-age-head b { color: var(--text-primary); }
+  .stage-age-row .stage-age-head .n { font-family: "IBM Plex Mono", monospace; color: var(--text-muted); font-size: 11.5px; }
+  .stage-age-track {
+    display: flex;
+    height: 22px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .stage-age-seg {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #fff;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .simple-table th {
     text-align: left;
@@ -543,23 +618,31 @@
         <div id="bars-aging"></div>
       </div>
       <div class="panel">
-        <h2>Time in Current Stage (open deals)</h2>
-        <p class="panel-sub">Days since the deal last moved stage.</p>
-        <div id="bars-stage-duration-buckets"></div>
-      </div>
-    </div>
-
-    <div class="panels2" style="margin-top:16px;">
-      <div class="panel">
         <h2>Stage Bottlenecks</h2>
         <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
         <div id="table-stage-duration"></div>
       </div>
-      <div class="panel">
-        <h2>Pipeline Strength &mdash; Next 3 Months</h2>
-        <p class="panel-sub">Open deals by expected close month: count and potential revenue.</p>
-        <div id="bars-forecast"></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+        <div>
+          <h2>Stage &times; Ageing</h2>
+          <p class="panel-sub" style="margin-bottom:14px;">Share of each stage's open deals by days since last stage change.</p>
+        </div>
+        <div class="age-mode-toggle">
+          <button type="button" class="age-mode-btn active" data-mode="share">Share (100%)</button>
+          <button type="button" class="age-mode-btn" data-mode="count">Count</button>
+        </div>
       </div>
+      <div id="age-grid-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
+      <div id="stage-age-grid"></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Pipeline Strength &mdash; Next 3 Months</h2>
+      <p class="panel-sub">Open deals by expected close month: count and potential revenue.</p>
+      <div id="bars-forecast"></div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
@@ -743,6 +826,40 @@
       </table>`;
   }
 
+  const AGE_COLORS = ["var(--age-0)", "var(--age-1)", "var(--age-2)", "var(--age-3)", "var(--age-4)", "var(--age-5)"];
+  let ageMode = "share";
+  let lastStageGrid = [];
+
+  function renderAgeLegend(labels) {
+    document.getElementById("age-grid-legend").innerHTML = labels.map((label, i) => `
+      <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary);">
+        <span style="width:10px; height:10px; border-radius:3px; background:${AGE_COLORS[i]}; flex:none;"></span>${label}
+      </span>`).join("");
+  }
+
+  function renderStageAgeGrid(rows) {
+    lastStageGrid = rows;
+    const container = document.getElementById("stage-age-grid");
+    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open deals.</p>'; return; }
+    const maxTotal = Math.max(...rows.map(r => r.total), 1);
+    container.innerHTML = rows.map(row => {
+      const segs = row.buckets.map((b, i) => {
+        if (!b.count) return "";
+        const pctOfStage = row.total ? (b.count / row.total) * 100 : 0;
+        const widthPct = ageMode === "share" ? pctOfStage : pctOfStage * (row.total / maxTotal);
+        const label = ageMode === "share" ? `${pctOfStage.toFixed(0)}%` : `${b.count}`;
+        const showLabel = widthPct > 8;
+        return `<div class="stage-age-seg" style="width:${widthPct}%; background:${AGE_COLORS[i]};" title="${row.stage} · ${b.label}: ${b.count} deal(s)">${showLabel ? label : ""}</div>`;
+      }).join("");
+      const trackWidth = ageMode === "share" ? "100%" : `${(row.total / maxTotal) * 100}%`;
+      return `
+        <div class="stage-age-row">
+          <div class="stage-age-head"><b>${row.stage}</b><span class="n">${row.total} opps</span></div>
+          <div class="stage-age-track" style="width:${trackWidth};">${segs}</div>
+        </div>`;
+    }).join("");
+  }
+
   function render(d) {
     TOTAL = d.total;
 
@@ -779,8 +896,9 @@
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.total ? ` (${((d.service_blank / d.total) * 100).toFixed(1)}%)` : ""}.`);
 
     renderBars(document.getElementById("bars-aging"), d.aging_buckets.map(b => ({ name: b.label, count: b.count })), () => "var(--stage-open)");
-    renderBars(document.getElementById("bars-stage-duration-buckets"), d.stage_duration_buckets.map(b => ({ name: b.label, count: b.count })), () => "var(--stage-future)");
     renderStageDurationTable(d.stage_duration);
+    renderAgeLegend(d.aging_buckets.map(b => b.label));
+    renderStageAgeGrid(d.stage_duration_grid);
     renderForecast(d.forecast_next_3_months);
 
     window.__createdByMonthMonths = d.created_by_month.months;
@@ -808,6 +926,14 @@
       .then(render)
       .catch(err => renderError(`Could not load live CRM data: ${err.message}`));
   }
+
+  document.querySelectorAll(".age-mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      ageMode = btn.dataset.mode;
+      document.querySelectorAll(".age-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
+      renderStageAgeGrid(lastStageGrid);
+    });
+  });
 
   load();
   setInterval(load, 5 * 60 * 1000);

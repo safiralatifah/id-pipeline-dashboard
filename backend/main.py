@@ -177,16 +177,21 @@ def build_dashboard(items: list[dict]) -> dict:
     ]
 
     # Stage duration: how long each OPEN deal has sat in its CURRENT stage,
-    # and the average per stage (surfaces bottlenecks).
+    # and the per-stage age-bucket breakdown that surfaces bottlenecks: for
+    # each stage, how many of its open deals are fresh vs. stuck.
     stage_duration_days: dict[str, list[int]] = {}
     stage_duration_bucket_counts = Counter()
+    stage_bucket_matrix: dict[str, Counter] = {}
     for r in open_items:
         changed = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("created_at"))
         if not changed:
             continue
         days = (now - changed).days
-        stage_duration_bucket_counts[_bucket_for(days)] += 1
-        stage_duration_days.setdefault(r.get("stage") or "(blank)", []).append(days)
+        bucket = _bucket_for(days)
+        stage_name = r.get("stage") or "(blank)"
+        stage_duration_bucket_counts[bucket] += 1
+        stage_duration_days.setdefault(stage_name, []).append(days)
+        stage_bucket_matrix.setdefault(stage_name, Counter())[bucket] += 1
     stage_duration = sorted(
         (
             {"name": stage, "avg_days": round(sum(ds) / len(ds), 1), "count": len(ds)}
@@ -198,6 +203,21 @@ def build_dashboard(items: list[dict]) -> dict:
         {"label": label, "count": stage_duration_bucket_counts.get(label, 0)}
         for label, _, _ in AGING_BUCKETS
     ]
+    bucket_labels = [label for label, _, _ in AGING_BUCKETS]
+    stage_grid_order = OPEN_STAGE_ORDER + ["Future Opportunity"]
+    stage_duration_grid = sorted(
+        (
+            {
+                "stage": stage_name,
+                "total": sum(counts.values()),
+                "buckets": [{"label": lbl, "count": counts.get(lbl, 0)} for lbl in bucket_labels],
+            }
+            for stage_name, counts in stage_bucket_matrix.items()
+        ),
+        key=lambda row: (
+            stage_grid_order.index(row["stage"]) if row["stage"] in stage_grid_order else len(stage_grid_order)
+        ),
+    )
 
     # Forecast: OPEN deals' expected close date, bucketed by month, for the
     # current month plus the next two.
@@ -288,6 +308,7 @@ def build_dashboard(items: list[dict]) -> dict:
         "aging_buckets": aging_buckets,
         "stage_duration": stage_duration,
         "stage_duration_buckets": stage_duration_buckets,
+        "stage_duration_grid": stage_duration_grid,
         "forecast_next_3_months": forecast_next_3_months,
         "created_by_month": created_by_month,
         "lookback_days": LOOKBACK_DAYS,
