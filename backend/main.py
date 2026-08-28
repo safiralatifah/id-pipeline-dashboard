@@ -234,25 +234,59 @@ def build_dashboard(items: list[dict]) -> dict:
         ),
     )
 
-    # Forecast: OPEN deals' expected close date, bucketed by month, for the
-    # current month plus the next two.
-    month_keys = []
-    cursor = now.replace(day=1)
-    for _ in range(3):
-        month_keys.append(cursor.strftime("%Y-%m"))
-        cursor = (cursor + timedelta(days=32)).replace(day=1)
-    forecast_by_month = {k: {"count": 0, "revenue": 0.0} for k in month_keys}
+    # Forecast: OPEN deals by expected close date. Deals whose close date has
+    # already passed go in a leading "Overdue" bucket; the rest are grouped
+    # by month, from the current month through however far the data goes —
+    # every stage represented, so it's obvious whether deals due to close
+    # soon are actually in a late stage (Agreed to Ship / Ready to Ship) or
+    # still early (an unrealistic forecast).
+    def _stage_breakdown(rows: list[dict]) -> list[dict]:
+        counts = Counter(r.get("stage") or "(blank)" for r in rows)
+        revenue_by_stage: dict[str, float] = {}
+        for r in rows:
+            s = r.get("stage") or "(blank)"
+            revenue_by_stage[s] = revenue_by_stage.get(s, 0.0) + float(r.get("total_potential_revenue_mth") or 0)
+        order = OPEN_STAGE_ORDER + ["Future Opportunity"]
+        ordered = [s for s in order if counts.get(s)] + [s for s in counts if s not in order]
+        return [{"name": s, "count": counts[s], "revenue": revenue_by_stage[s]} for s in ordered]
+
+    today = now.date()
+    current_month_start = today.replace(day=1)
+    overdue_items = []
+    month_items: dict[str, list[dict]] = {}
+    max_month_start = current_month_start
+    undated_count = 0
     for r in open_items:
         close_date = _parse_dt(r.get("expected_close_date"))
         if not close_date:
+            undated_count += 1
             continue
-        key = close_date.strftime("%Y-%m")
-        if key in forecast_by_month:
-            forecast_by_month[key]["count"] += 1
-            forecast_by_month[key]["revenue"] += float(r.get("total_potential_revenue_mth") or 0)
-    forecast_next_3_months = [
-        {"month": k, "count": v["count"], "revenue": v["revenue"]}
-        for k, v in forecast_by_month.items()
+        close_day = close_date.date()
+        if close_day < today:
+            overdue_items.append(r)
+        else:
+            key = close_day.strftime("%Y-%m")
+            month_items.setdefault(key, []).append(r)
+            month_start = close_day.replace(day=1)
+            if month_start > max_month_start:
+                max_month_start = month_start
+
+    months_seq = []
+    cursor = current_month_start
+    while cursor <= max_month_start:
+        months_seq.append(cursor.strftime("%Y-%m"))
+        cursor = (cursor.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+    def _bucket(key: str, rows: list[dict]) -> dict:
+        return {
+            "key": key,
+            "count": len(rows),
+            "revenue": sum(float(r.get("total_potential_revenue_mth") or 0) for r in rows),
+            "stages": _stage_breakdown(rows),
+        }
+
+    forecast = [_bucket("overdue", overdue_items)] + [
+        _bucket(mk, month_items.get(mk, [])) for mk in months_seq
     ]
 
     # Created-by-team: every matched deal (open + closed), grouped by the
@@ -325,7 +359,8 @@ def build_dashboard(items: list[dict]) -> dict:
         "stage_duration": stage_duration,
         "stage_duration_buckets": stage_duration_buckets,
         "stage_duration_grid": stage_duration_grid,
-        "forecast_next_3_months": forecast_next_3_months,
+        "forecast": forecast,
+        "forecast_undated_count": undated_count,
         "created_by_month": created_by_month,
         "lookback_days": LOOKBACK_DAYS,
     }

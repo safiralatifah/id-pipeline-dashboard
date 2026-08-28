@@ -135,17 +135,74 @@
                         }
                       }
                     },
-                    "forecast_next_3_months": {
+                    "stage_duration_grid": {
                       "type": "array",
-                      "description": "Open deals by expected close month (current month + next two).",
+                      "description": "For each stage, its open deals broken down by days-since-last-stage-change bucket.",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "month": { "type": "string", "example": "2026-09" },
-                          "count": { "type": "integer" },
-                          "revenue": { "type": "number" }
+                          "stage": { "type": "string" },
+                          "total": { "type": "integer" },
+                          "buckets": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "label": { "type": "string" },
+                                "count": { "type": "integer" }
+                              }
+                            }
+                          }
                         }
                       }
+                    },
+                    "aging_grid": {
+                      "type": "array",
+                      "description": "For each days-since-creation bucket, open deals broken down by current stage.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": { "type": "string" },
+                          "total": { "type": "integer" },
+                          "stages": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": { "type": "string" },
+                                "count": { "type": "integer" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "forecast": {
+                      "type": "array",
+                      "description": "Open deals by expected close date: a leading 'overdue' bucket (close date already passed), then one bucket per month from the current month through the furthest expected close date in the data. Each bucket is broken down by stage and revenue.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "key": { "type": "string", "example": "2026-09", "description": "\"overdue\" or a YYYY-MM month key." },
+                          "count": { "type": "integer" },
+                          "revenue": { "type": "number" },
+                          "stages": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "name": { "type": "string" },
+                                "count": { "type": "integer" },
+                                "revenue": { "type": "number" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "forecast_undated_count": {
+                      "type": "integer",
+                      "description": "Open deals with no expected close date, excluded from the forecast."
                     },
                     "created_by_month": {
                       "type": "object",

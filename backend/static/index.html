@@ -493,6 +493,28 @@
     white-space: nowrap;
   }
 
+  .forecast-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+  .forecast-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1 0 52px;
+    min-width: 52px;
+  }
+  .forecast-count { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; color: var(--text-primary); }
+  .forecast-revenue { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--text-muted); margin-bottom: 6px; white-space: nowrap; }
+  .forecast-track { height: 160px; display: flex; align-items: flex-end; width: 100%; justify-content: center; }
+  .forecast-bar { width: 34px; display: flex; flex-direction: column-reverse; border-radius: 4px 4px 0 0; overflow: hidden; background: var(--surface-2); }
+  .forecast-seg { width: 100%; }
+  .forecast-label { font-size: 11.5px; color: var(--text-secondary); margin-top: 8px; text-align: center; }
+  .forecast-label.overdue { color: var(--status-critical); font-weight: 600; }
+
   @media (max-width: 900px) {
     .stage-age-row { grid-template-columns: 104px 1fr 46px; }
     .age-stage-row { grid-template-columns: 52px 1fr 40px; }
@@ -710,9 +732,10 @@
     </div>
 
     <div class="panel" style="margin-top:16px;">
-      <h2>Pipeline Strength &mdash; Next 3 Months</h2>
-      <p class="panel-sub">Open deals by expected close month: count and potential revenue.</p>
-      <div id="bars-forecast"></div>
+      <h2>Pipeline Strength</h2>
+      <p class="panel-sub" id="forecast-sub">Open deals by expected close date, broken down by stage. Ideally, deals due soon sit in a late stage (Agreed to Ship / Ready to Ship).</p>
+      <div id="age-stage-legend-2" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
+      <div id="bars-forecast" class="forecast-chart"></div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
@@ -855,23 +878,37 @@
       </table>`;
   }
 
-  function renderForecast(rows) {
+  function renderForecast(buckets, undatedCount) {
     const container = document.getElementById("bars-forecast");
-    const maxRevenue = Math.max(...rows.map(r => r.revenue), 1);
-    container.innerHTML = rows.map(r => {
-      const widthPct = Math.max((r.revenue / maxRevenue) * 100, 4);
-      const labelInside = widthPct > 30;
+    const present = new Set();
+    buckets.forEach(b => b.stages.forEach(s => present.add(s.name)));
+    document.getElementById("age-stage-legend-2").innerHTML = STAGE_ORDER.filter(s => present.has(s)).map(s => `
+      <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary);">
+        <span style="width:10px; height:10px; border-radius:3px; background:${stageColor(s)}; flex:none;"></span>${s}
+      </span>`).join("");
+
+    const maxCount = Math.max(...buckets.map(b => b.count), 1);
+    const trackHeight = 160;
+    container.innerHTML = buckets.map(b => {
+      const label = b.key === "overdue" ? "Overdue" : monthLabel(b.key);
+      const barHeight = Math.round((b.count / maxCount) * trackHeight);
+      const segs = b.stages.map(s => {
+        const pct = b.count ? (s.count / b.count) * 100 : 0;
+        return `<div class="forecast-seg" style="height:${pct}%; background:${stageColor(s.name)};" data-tip="${label} · ${s.name}: ${s.count} deal(s), ${fmtRupiah(s.revenue)}"></div>`;
+      }).join("");
       return `
-        <div class="bar-row" title="${monthLabel(r.month)}: ${r.count} deals, ${fmtRupiah(r.revenue)}">
-          <span class="bar-name">${monthLabel(r.month)}</span>
-          <div class="bar-track">
-            <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:var(--stage-open);">
-              <span class="count">${fmtRupiah(r.revenue)}</span>
-            </div>
+        <div class="forecast-col">
+          <span class="forecast-count">${b.count}</span>
+          <span class="forecast-revenue">${fmtRupiah(b.revenue)}</span>
+          <div class="forecast-track">
+            <div class="forecast-bar" style="height:${barHeight}px;">${segs}</div>
           </div>
-          <span class="bar-pct">${r.count}</span>
+          <span class="forecast-label${b.key === 'overdue' ? ' overdue' : ''}">${label}</span>
         </div>`;
     }).join("");
+
+    const sub = "Open deals by expected close date, broken down by stage. Ideally, deals due soon sit in a late stage (Agreed to Ship / Ready to Ship).";
+    setText("forecast-sub", undatedCount ? `${sub} ${undatedCount} open deal(s) have no expected close date and are excluded.` : sub);
   }
 
   function renderTeamTable(containerId, rows) {
@@ -1001,7 +1038,7 @@
     renderStageDurationTable(d.stage_duration);
     renderAgeLegend(d.aging_buckets.map(b => b.label));
     renderStageAgeGrid(d.stage_duration_grid);
-    renderForecast(d.forecast_next_3_months);
+    renderForecast(d.forecast, d.forecast_undated_count);
 
     window.__createdByMonthMonths = d.created_by_month.months;
     renderTeamTable("table-by-manager", d.created_by_month.by_manager);
