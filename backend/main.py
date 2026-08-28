@@ -126,17 +126,20 @@ def build_dashboard(items: list[dict]) -> dict:
     # (hyphen vs en dash) — normalize before matching against known buckets.
     stage_counts = Counter(_normalize_stage(r.get("stage") or "") for r in items)
 
-    # is_won/is_closed are CRM-provided booleans — more robust than matching
-    # stage text, which has been seen with inconsistent dash characters.
-    won = sum(1 for r in items if r.get("is_won"))
-    lost = sum(1 for r in items if r.get("is_closed") and not r.get("is_won"))
+    # NOTE: the CRM also exposes is_won/is_closed booleans, but they came back
+    # as truthy for every record when tried here (likely serialized as the
+    # string "false", which Python treats as truthy) — stick to the
+    # dash-normalized stage name, which has been verified correct.
+    won = stage_counts.get(_normalize_stage("Closed–Won"), 0)
+    lost = stage_counts.get(_normalize_stage("Closed–Lost"), 0)
     future = stage_counts.get(_normalize_stage("Future Opportunity"), 0)
     open_stages = [
         {"name": s, "count": stage_counts.get(_normalize_stage(s), 0)} for s in OPEN_STAGE_ORDER
     ]
     open_active = sum(s["count"] for s in open_stages)
     closed_total = won + lost
-    open_items = [r for r in items if not r.get("is_closed")]
+    closed_stage_names = {_normalize_stage("Closed–Won"), _normalize_stage("Closed–Lost")}
+    open_items = [r for r in items if _normalize_stage(r.get("stage") or "") not in closed_stage_names]
 
     product_counts = Counter(r.get("nv_product_line") or "" for r in items)
     product_lines = [
