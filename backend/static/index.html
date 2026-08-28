@@ -515,8 +515,9 @@
     position: fixed;
     z-index: 9999;
     pointer-events: none;
-    background: var(--text-primary);
-    color: var(--surface-1);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
     font-family: "IBM Plex Mono", monospace;
     font-size: 11.5px;
     font-weight: 500;
@@ -525,10 +526,10 @@
     white-space: nowrap;
     box-shadow: var(--shadow);
     opacity: 0;
-    transform: translate(-50%, -100%) translateY(-4px) scale(0.94);
-    transition: opacity 0.12s ease, transform 0.12s ease;
+    transform: translate(-50%, -100%) translateY(2px) scale(0.98);
+    transition: opacity 0.1s ease, transform 0.1s ease;
   }
-  .hover-tip.visible { opacity: 1; transform: translate(-50%, -100%) translateY(-12px) scale(1); }
+  .hover-tip.visible { opacity: 1; transform: translate(-50%, -100%) translateY(-10px) scale(1); }
   [title], [data-tip] { cursor: default; }
   .bar-fill, .stage-age-seg, .age-stage-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
   .bar-fill:hover, .stage-age-seg:hover, .age-stage-seg:hover { filter: brightness(1.12); }
@@ -1039,7 +1040,7 @@
 
   const tip = document.createElement("div");
   tip.className = "hover-tip";
-  document.body.appendChild(tip);
+  document.querySelector(".viz-root").appendChild(tip);
 
   function tipTextFor(el) {
     if (el.hasAttribute("title")) {
