@@ -511,6 +511,28 @@
     white-space: nowrap;
   }
 
+  .hover-tip {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    background: var(--text-primary);
+    color: var(--surface-1);
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 5px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    box-shadow: var(--shadow);
+    opacity: 0;
+    transform: translate(-50%, -100%) translateY(-4px) scale(0.94);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+  }
+  .hover-tip.visible { opacity: 1; transform: translate(-50%, -100%) translateY(-12px) scale(1); }
+  [title], [data-tip] { cursor: default; }
+  .bar-fill, .stage-age-seg, .age-stage-seg { transition: filter 0.15s ease; }
+  .bar-fill:hover, .stage-age-seg:hover, .age-stage-seg:hover { filter: brightness(1.12); }
+
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .simple-table th {
     text-align: left;
@@ -1014,6 +1036,36 @@
 
   load();
   setInterval(load, 5 * 60 * 1000);
+
+  const tip = document.createElement("div");
+  tip.className = "hover-tip";
+  document.body.appendChild(tip);
+
+  function tipTextFor(el) {
+    if (el.hasAttribute("title")) {
+      el.dataset.tip = el.getAttribute("title");
+      el.removeAttribute("title");
+    }
+    return el.dataset.tip;
+  }
+
+  document.addEventListener("mouseover", e => {
+    const el = e.target.closest("[title], [data-tip]");
+    if (!el) return;
+    tip.textContent = tipTextFor(el);
+    tip.classList.add("visible");
+  });
+  document.addEventListener("mousemove", e => {
+    if (!tip.classList.contains("visible")) return;
+    tip.style.left = e.clientX + "px";
+    tip.style.top = e.clientY + "px";
+  });
+  document.addEventListener("mouseout", e => {
+    const el = e.target.closest("[data-tip]");
+    if (el && !(e.relatedTarget && el.contains(e.relatedTarget))) {
+      tip.classList.remove("visible");
+    }
+  });
 })();
 </script>
 
