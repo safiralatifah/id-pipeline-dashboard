@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Indonesia Pipeline Dashboard",
-    "description": "Serves a live dashboard of Ninja Van's Indonesia sales opportunity pipeline, fetched from the Ninja Van SalesCRM API and cached for up to 5 minutes.",
-    "version": "2.0.0"
+    "description": "Serves a live dashboard of Ninja Van's Indonesia sales opportunity pipeline (composition, aging, stage bottlenecks, 3-month forecast, and team rollups), fetched from the Ninja Van SalesCRM API and cached for up to 5 minutes.",
+    "version": "3.0.0"
   },
   "paths": {
     "/health": {
@@ -99,6 +99,82 @@
                           "name": { "type": "string" },
                           "count": { "type": "integer" }
                         }
+                      }
+                    },
+                    "aging_buckets": {
+                      "type": "array",
+                      "description": "Open deals bucketed by days since creation.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "stage_duration": {
+                      "type": "array",
+                      "description": "Average days open deals have sat in each current stage, longest first.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "avg_days": { "type": "number" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "stage_duration_buckets": {
+                      "type": "array",
+                      "description": "Open deals bucketed by days since their last stage change.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": { "type": "string" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "forecast_next_3_months": {
+                      "type": "array",
+                      "description": "Open deals by expected close month (current month + next two).",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "month": { "type": "string", "example": "2026-09" },
+                          "count": { "type": "integer" },
+                          "revenue": { "type": "number" }
+                        }
+                      }
+                    },
+                    "created_by_month": {
+                      "type": "object",
+                      "description": "Opportunities created per month, rolled up by Manager and Sales Head from the Active-rep team roster.",
+                      "properties": {
+                        "months": { "type": "array", "items": { "type": "string" } },
+                        "by_manager": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+                              "total": { "type": "integer" }
+                            }
+                          }
+                        },
+                        "by_sales_head": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+                              "total": { "type": "integer" }
+                            }
+                          }
+                        },
+                        "unmapped_owner_count": { "type": "integer" }
                       }
                     },
                     "lookback_days": { "type": "integer" },

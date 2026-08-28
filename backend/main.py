@@ -13,7 +13,11 @@ from fastapi.responses import FileResponse
 
 app = FastAPI()
 
-STATIC_DIR = Path(__file__).parent / "static"
+BASE_DIR = Path(__file__).parent
+STATIC_DIR = BASE_DIR / "static"
+
+with open(BASE_DIR / "team_roster.json", encoding="utf-8") as f:
+    TEAM_ROSTER: dict[str, dict] = json.load(f)
 
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 RECORD_TYPE_INDONESIA = "12"
@@ -43,6 +47,36 @@ _DASH_RE = re.compile("[-‐‑‒–—―]")
 
 def _normalize_stage(s: str) -> str:
     return _DASH_RE.sub("-", s).strip().lower()
+
+
+def _parse_dt(s: str | None) -> datetime | None:
+    if not s:
+        return None
+    try:
+        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+    except ValueError:
+        pass
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+AGING_BUCKETS = [
+    ("0-7d", 0, 7),
+    ("8-14d", 8, 14),
+    ("15-30d", 15, 30),
+    ("31-60d", 31, 60),
+    ("61-90d", 61, 90),
+    ("90d+", 91, None),
+]
+
+
+def _bucket_for(days: int) -> str:
+    for label, lo, hi in AGING_BUCKETS:
+        if days >= lo and (hi is None or days <= hi):
+            return label
+    return "unknown"
 
 
 async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
@@ -86,19 +120,23 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
 
 
 def build_dashboard(items: list[dict]) -> dict:
+    now = datetime.now(timezone.utc)
     total = len(items)
     # Stage names come back from the CRM with inconsistent dash characters
     # (hyphen vs en dash) — normalize before matching against known buckets.
     stage_counts = Counter(_normalize_stage(r.get("stage") or "") for r in items)
 
-    won = stage_counts.get(_normalize_stage("Closed–Won"), 0)
-    lost = stage_counts.get(_normalize_stage("Closed–Lost"), 0)
+    # is_won/is_closed are CRM-provided booleans — more robust than matching
+    # stage text, which has been seen with inconsistent dash characters.
+    won = sum(1 for r in items if r.get("is_won"))
+    lost = sum(1 for r in items if r.get("is_closed") and not r.get("is_won"))
     future = stage_counts.get(_normalize_stage("Future Opportunity"), 0)
     open_stages = [
         {"name": s, "count": stage_counts.get(_normalize_stage(s), 0)} for s in OPEN_STAGE_ORDER
     ]
     open_active = sum(s["count"] for s in open_stages)
     closed_total = won + lost
+    open_items = [r for r in items if not r.get("is_closed")]
 
     product_counts = Counter(r.get("nv_product_line") or "" for r in items)
     product_lines = [
@@ -124,6 +162,104 @@ def build_dashboard(items: list[dict]) -> dict:
     revenue = sum(float(r.get("total_potential_revenue_mth") or 0) for r in items)
     committed = sum(float(r.get("committed_revenue_mth") or 0) for r in items)
 
+    # Aging: how long each OPEN deal has sat since creation.
+    aging_bucket_counts = Counter()
+    for r in open_items:
+        created = _parse_dt(r.get("created_at"))
+        if created:
+            aging_bucket_counts[_bucket_for((now - created).days)] += 1
+    aging_buckets = [
+        {"label": label, "count": aging_bucket_counts.get(label, 0)}
+        for label, _, _ in AGING_BUCKETS
+    ]
+
+    # Stage duration: how long each OPEN deal has sat in its CURRENT stage,
+    # and the average per stage (surfaces bottlenecks).
+    stage_duration_days: dict[str, list[int]] = {}
+    stage_duration_bucket_counts = Counter()
+    for r in open_items:
+        changed = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("created_at"))
+        if not changed:
+            continue
+        days = (now - changed).days
+        stage_duration_bucket_counts[_bucket_for(days)] += 1
+        stage_duration_days.setdefault(r.get("stage") or "(blank)", []).append(days)
+    stage_duration = sorted(
+        (
+            {"name": stage, "avg_days": round(sum(ds) / len(ds), 1), "count": len(ds)}
+            for stage, ds in stage_duration_days.items()
+        ),
+        key=lambda x: -x["avg_days"],
+    )
+    stage_duration_buckets = [
+        {"label": label, "count": stage_duration_bucket_counts.get(label, 0)}
+        for label, _, _ in AGING_BUCKETS
+    ]
+
+    # Forecast: OPEN deals' expected close date, bucketed by month, for the
+    # current month plus the next two.
+    month_keys = []
+    cursor = now.replace(day=1)
+    for _ in range(3):
+        month_keys.append(cursor.strftime("%Y-%m"))
+        cursor = (cursor + timedelta(days=32)).replace(day=1)
+    forecast_by_month = {k: {"count": 0, "revenue": 0.0} for k in month_keys}
+    for r in open_items:
+        close_date = _parse_dt(r.get("expected_close_date"))
+        if not close_date:
+            continue
+        key = close_date.strftime("%Y-%m")
+        if key in forecast_by_month:
+            forecast_by_month[key]["count"] += 1
+            forecast_by_month[key]["revenue"] += float(r.get("total_potential_revenue_mth") or 0)
+    forecast_next_3_months = [
+        {"month": k, "count": v["count"], "revenue": v["revenue"]}
+        for k, v in forecast_by_month.items()
+    ]
+
+    # Created-by-team: every matched deal (open + closed), grouped by the
+    # month it was created and by the owner's Manager / Sales Head, per the
+    # team roster (Active reps only — see backend/team_roster.json).
+    created_month_keys = [now.strftime("%Y-%m")]
+    cursor = now.replace(day=1)
+    for _ in range(2):
+        cursor = (cursor - timedelta(days=1)).replace(day=1)
+        created_month_keys.append(cursor.strftime("%Y-%m"))
+    created_month_keys = sorted(set(created_month_keys))
+
+    manager_totals: dict[str, dict[str, int]] = {}
+    sales_head_totals: dict[str, dict[str, int]] = {}
+    unmapped_owners = set()
+    for r in items:
+        created = _parse_dt(r.get("created_at"))
+        if not created:
+            continue
+        month_key = created.strftime("%Y-%m")
+        owner = r.get("owner_name") or ""
+        roster_entry = TEAM_ROSTER.get(owner)
+        manager = (roster_entry or {}).get("manager") or "Unmapped"
+        sales_head = (roster_entry or {}).get("sales_head") or "Unmapped"
+        if not roster_entry:
+            unmapped_owners.add(owner)
+        manager_totals.setdefault(manager, {}).setdefault(month_key, 0)
+        manager_totals[manager][month_key] += 1
+        sales_head_totals.setdefault(sales_head, {}).setdefault(month_key, 0)
+        sales_head_totals[sales_head][month_key] += 1
+
+    def _rollup(totals: dict[str, dict[str, int]]) -> list[dict]:
+        rows = []
+        for name, by_month in totals.items():
+            counts = {mk: by_month.get(mk, 0) for mk in created_month_keys}
+            rows.append({"name": name, "counts": counts, "total": sum(counts.values())})
+        return sorted(rows, key=lambda x: -x["total"])
+
+    created_by_month = {
+        "months": created_month_keys,
+        "by_manager": _rollup(manager_totals),
+        "by_sales_head": _rollup(sales_head_totals),
+        "unmapped_owner_count": len(unmapped_owners),
+    }
+
     return {
         "total": total,
         "open_pipeline": open_active + future,
@@ -145,6 +281,11 @@ def build_dashboard(items: list[dict]) -> dict:
         "service_levels": service_levels,
         "service_blank": service_blank,
         "owners": owners,
+        "aging_buckets": aging_buckets,
+        "stage_duration": stage_duration,
+        "stage_duration_buckets": stage_duration_buckets,
+        "forecast_next_3_months": forecast_next_3_months,
+        "created_by_month": created_by_month,
         "lookback_days": LOOKBACK_DAYS,
     }
 
@@ -168,55 +309,6 @@ async def get_pipeline():
     _cache["data"] = result
     _cache["fetched_at"] = now
     return result
-
-
-_SENSITIVE_KEY_RE = re.compile(r"password|token|secret|api_key", re.IGNORECASE)
-
-
-@app.get("/api/debug/sample")
-async def debug_sample():
-    """TEMPORARY — inspect raw CRM field names per stage. Remove after use."""
-    api_key = os.environ.get("CRM_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
-
-    filters = {
-        "logic": "AND",
-        "conditions": [
-            {"field": "record_type_id", "operator": "equals", "value": RECORD_TYPE_INDONESIA},
-        ],
-    }
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{CRM_BASE}/objects/Opportunity/records",
-            headers={"X-API-Key": api_key},
-            params={"filters": json.dumps(filters), "page_size": 100, "page": 1},
-            timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-    items = [
-        {k: v for k, v in r.items() if not _SENSITIVE_KEY_RE.search(k)}
-        for r in (data.get("items") or [])
-    ]
-
-    all_field_names = sorted({k for r in items for k in r.keys()})
-    date_fields = sorted(k for k in all_field_names if "date" in k.lower())
-
-    # One example row per distinct stage, showing only its stage + date-like fields.
-    by_stage: dict[str, dict] = {}
-    for r in items:
-        stage = r.get("stage") or "(blank)"
-        if stage not in by_stage:
-            by_stage[stage] = {"stage": stage, **{k: r.get(k) for k in date_fields}}
-
-    return {
-        "record_count": len(items),
-        "all_field_names": all_field_names,
-        "date_fields": date_fields,
-        "example_per_stage": by_stage,
-    }
 
 
 @app.get("/{full_path:path}")

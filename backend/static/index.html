@@ -391,6 +391,27 @@
     gap: 8px;
   }
 
+  .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .simple-table th {
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: 0 8px 8px 0;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .simple-table td {
+    padding: 7px 8px 7px 0;
+    border-bottom: 1px solid var(--gridline);
+    color: var(--text-secondary);
+    font-variant-numeric: tabular-nums;
+  }
+  .simple-table tr:last-child td { border-bottom: none; }
+  .simple-table td.num, .simple-table th.num { text-align: right; }
+  .simple-table td.name { color: var(--text-primary); font-weight: 500; }
+
   @media (max-width: 1100px) {
     .stat-grid { grid-template-columns: repeat(3, 1fr); }
   }
@@ -512,6 +533,43 @@
       <div id="bars-owner"></div>
       <div id="rest-owner" class="rest-list"></div>
     </div>
+
+    <div class="section-label" style="margin-top:24px; font-size:13px;">Pipeline Health &amp; Efficiency</div>
+
+    <div class="panels2">
+      <div class="panel">
+        <h2>Deal Aging (open deals)</h2>
+        <p class="panel-sub">Days since creation, for deals still open today.</p>
+        <div id="bars-aging"></div>
+      </div>
+      <div class="panel">
+        <h2>Time in Current Stage (open deals)</h2>
+        <p class="panel-sub">Days since the deal last moved stage.</p>
+        <div id="bars-stage-duration-buckets"></div>
+      </div>
+    </div>
+
+    <div class="panels2" style="margin-top:16px;">
+      <div class="panel">
+        <h2>Stage Bottlenecks</h2>
+        <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
+        <div id="table-stage-duration"></div>
+      </div>
+      <div class="panel">
+        <h2>Pipeline Strength &mdash; Next 3 Months</h2>
+        <p class="panel-sub">Open deals by expected close month: count and potential revenue.</p>
+        <div id="bars-forecast"></div>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Created Opportunities by Manager &amp; Sales Head</h2>
+      <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only).</p>
+      <div class="section-label">By Manager</div>
+      <div id="table-by-manager"></div>
+      <div class="section-label">By Sales Head</div>
+      <div id="table-by-sales-head"></div>
+    </div>
   </div>
 </div>
 
@@ -627,6 +685,66 @@
 
   function setText(id, text) { document.getElementById(id).textContent = text; }
 
+  function monthLabel(ym) {
+    const [y, m] = ym.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, 1)).toLocaleString("en-GB", { month: "short", year: "2-digit" });
+  }
+
+  function renderStageDurationTable(rows) {
+    const container = document.getElementById("table-stage-duration");
+    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open deals.</p>'; return; }
+    container.innerHTML = `
+      <table class="simple-table">
+        <thead><tr><th>Stage</th><th class="num">Avg days</th><th class="num">Deals</th></tr></thead>
+        <tbody>
+          ${rows.map(r => `<tr><td class="name">${r.name}</td><td class="num">${r.avg_days}</td><td class="num">${r.count}</td></tr>`).join("")}
+        </tbody>
+      </table>`;
+  }
+
+  function renderForecast(rows) {
+    const container = document.getElementById("bars-forecast");
+    const maxRevenue = Math.max(...rows.map(r => r.revenue), 1);
+    container.innerHTML = rows.map(r => {
+      const widthPct = Math.max((r.revenue / maxRevenue) * 100, 4);
+      const labelInside = widthPct > 30;
+      return `
+        <div class="bar-row" title="${monthLabel(r.month)}: ${r.count} deals, ${fmtRupiah(r.revenue)}">
+          <span class="bar-name">${monthLabel(r.month)}</span>
+          <div class="bar-track">
+            <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:var(--stage-open);">
+              <span class="count">${fmtRupiah(r.revenue)}</span>
+            </div>
+          </div>
+          <span class="bar-pct">${r.count}</span>
+        </div>`;
+    }).join("");
+  }
+
+  function renderTeamTable(containerId, rollup) {
+    const container = document.getElementById(containerId);
+    if (!rollup.by_manager && !rollup.rows) { container.innerHTML = ""; return; }
+    const rows = rollup;
+    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
+    const months = window.__createdByMonthMonths || [];
+    container.innerHTML = `
+      <table class="simple-table">
+        <thead><tr>
+          <th>Name</th>
+          ${months.map(m => `<th class="num">${monthLabel(m)}</th>`).join("")}
+          <th class="num">Total</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="name">${r.name}</td>
+              ${months.map(m => `<td class="num">${r.counts[m] ?? 0}</td>`).join("")}
+              <td class="num"><b>${r.total}</b></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>`;
+  }
+
   function render(d) {
     TOTAL = d.total;
 
@@ -661,6 +779,16 @@
 
     setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.total ? ` (${((d.service_blank / d.total) * 100).toFixed(1)}%)` : ""}.`);
+
+    renderBars(document.getElementById("bars-aging"), d.aging_buckets.map(b => ({ name: b.label, count: b.count })), () => "var(--stage-open)");
+    renderBars(document.getElementById("bars-stage-duration-buckets"), d.stage_duration_buckets.map(b => ({ name: b.label, count: b.count })), () => "var(--stage-future)");
+    renderStageDurationTable(d.stage_duration);
+    renderForecast(d.forecast_next_3_months);
+
+    window.__createdByMonthMonths = d.created_by_month.months;
+    renderTeamTable("table-by-manager", d.created_by_month.by_manager);
+    renderTeamTable("table-by-sales-head", d.created_by_month.by_sales_head);
+    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only)${d.created_by_month.unmapped_owner_count ? ` — ${d.created_by_month.unmapped_owner_count} owner(s) not in roster, grouped as "Unmapped"` : ""}.`);
   }
 
   function renderError(message) {

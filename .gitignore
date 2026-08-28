@@ -1,2 +1,5 @@
 # Substrait CLI link state
 .substrait/
+
+__pycache__/
+*.pyc
