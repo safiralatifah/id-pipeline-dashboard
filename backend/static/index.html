@@ -530,7 +530,7 @@
   }
   .hover-tip.visible { opacity: 1; transform: translate(-50%, -100%) translateY(-12px) scale(1); }
   [title], [data-tip] { cursor: default; }
-  .bar-fill, .stage-age-seg, .age-stage-seg { transition: filter 0.15s ease; }
+  .bar-fill, .stage-age-seg, .age-stage-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
   .bar-fill:hover, .stage-age-seg:hover, .age-stage-seg:hover { filter: brightness(1.12); }
 
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -1064,6 +1064,22 @@
     const el = e.target.closest("[data-tip]");
     if (el && !(e.relatedTarget && el.contains(e.relatedTarget))) {
       tip.classList.remove("visible");
+    }
+  });
+
+  document.addEventListener("mouseover", e => {
+    const seg = e.target.closest(".stage-age-seg, .age-stage-seg");
+    if (!seg) return;
+    Array.from(seg.parentElement.children).forEach(sib => {
+      sib.style.opacity = sib === seg ? "1" : "0.25";
+    });
+  });
+  document.addEventListener("mouseout", e => {
+    const seg = e.target.closest(".stage-age-seg, .age-stage-seg");
+    if (!seg) return;
+    const track = seg.parentElement;
+    if (!(e.relatedTarget && track.contains(e.relatedTarget))) {
+      Array.from(track.children).forEach(sib => { sib.style.opacity = "1"; });
     }
   });
 })();
