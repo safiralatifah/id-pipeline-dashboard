@@ -462,8 +462,40 @@
     overflow: hidden;
     background: var(--surface-2);
   }
+  .age-stage-row {
+    display: grid;
+    grid-template-columns: 64px 1fr 46px;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+  }
+  .age-stage-row + .age-stage-row { border-top: 1px solid var(--gridline); }
+  .age-stage-row .age-stage-name { font-size: 12.5px; font-weight: 500; color: var(--text-primary); }
+  .age-stage-row .age-stage-n { font-family: "IBM Plex Mono", monospace; color: var(--text-muted); font-size: 11.5px; text-align: right; }
+  .age-stage-track {
+    display: flex;
+    height: 22px;
+    border-radius: 5px;
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+  .age-stage-seg {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #fff;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
   @media (max-width: 900px) {
     .stage-age-row { grid-template-columns: 104px 1fr 46px; }
+    .age-stage-row { grid-template-columns: 52px 1fr 40px; }
   }
   .stage-age-seg {
     height: 100%;
@@ -624,17 +656,17 @@
 
     <div class="section-label" style="margin-top:24px; font-size:13px;">Pipeline Health &amp; Efficiency</div>
 
-    <div class="panels2">
-      <div class="panel">
-        <h2>Deal Aging (open deals)</h2>
-        <p class="panel-sub">Days since creation, for deals still open today.</p>
-        <div id="bars-aging"></div>
-      </div>
-      <div class="panel">
-        <h2>Stage Bottlenecks</h2>
-        <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
-        <div id="table-stage-duration"></div>
-      </div>
+    <div class="panel">
+      <h2>Deal Aging (open deals)</h2>
+      <p class="panel-sub" style="margin-bottom:14px;">Days since creation, broken down by which stage those deals are sitting in now.</p>
+      <div id="age-stage-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
+      <div id="aging-stage-grid"></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Stage Bottlenecks</h2>
+      <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
+      <div id="table-stage-duration"></div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
@@ -840,6 +872,37 @@
   }
 
   const AGE_COLORS = ["var(--age-0)", "var(--age-2)", "var(--age-4)", "var(--age-5)"];
+
+  const STAGE_ORDER = ["Prospecting", "New", "Proposal Submitted", "Negotiation", "EKYC Approval", "Contract Sent", "Agreed to Ship", "Onboarding", "Ready to Ship", "Future Opportunity"];
+  const STAGE_COLORS = ["#8f867a", "#2a78d6", "#0ca36c", "#d9a441", "#d9782c", "#8b5cf6", "#5dcaa5", "#993c1d", "#5598e7", "#4a3aa7"];
+  function stageColor(name) {
+    const i = STAGE_ORDER.indexOf(name);
+    return i >= 0 ? STAGE_COLORS[i % STAGE_COLORS.length] : "#8f867a";
+  }
+
+  function renderAgingStageGrid(rows) {
+    const container = document.getElementById("aging-stage-grid");
+    const present = new Set();
+    rows.forEach(r => r.stages.forEach(s => present.add(s.name)));
+    document.getElementById("age-stage-legend").innerHTML = STAGE_ORDER.filter(s => present.has(s)).map(s => `
+      <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary);">
+        <span style="width:10px; height:10px; border-radius:3px; background:${stageColor(s)}; flex:none;"></span>${s}
+      </span>`).join("");
+
+    if (!rows.some(r => r.total)) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open deals.</p>'; return; }
+    container.innerHTML = rows.map(row => {
+      const segs = row.stages.map(s => {
+        const pct = row.total ? (s.count / row.total) * 100 : 0;
+        return `<div class="age-stage-seg" style="width:${pct}%; background:${stageColor(s.name)};" title="${row.label} · ${s.name}: ${s.count} deal(s)">${pct > 10 ? s.count : ""}</div>`;
+      }).join("");
+      return `
+        <div class="age-stage-row">
+          <span class="age-stage-name">${row.label}</span>
+          <div class="age-stage-track">${segs}</div>
+          <span class="age-stage-n">${row.total}</span>
+        </div>`;
+    }).join("");
+  }
   let ageMode = "share";
   let lastStageGrid = [];
 
@@ -909,7 +972,7 @@
     setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.total ? ` (${((d.service_blank / d.total) * 100).toFixed(1)}%)` : ""}.`);
 
-    renderBars(document.getElementById("bars-aging"), d.aging_buckets.map(b => ({ name: b.label, count: b.count })), () => "var(--stage-open)");
+    renderAgingStageGrid(d.aging_grid);
     renderStageDurationTable(d.stage_duration);
     renderAgeLegend(d.aging_buckets.map(b => b.label));
     renderStageAgeGrid(d.stage_duration_grid);

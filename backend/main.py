@@ -163,16 +163,33 @@ def build_dashboard(items: list[dict]) -> dict:
     revenue = sum(float(r.get("total_potential_revenue_mth") or 0) for r in items)
     committed = sum(float(r.get("committed_revenue_mth") or 0) for r in items)
 
-    # Aging: how long each OPEN deal has sat since creation.
+    # Aging: how long each OPEN deal has sat since creation, and which stage
+    # it's currently sitting in — surfaces "old since creation, stuck at X".
     aging_bucket_counts = Counter()
+    aging_stage_matrix: dict[str, Counter] = {}
     for r in open_items:
         created = _parse_dt(r.get("created_at"))
-        if created:
-            aging_bucket_counts[_bucket_for((now - created).days)] += 1
+        if not created:
+            continue
+        bucket = _bucket_for((now - created).days)
+        stage_name = r.get("stage") or "(blank)"
+        aging_bucket_counts[bucket] += 1
+        aging_stage_matrix.setdefault(bucket, Counter())[stage_name] += 1
     aging_buckets = [
         {"label": label, "count": aging_bucket_counts.get(label, 0)}
         for label, _, _ in AGING_BUCKETS
     ]
+    aging_stage_order = OPEN_STAGE_ORDER + ["Future Opportunity"]
+    aging_grid = []
+    for label, _, _ in AGING_BUCKETS:
+        counts = aging_stage_matrix.get(label, Counter())
+        ordered = [s for s in aging_stage_order if counts.get(s)]
+        ordered += [s for s in counts if s not in aging_stage_order]
+        aging_grid.append({
+            "label": label,
+            "total": sum(counts.values()),
+            "stages": [{"name": s, "count": counts[s]} for s in ordered],
+        })
 
     # Stage duration: how long each OPEN deal has sat in its CURRENT stage,
     # and the per-stage age-bucket breakdown that surfaces bottlenecks: for
@@ -304,6 +321,7 @@ def build_dashboard(items: list[dict]) -> dict:
         "service_blank": service_blank,
         "owners": owners,
         "aging_buckets": aging_buckets,
+        "aging_grid": aging_grid,
         "stage_duration": stage_duration,
         "stage_duration_buckets": stage_duration_buckets,
         "stage_duration_grid": stage_duration_grid,
