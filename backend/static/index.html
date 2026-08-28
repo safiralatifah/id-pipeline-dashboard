@@ -686,25 +686,27 @@
       <div id="aging-stage-grid"></div>
     </div>
 
-    <div class="panel" style="margin-top:16px;">
-      <h2>Stage Bottlenecks</h2>
-      <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
-      <div id="table-stage-duration"></div>
-    </div>
-
-    <div class="panel" style="margin-top:16px;">
-      <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-        <div>
-          <h2>Stage &times; Ageing</h2>
-          <p class="panel-sub" style="margin-bottom:14px;">Share of each stage's open deals by days since last stage change.</p>
+    <div class="panels2" style="margin-top:16px;">
+      <div class="panel">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div>
+            <h2>Stage &times; Ageing</h2>
+            <p class="panel-sub" style="margin-bottom:14px;">Share of each stage's open deals by days since last stage change.</p>
+          </div>
+          <div class="age-mode-toggle">
+            <button type="button" class="age-mode-btn active" data-mode="share">Share (100%)</button>
+            <button type="button" class="age-mode-btn" data-mode="count">Count</button>
+          </div>
         </div>
-        <div class="age-mode-toggle">
-          <button type="button" class="age-mode-btn active" data-mode="share">Share (100%)</button>
-          <button type="button" class="age-mode-btn" data-mode="count">Count</button>
-        </div>
+        <div id="age-grid-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
+        <div id="stage-age-grid"></div>
       </div>
-      <div id="age-grid-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
-      <div id="stage-age-grid"></div>
+
+      <div class="panel">
+        <h2>Stage Bottlenecks</h2>
+        <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
+        <div id="table-stage-duration"></div>
+      </div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
