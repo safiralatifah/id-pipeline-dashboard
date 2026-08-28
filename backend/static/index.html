@@ -433,24 +433,37 @@
   }
   .age-mode-btn.active { background: var(--accent); color: var(--accent-ink); }
 
-  .stage-age-row { padding: 8px 0; }
+  .stage-age-row {
+    display: grid;
+    grid-template-columns: 150px 1fr 56px;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+  }
   .stage-age-row + .stage-age-row { border-top: 1px solid var(--gridline); }
-  .stage-age-row .stage-age-head {
-    display: flex;
-    justify-content: space-between;
+  .stage-age-row .stage-age-name {
     font-size: 12.5px;
     font-weight: 500;
-    color: var(--text-secondary);
-    margin-bottom: 6px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .stage-age-row .stage-age-head b { color: var(--text-primary); }
-  .stage-age-row .stage-age-head .n { font-family: "IBM Plex Mono", monospace; color: var(--text-muted); font-size: 11.5px; }
+  .stage-age-row .stage-age-n {
+    font-family: "IBM Plex Mono", monospace;
+    color: var(--text-muted);
+    font-size: 11.5px;
+    text-align: right;
+  }
   .stage-age-track {
     display: flex;
     height: 22px;
     border-radius: 5px;
     overflow: hidden;
     background: var(--surface-2);
+  }
+  @media (max-width: 900px) {
+    .stage-age-row { grid-template-columns: 104px 1fr 46px; }
   }
   .stage-age-seg {
     height: 100%;
@@ -854,8 +867,9 @@
       const trackWidth = ageMode === "share" ? "100%" : `${(row.total / maxTotal) * 100}%`;
       return `
         <div class="stage-age-row">
-          <div class="stage-age-head"><b>${row.stage}</b><span class="n">${row.total} opps</span></div>
+          <span class="stage-age-name">${row.stage}</span>
           <div class="stage-age-track" style="width:${trackWidth};">${segs}</div>
+          <span class="stage-age-n">${row.total}</span>
         </div>`;
     }).join("");
   }
