@@ -261,6 +261,7 @@ def build_dashboard(items: list[dict]) -> dict:
         "by_manager": _rollup(manager_totals),
         "by_sales_head": _rollup(sales_head_totals),
         "unmapped_owner_count": len(unmapped_owners),
+        "unmapped_owners": sorted(o for o in unmapped_owners if o),
     }
 
     return {

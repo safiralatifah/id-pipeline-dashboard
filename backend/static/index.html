@@ -786,7 +786,8 @@
     window.__createdByMonthMonths = d.created_by_month.months;
     renderTeamTable("table-by-manager", d.created_by_month.by_manager);
     renderTeamTable("table-by-sales-head", d.created_by_month.by_sales_head);
-    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only)${d.created_by_month.unmapped_owner_count ? ` — ${d.created_by_month.unmapped_owner_count} owner(s) not in roster, grouped as "Unmapped"` : ""}.`);
+    const unmapped = d.created_by_month.unmapped_owners || [];
+    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only)${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
   }
 
   function renderError(message) {
