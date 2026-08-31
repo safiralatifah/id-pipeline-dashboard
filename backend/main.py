@@ -624,6 +624,44 @@ def build_dashboard(
         key=lambda row: row["active_pct"],
     )
 
+    # CRM Updated %: the single final KPI — Notebook and Task activity summed
+    # into one numerator/denominator rather than averaged, so a rep with e.g.
+    # 50 open deals and 2 open tasks isn't dragged down (or propped up) by
+    # treating both signals as equally weighted.
+    crm_updated_numerator = touched_within_7d + task_active_total
+    crm_updated_denominator = len(open_items) + task_total
+    crm_updated_pct = (
+        round(crm_updated_numerator / crm_updated_denominator * 100, 1)
+        if crm_updated_denominator else 0.0
+    )
+    crm_updated_owner_names = set(owner_activity) | set(task_total_by_owner)
+    crm_updated_by_owner = sorted(
+        (
+            {
+                "name": owner,
+                "updated": (
+                    owner_activity.get(owner, Counter()).get(activity_labels[0], 0)
+                    + task_active_by_owner.get(owner, 0)
+                ),
+                "total": owner_totals.get(owner, 0) + task_total_by_owner.get(owner, 0),
+                "pct": (
+                    round(
+                        (
+                            owner_activity.get(owner, Counter()).get(activity_labels[0], 0)
+                            + task_active_by_owner.get(owner, 0)
+                        )
+                        / (owner_totals.get(owner, 0) + task_total_by_owner.get(owner, 0))
+                        * 100,
+                        1,
+                    )
+                    if owner_totals.get(owner, 0) + task_total_by_owner.get(owner, 0) else 0.0
+                ),
+            }
+            for owner in crm_updated_owner_names
+        ),
+        key=lambda row: row["pct"],
+    )
+
     return {
         "total": total,
         "created_this_month": created_this_month,
@@ -670,6 +708,10 @@ def build_dashboard(
         "task_activity_pct": task_activity_pct,
         "task_activity_by_owner": task_activity_by_owner,
         "task_unmapped_reps": TASK_UNMAPPED_REPS,
+        "crm_updated_pct": crm_updated_pct,
+        "crm_updated_numerator": crm_updated_numerator,
+        "crm_updated_denominator": crm_updated_denominator,
+        "crm_updated_by_owner": crm_updated_by_owner,
     }
 
 

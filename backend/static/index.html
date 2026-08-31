@@ -706,7 +706,7 @@
         <span class="sub" id="stat-open-sub">&nbsp;</span>
       </div>
       <div class="stat accent">
-        <span class="label">Touched in Last 7 Days</span>
+        <span class="label">CRM Updated %</span>
         <span class="value" id="stat-activity-pct">&ndash;</span>
         <span class="sub" id="stat-activity-sub">&nbsp;</span>
       </div>
@@ -800,6 +800,11 @@
       <p class="panel-sub" style="margin-bottom:14px;">Reps are expected to keep both their Notebook and their Tasks updated at least every 7 days.</p>
 
       <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:18px;">
+        <div class="stat accent" style="max-width:260px; border-color:var(--accent);">
+          <span class="label">CRM Updated %</span>
+          <span class="value" id="crm-updated-pct">&ndash;</span>
+          <span class="sub" id="crm-updated-sub">&nbsp;</span>
+        </div>
         <div class="stat accent" style="max-width:260px;">
           <span class="label">Notebook touched in last 7 days</span>
           <span class="value" id="activity-touched-pct">&ndash;</span>
@@ -891,7 +896,7 @@
         <ul>
           <li><strong>Created This Month / vs last month</strong>: count of opportunities (any stage) whose <code>created_at</code> falls in the current / previous calendar month.</li>
           <li><strong>Open Pipeline</strong>: count of all OPEN deals (open_active + Future Opportunity).</li>
-          <li><strong>Touched in Last 7 Days</strong>: of all OPEN deals, the % whose most recent Notebook entry (or <code>created_at</code> if it has none) is within the last 7 days. See "Activity" below for the full definition.</li>
+          <li><strong>CRM Updated %</strong>: the final combined Activity KPI &mdash; see "Activity" below for the full definition.</li>
           <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of deals whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. deals that actually closed this month, not deals merely created this month.</li>
           <li><strong>Win Rate</strong>: <code>closed_won &divide; (closed_won + closed_lost)</code> over the full population (12mo + all&#8209;time open). Answers "of deals that reached a final outcome, how many did we win?" &mdash; still&#8209;open deals are excluded from both sides of the ratio.</li>
           <li><strong>Pipeline Conversion</strong>: <code>closed_won &divide; total</code> &mdash; total includes still&#8209;open deals, so this answers "of every opportunity ever in this population, what share ended up won?" (necessarily lower than Win Rate, since it also counts deals that haven't concluded yet).</li>
@@ -927,10 +932,11 @@
       <h2>Activity</h2>
       <div class="notes">
         <ul>
-          <li>Two independent freshness signals, shown in one panel: <strong>Notebook</strong> (a note logged on the Opportunity) and <strong>Tasks</strong> (CRM Task records) &mdash; a rep can be current on one and stale on the other.</li>
+          <li>Two independent freshness signals feed one final KPI: <strong>Notebook</strong> (a note logged on the Opportunity) and <strong>Tasks</strong> (CRM Task records) &mdash; a rep can be current on one and stale on the other.</li>
           <li><strong>Notebook</strong>: entries are fetched separately from Opportunities (<code>GET /notebook/entries?object_type=Opportunity</code>, paginated) and reduced to the most recent entry's <code>created_at</code> per opportunity id. For every OPEN deal, <code>last_touch</code> = that Notebook date, or <code>created_at</code> if the deal has no Notebook entry at all (never touched &ne; recently touched); <code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched). "Notebook touched in last 7 days" = count in the &lt;7d tier &divide; total open deals.</li>
           <li><strong>Tasks</strong>: population is CRM <strong>Task</strong> records (not Opportunities) with <code>status</code> in Not Started or In Progress &mdash; Completed and Deferred are excluded entirely. Task is a global object with no country field, so it's fetched pre&#8209;filtered server&#8209;side to just the <code>owner_id</code>s in the Indonesia team roster (a rep only owns their own country's work), not a full global pull. A task counts as <strong>Active</strong> when both hold: (1) <code>last_touch</code> (=<code>updated_at</code>, falling back to <code>created_at</code> if never edited since logged) is within the last 7 days, AND (2) it is <strong>not overdue</strong> (<code>due_date</code> is blank, or today or later). "Tasks active in last 7 days" = Active task count &divide; total open task count.</li>
-          <li><strong>By salesperson table</strong>: one row per rep, combining both signals &mdash; Notebook Updated (%) plus its 7&#8209;14d/14&#8209;30d/30d+ counts and Total (the &lt;7d count is omitted since it's the same number the % column already shows), then Task Updated (%), Updated Task count, and Open Tasks. Sorted worst&#8209;first on Notebook (most 30d+ deals); a rep with no open deals but open Tasks (or vice versa) still gets a row, with "&ndash;" on the side that doesn't apply. Reps with no <code>owner_id</code> on file in the team roster can't be queried for Tasks at all — their Task columns always show "&ndash;", and they're named in the caption below the table.</li>
+          <li><strong>CRM Updated %</strong> (the final KPI, also shown as a top summary card): Notebook and Task counts are <em>summed</em>, not averaged &mdash; <code>(Notebook &lt;7d count + Task Active count) &divide; (total open deals + total open Tasks)</code>. Summing means a rep with many open deals but few Tasks isn't equally weighted between the two signals; it's one pooled ratio, not an average of two percentages.</li>
+          <li><strong>By salesperson table</strong>: one row per rep. <strong>CRM Updated (%)</strong> is that rep's own version of the final KPI (their Notebook &lt;7d + Task Active, over their own open deals + open Tasks), followed by the Notebook detail (Updated % plus its 7&#8209;14d/14&#8209;30d/30d+ counts and Total &mdash; the &lt;7d count is omitted since the % column already shows it) and the Task detail (Updated %, Updated Task count, Open Tasks). Sorted worst&#8209;first on CRM Updated (%); a rep with no open deals but open Tasks (or vice versa) still gets a row, with "&ndash;" on the side that doesn't apply. Reps with no <code>owner_id</code> on file in the team roster can't be queried for Tasks at all &mdash; their Task columns show "&ndash;" and their CRM Updated (%) falls back to Notebook&#8209;only (not directly comparable to reps with both signals); they're named in the caption below the table.</li>
         </ul>
       </div>
     </div>
@@ -1178,10 +1184,12 @@
     return "var(--status-good)";
   }
 
-  function renderActivityOwnerTable(activityRows, taskRows, bucketLabels) {
+  function renderActivityOwnerTable(activityRows, taskRows, crmRows, bucketLabels) {
     const container = document.getElementById("table-activity-owner");
     const taskByName = {};
     (taskRows || []).forEach(r => { taskByName[r.name] = r; });
+    const crmByName = {};
+    (crmRows || []).forEach(r => { crmByName[r.name] = r; });
     const activityNames = new Set((activityRows || []).map(r => r.name));
     const rows = [
       ...(activityRows || []).map(r => ({ name: r.name, activity: r })),
@@ -1193,6 +1201,7 @@
       <table class="simple-table">
         <thead><tr>
           <th>Owner</th>
+          <th class="num" style="color:var(--accent); font-weight:700;">CRM Updated (%)</th>
           <th class="num" style="color:var(--accent);">Notebook Updated (%)</th>
           ${shownBuckets.map(l => `<th class="num">${l}</th>`).join("")}
           <th class="num">Total</th>
@@ -1203,6 +1212,10 @@
         <tbody>
           ${rows.map(({ name, activity }) => {
             const t = taskByName[name];
+            const crm = crmByName[name];
+            const crmCell = crm
+              ? `<td class="num" style="color:${activityPctColor(crm.pct)}; font-weight:700;">${crm.pct}%</td>`
+              : `<td class="num" style="color:var(--text-muted);">&ndash;</td>`;
             const activityCells = activity
               ? `<td class="num" style="color:${activityPctColor(activity.touched_pct)}; font-weight:600;">${activity.touched_pct}%</td>
                  ${shownBuckets.map(l => `<td class="num">${activity.counts[l] ?? 0}</td>`).join("")}
@@ -1215,7 +1228,7 @@
                  <td class="num">${t.active}</td>
                  <td class="num"><b>${t.total}</b></td>`
               : `<td class="num" style="color:var(--text-muted);">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td>`;
-            return `<tr><td class="name">${name}</td>${activityCells}${taskCells}</tr>`;
+            return `<tr><td class="name">${name}</td>${crmCell}${activityCells}${taskCells}</tr>`;
           }).join("")}
         </tbody>
       </table>`;
@@ -1273,8 +1286,8 @@
     setText("stat-total-sub", vsLastMonth(d.created_this_month, d.created_last_month));
     setText("stat-open", d.open_pipeline);
     setText("stat-open-sub", `${d.open_active} active + ${d.open_future} future`);
-    setText("stat-activity-pct", `${d.activity_touched_pct}%`);
-    setText("stat-activity-sub", `of ${d.open_pipeline} open opportunities`);
+    setText("stat-activity-pct", `${d.crm_updated_pct}%`);
+    setText("stat-activity-sub", `${d.crm_updated_numerator} of ${d.crm_updated_denominator} (Notebook + Task)`);
     setText("stat-won", d.closed_won_this_month);
     setText("stat-won-sub", vsLastMonth(d.closed_won_this_month, d.closed_won_last_month));
     setText("stat-lost", d.closed_lost_this_month);
@@ -1308,13 +1321,15 @@
     setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.open_pipeline ? ` (${((d.service_blank / d.open_pipeline) * 100).toFixed(1)}%)` : ""}.`);
 
+    setText("crm-updated-pct", `${d.crm_updated_pct}%`);
+    setText("crm-updated-sub", `${d.crm_updated_numerator} of ${d.crm_updated_denominator} combined`);
     setText("activity-touched-pct", `${d.activity_touched_pct}%`);
     setText("activity-touched-sub", `of ${d.open_pipeline} open opportunities`);
     renderActivitySummary(d.activity_summary);
 
     setText("task-activity-pct", `${d.task_activity_pct}%`);
     setText("task-activity-sub", `of ${d.task_total} open task(s)`);
-    renderActivityOwnerTable(d.activity_by_owner, d.task_activity_by_owner, d.activity_summary.map(b => b.label));
+    renderActivityOwnerTable(d.activity_by_owner, d.task_activity_by_owner, d.crm_updated_by_owner, d.activity_summary.map(b => b.label));
     const taskUnmapped = d.task_unmapped_reps || [];
     setText("task-unmapped-note", taskUnmapped.length
       ? `${taskUnmapped.length} rep(s) have no CRM user id on file and can't be measured for Tasks: ${taskUnmapped.join(", ")}.`

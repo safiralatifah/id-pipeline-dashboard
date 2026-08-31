@@ -303,6 +303,22 @@
                       "description": "Roster names with no CRM owner_id on file — their Tasks can't be queried at all.",
                       "items": { "type": "string" }
                     },
+                    "crm_updated_pct": { "type": "number", "description": "The final Activity KPI: (Notebook <7d count + Task Active count) / (total open deals + total open Tasks), summed rather than averaged." },
+                    "crm_updated_numerator": { "type": "integer" },
+                    "crm_updated_denominator": { "type": "integer" },
+                    "crm_updated_by_owner": {
+                      "type": "array",
+                      "description": "Per-owner version of crm_updated_pct, sorted worst first.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "updated": { "type": "integer" },
+                          "total": { "type": "integer" },
+                          "pct": { "type": "number" }
+                        }
+                      }
+                    },
                     "snapshot_at": { "type": "string", "format": "date-time" }
                   }
                 }
