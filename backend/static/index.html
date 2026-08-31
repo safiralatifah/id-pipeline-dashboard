@@ -139,14 +139,45 @@
     border-right: 1px solid var(--border);
     padding: 20px 12px;
     box-sizing: border-box;
+    transition: width 0.15s ease;
+  }
+  .sidebar-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+    padding: 0 0 16px 8px;
   }
   .sidebar-title {
     font-family: "Sora", sans-serif;
     font-weight: 700;
     font-size: 14px;
     color: var(--text-primary);
-    padding: 0 8px 16px;
+    white-space: nowrap;
+    overflow: hidden;
   }
+  .sidebar-collapse-btn {
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    background: none;
+    border: none;
+    border-radius: 6px;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+  .sidebar-collapse-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+  .sidebar-collapse-btn svg { width: 14px; height: 14px; }
+
+  .sidebar.collapsed { width: 56px; }
+  .sidebar.collapsed .sidebar-head { justify-content: center; padding: 0 0 16px; }
+  .sidebar.collapsed .sidebar-title { display: none; }
+  .sidebar.collapsed .sidebar-collapse-btn svg { transform: rotate(180deg); }
+  .sidebar.collapsed .nav-item { justify-content: center; padding: 9px; }
+  .sidebar.collapsed .nav-item span { display: none; }
   .nav-item {
     display: flex;
     align-items: center;
@@ -170,9 +201,11 @@
 
   @media (max-width: 700px) {
     .app-shell { flex-direction: column; }
-    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 6px; padding: 12px; overflow-x: auto; }
-    .sidebar-title { display: none; }
+    .sidebar, .sidebar.collapsed { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 6px; padding: 12px; overflow-x: auto; }
+    .sidebar-head { display: none; }
     .nav-item { width: auto; white-space: nowrap; margin-bottom: 0; }
+    .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 9px 10px; }
+    .sidebar.collapsed .nav-item span { display: inline; }
   }
   .viz-root * { box-sizing: border-box; }
   .wrap { max-width: 1180px; margin: 0 auto; }
@@ -646,8 +679,13 @@
 <body>
 
 <div class="app-shell">
-<nav class="sidebar">
-  <div class="sidebar-title">Indonesia Pipeline</div>
+<nav class="sidebar" id="sidebar">
+  <div class="sidebar-head">
+    <div class="sidebar-title">Indonesia Pipeline</div>
+    <button type="button" class="sidebar-collapse-btn" id="sidebar-collapse-btn" aria-label="Collapse sidebar" data-tip="Collapse sidebar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 19l-7-7 7-7"></path><path d="M18 19l-7-7 7-7"></path></svg>
+    </button>
+  </div>
   <button type="button" class="nav-item active" data-view="overview">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="14"></line><line x1="12" y1="20" x2="12" y2="8"></line><line x1="18" y1="20" x2="18" y2="4"></line></svg>
     <span>Overview</span>
@@ -1355,6 +1393,20 @@
       document.getElementById("view-dictionary").style.display = btn.dataset.view === "dictionary" ? "" : "none";
     });
   });
+
+  (() => {
+    const sidebar = document.getElementById("sidebar");
+    const collapseBtn = document.getElementById("sidebar-collapse-btn");
+    let collapsed = false;
+    try { collapsed = localStorage.getItem("sidebarCollapsed") === "1"; } catch (e) {}
+    if (collapsed) sidebar.classList.add("collapsed");
+    collapseBtn.addEventListener("click", () => {
+      const next = sidebar.classList.toggle("collapsed");
+      collapseBtn.setAttribute("aria-label", next ? "Expand sidebar" : "Collapse sidebar");
+      collapseBtn.setAttribute("data-tip", next ? "Expand sidebar" : "Collapse sidebar");
+      try { localStorage.setItem("sidebarCollapsed", next ? "1" : "0"); } catch (e) {}
+    });
+  })();
 
   load();
   setInterval(load, 5 * 60 * 1000);
