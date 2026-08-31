@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import re
@@ -93,6 +94,44 @@ def _activity_bucket_for(days: int) -> tuple[str, str]:
     return "30d+", "critical"
 
 
+_PAGE_CONCURRENCY = 8
+
+
+async def _fetch_paginated(
+    client: httpx.AsyncClient, url: str, headers: dict, params: dict, page_size: int = 100
+) -> list[dict]:
+    """Fetch every page of a {items,total,page,page_size,has_next} envelope.
+    Page 1 is fetched first to learn the total, then the rest are fetched
+    concurrently (bounded) instead of one-at-a-time — this matters once the
+    collection is large (e.g. all-time Opportunities, or the ~1500-entry
+    Notebook feed)."""
+    first = await client.get(url, headers=headers, params={**params, "page_size": page_size, "page": 1}, timeout=20)
+    if first.status_code == 401:
+        raise HTTPException(
+            status_code=502,
+            detail="CRM API key rejected (expired or revoked) — rotate CRM_API_KEY",
+        )
+    first.raise_for_status()
+    data = first.json()
+    items: list[dict] = list(data.get("items") or [])
+    total = data.get("total")
+    if not data.get("has_next") or not total:
+        return items
+
+    total_pages = -(-total // page_size)  # ceil division
+    sem = asyncio.Semaphore(_PAGE_CONCURRENCY)
+
+    async def fetch_page(page: int) -> list[dict]:
+        async with sem:
+            resp = await client.get(url, headers=headers, params={**params, "page_size": page_size, "page": page}, timeout=20)
+            resp.raise_for_status()
+            return list(resp.json().get("items") or [])
+
+    for page_items in await asyncio.gather(*(fetch_page(p) for p in range(2, total_pages + 1))):
+        items.extend(page_items)
+    return items
+
+
 async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
@@ -105,28 +144,12 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
             {"field": "record_type_id", "operator": "equals", "value": RECORD_TYPE_INDONESIA},
         ],
     }
-
-    items: list[dict] = []
-    page = 1
-    while True:
-        resp = await client.get(
-            f"{CRM_BASE}/objects/Opportunity/records",
-            headers={"X-API-Key": api_key},
-            params={"filters": json.dumps(filters), "page_size": 100, "page": page},
-            timeout=20,
-        )
-        if resp.status_code == 401:
-            raise HTTPException(
-                status_code=502,
-                detail="CRM API key rejected (expired or revoked) — rotate CRM_API_KEY",
-            )
-        resp.raise_for_status()
-        data = resp.json()
-        items.extend(data["items"])
-        if not data.get("has_next"):
-            break
-        page += 1
-
+    items = await _fetch_paginated(
+        client,
+        f"{CRM_BASE}/objects/Opportunity/records",
+        {"X-API-Key": api_key},
+        {"filters": json.dumps(filters)},
+    )
     return [r for r in items if EXCLUDE_NAME_SUBSTR not in (r.get("name") or "")]
 
 
@@ -138,28 +161,20 @@ async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, date
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
 
+    entries = await _fetch_paginated(
+        client,
+        f"{CRM_BASE}/notebook/entries",
+        {"X-API-Key": api_key},
+        {"object_type": "Opportunity"},
+    )
     last_touch: dict[int, datetime] = {}
-    page = 1
-    while True:
-        resp = await client.get(
-            f"{CRM_BASE}/notebook/entries",
-            headers={"X-API-Key": api_key},
-            params={"object_type": "Opportunity", "page_size": 100, "page": page},
-            timeout=20,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        for entry in data.get("items") or []:
-            record_id = entry.get("record_id")
-            created = _parse_dt(entry.get("created_at"))
-            if record_id is None or not created:
-                continue
-            if record_id not in last_touch or created > last_touch[record_id]:
-                last_touch[record_id] = created
-        if not data.get("has_next"):
-            break
-        page += 1
-
+    for entry in entries:
+        record_id = entry.get("record_id")
+        created = _parse_dt(entry.get("created_at"))
+        if record_id is None or not created:
+            continue
+        if record_id not in last_touch or created > last_touch[record_id]:
+            last_touch[record_id] = created
     return last_touch
 
 
@@ -491,8 +506,10 @@ async def get_pipeline():
         return _cache["data"]
 
     async with httpx.AsyncClient() as client:
-        items = await fetch_all_opportunities(client)
-        notebook_last_touch = await fetch_notebook_last_touch(client)
+        items, notebook_last_touch = await asyncio.gather(
+            fetch_all_opportunities(client),
+            fetch_notebook_last_touch(client),
+        )
 
     result = build_dashboard(items, notebook_last_touch)
     result["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
