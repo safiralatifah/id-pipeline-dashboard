@@ -171,7 +171,7 @@
 
   .stat-grid {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 12px;
     margin-bottom: 28px;
   }
@@ -587,11 +587,7 @@
   .simple-table td.num, .simple-table th.num { text-align: right; }
   .simple-table td.name { color: var(--text-primary); font-weight: 500; }
 
-  @media (max-width: 1100px) {
-    .stat-grid { grid-template-columns: repeat(3, 1fr); }
-  }
   @media (max-width: 900px) {
-    .stat-grid { grid-template-columns: repeat(2, 1fr); }
     .panels { grid-template-columns: 1fr; }
     .bar-row { grid-template-columns: 104px 1fr 46px; }
     .bar-row.wide-name { grid-template-columns: 118px 1fr 46px; }
@@ -622,6 +618,11 @@
         <span class="label">Open Pipeline</span>
         <span class="value" id="stat-open">&ndash;</span>
         <span class="sub" id="stat-open-sub">&nbsp;</span>
+      </div>
+      <div class="stat accent">
+        <span class="label">Touched in Last 7 Days</span>
+        <span class="value" id="stat-activity-pct">&ndash;</span>
+        <span class="sub" id="stat-activity-sub">&nbsp;</span>
       </div>
       <div class="stat good">
         <span class="label">Closed&ndash;Won</span>
@@ -1070,6 +1071,8 @@
     setText("stat-total", d.total);
     setText("stat-open", d.open_pipeline);
     setText("stat-open-sub", `${d.open_active} active + ${d.open_future} future`);
+    setText("stat-activity-pct", `${d.activity_touched_pct}%`);
+    setText("stat-activity-sub", `of ${d.open_pipeline} open opportunities`);
     setText("stat-won", d.closed_won);
     setText("stat-won-sub", `${d.total ? ((d.closed_won / d.total) * 100).toFixed(1) : "0.0"}% of total`);
     setText("stat-lost", d.closed_lost);
