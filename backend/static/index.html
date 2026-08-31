@@ -966,6 +966,13 @@
     renderBars(container, buckets.map(b => ({ name: b.label, count: b.count })), r => colorByLabel[r.name]);
   }
 
+  function activityPctColor(pct) {
+    if (pct < 50) return "var(--status-critical)";
+    if (pct < 75) return "var(--age-3)";
+    if (pct < 90) return "var(--age-2)";
+    return "var(--status-good)";
+  }
+
   function renderActivityOwnerTable(rows, bucketLabels) {
     const container = document.getElementById("table-activity-owner");
     if (!rows || !rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
@@ -973,17 +980,17 @@
       <table class="simple-table">
         <thead><tr>
           <th>Owner</th>
+          <th class="num" style="color:var(--accent);">Activity Updated (%)</th>
           ${bucketLabels.map(l => `<th class="num">${l}</th>`).join("")}
           <th class="num">Total</th>
-          <th class="num">% &lt;7d</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => `
             <tr>
               <td class="name">${r.name}</td>
+              <td class="num" style="color:${activityPctColor(r.touched_pct)}; font-weight:600;">${r.touched_pct}%</td>
               ${bucketLabels.map(l => `<td class="num">${r.counts[l] ?? 0}</td>`).join("")}
               <td class="num"><b>${r.total}</b></td>
-              <td class="num">${r.touched_pct}%</td>
             </tr>`).join("")}
         </tbody>
       </table>`;
