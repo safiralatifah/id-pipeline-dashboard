@@ -1180,14 +1180,12 @@
         <thead><tr>
           <th>Name</th>
           ${months.map(m => `<th class="num">${monthLabel(m)}${m === currentMonth ? " (target)" : ""}</th>`).join("")}
-          <th class="num">Total</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => `
             <tr>
               <td class="name">${r.name}</td>
               ${months.map(m => m === currentMonth ? targetCellHtml(r.counts[m] ?? 0, r.target) : `<td class="num">${r.counts[m] ?? 0}</td>`).join("")}
-              <td class="num"><b>${r.total}</b></td>
             </tr>`).join("")}
         </tbody>
       </table>`;
