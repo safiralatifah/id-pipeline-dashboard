@@ -796,29 +796,32 @@
     <div class="section-label" style="margin-top:24px; font-size:13px;">Pipeline Health &amp; Efficiency</div>
 
     <div class="panel">
-      <h2>Activity &mdash; Notebook Freshness</h2>
-      <p class="panel-sub" style="margin-bottom:14px;">Reps are expected to add a Notebook entry to every open opportunity at least every 7 days.</p>
-      <div class="stat accent" style="max-width:260px; margin-bottom:18px;">
-        <span class="label">Touched in last 7 days</span>
-        <span class="value" id="activity-touched-pct">&ndash;</span>
-        <span class="sub" id="activity-touched-sub">&nbsp;</span>
-      </div>
-      <div id="bars-activity"></div>
-      <div class="divider"></div>
-      <div class="section-label">By Salesperson (worst first)</div>
-      <div id="table-activity-owner"></div>
-    </div>
+      <h2>Activity</h2>
+      <p class="panel-sub" style="margin-bottom:14px;">Reps are expected to keep both their Notebook and their Tasks updated at least every 7 days.</p>
 
-    <div class="panel" style="margin-top:16px;">
-      <h2>Task Activity</h2>
-      <p class="panel-sub" style="margin-bottom:14px;">Of each rep's open (Not Started / In Progress) Tasks, the share touched in the last 7 days that also aren't overdue.</p>
-      <div class="stat accent" style="max-width:260px; margin-bottom:18px;">
-        <span class="label">Active in last 7 days</span>
-        <span class="value" id="task-activity-pct">&ndash;</span>
-        <span class="sub" id="task-activity-sub">&nbsp;</span>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-bottom:18px;">
+        <div class="stat accent" style="max-width:260px;">
+          <span class="label">Notebook touched in last 7 days</span>
+          <span class="value" id="activity-touched-pct">&ndash;</span>
+          <span class="sub" id="activity-touched-sub">&nbsp;</span>
+        </div>
+        <div class="stat accent" style="max-width:260px;">
+          <span class="label">Tasks active in last 7 days</span>
+          <span class="value" id="task-activity-pct">&ndash;</span>
+          <span class="sub" id="task-activity-sub">&nbsp;</span>
+        </div>
       </div>
+
+      <div id="bars-activity"></div>
+
       <div class="divider"></div>
-      <div class="section-label">By Salesperson (worst first)</div>
+
+      <div class="section-label">Notebook &mdash; by salesperson (worst first)</div>
+      <div id="table-activity-owner"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">Tasks &mdash; by salesperson (worst first)</div>
       <div id="table-task-activity"></div>
       <p class="panel-sub" id="task-unmapped-note" style="margin-top:12px;"></p>
     </div>
@@ -926,27 +929,13 @@
     </div>
 
     <div class="panel" style="margin-top:16px;">
-      <h2>Activity &mdash; Notebook Freshness</h2>
+      <h2>Activity</h2>
       <div class="notes">
         <ul>
-          <li>Notebook entries are fetched separately from Opportunities (<code>GET /notebook/entries?object_type=Opportunity</code>, paginated) and reduced to the <strong>most recent entry's <code>created_at</code> per opportunity id</strong>.</li>
-          <li>For every OPEN deal: <code>last_touch</code> = that Notebook date, or <code>created_at</code> if the deal has no Notebook entry at all (never touched &ne; recently touched).</li>
-          <li><code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched).</li>
-          <li><strong>Touched in Last 7 Days %</strong> = count in the &lt;7d tier &divide; total open deals.</li>
-          <li><strong>By Salesperson table</strong>: the same 4&#8209;tier breakdown per <code>owner_name</code>, with each owner's own "Activity Updated (%)" (their &lt;7d count &divide; their own open deal count), sorted worst&#8209;first (most 30d+ deals).</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="panel" style="margin-top:16px;">
-      <h2>Task Activity</h2>
-      <div class="notes">
-        <ul>
-          <li>Population: CRM <strong>Task</strong> records (not Opportunities) with <code>status</code> in <strong>Not Started</strong> or <strong>In Progress</strong> &mdash; Completed and Deferred tasks are excluded entirely.</li>
-          <li>Task is a global object with no country field, so it's fetched pre&#8209;filtered server&#8209;side to just the <code>owner_id</code>s in the Indonesia team roster (a rep only owns their own country's work) &mdash; not a full global pull.</li>
-          <li>A task counts as <strong>Active</strong> when both hold: (1) <code>last_touch</code> (=<code>updated_at</code>, falling back to <code>created_at</code> if the task has never been edited since it was logged) is within the last 7 days, AND (2) it is <strong>not overdue</strong> (<code>due_date</code> is blank, or is today or later).</li>
-          <li><strong>Active (%)</strong> per owner = their Active task count &divide; their total open (Not Started + In Progress) task count.</li>
-          <li>Reps with no <code>owner_id</code> on file in the team roster can't be queried at all and are named in the panel's caption &mdash; they're absent from the table, not counted as 0%.</li>
+          <li>Two independent freshness signals, shown in one panel: <strong>Notebook</strong> (a note logged on the Opportunity) and <strong>Tasks</strong> (CRM Task records) &mdash; a rep can be current on one and stale on the other.</li>
+          <li><strong>Notebook</strong>: entries are fetched separately from Opportunities (<code>GET /notebook/entries?object_type=Opportunity</code>, paginated) and reduced to the most recent entry's <code>created_at</code> per opportunity id. For every OPEN deal, <code>last_touch</code> = that Notebook date, or <code>created_at</code> if the deal has no Notebook entry at all (never touched &ne; recently touched); <code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched). "Notebook touched in last 7 days" = count in the &lt;7d tier &divide; total open deals; the Notebook table repeats that per <code>owner_name</code>, sorted worst&#8209;first (most 30d+ deals).</li>
+          <li><strong>Tasks</strong>: population is CRM <strong>Task</strong> records (not Opportunities) with <code>status</code> in Not Started or In Progress &mdash; Completed and Deferred are excluded entirely. Task is a global object with no country field, so it's fetched pre&#8209;filtered server&#8209;side to just the <code>owner_id</code>s in the Indonesia team roster (a rep only owns their own country's work), not a full global pull. A task counts as <strong>Active</strong> when both hold: (1) <code>last_touch</code> (=<code>updated_at</code>, falling back to <code>created_at</code> if never edited since logged) is within the last 7 days, AND (2) it is <strong>not overdue</strong> (<code>due_date</code> is blank, or today or later). "Tasks active in last 7 days" and the Task table's Active (%) both use Active task count &divide; total open task count.</li>
+          <li>Reps with no <code>owner_id</code> on file in the team roster can't be queried for Tasks at all and are named in the Task table's caption &mdash; they're absent from that table, not counted as 0%.</li>
         </ul>
       </div>
     </div>
