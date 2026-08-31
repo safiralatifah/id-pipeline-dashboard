@@ -625,12 +625,12 @@
         <span class="sub" id="stat-activity-sub">&nbsp;</span>
       </div>
       <div class="stat good">
-        <span class="label">Closed&ndash;Won</span>
+        <span class="label">Closed&ndash;Won (This Month)</span>
         <span class="value" id="stat-won">&ndash;</span>
         <span class="sub" id="stat-won-sub">&nbsp;</span>
       </div>
       <div class="stat critical">
-        <span class="label">Closed&ndash;Lost</span>
+        <span class="label">Closed&ndash;Lost (This Month)</span>
         <span class="value" id="stat-lost">&ndash;</span>
         <span class="sub" id="stat-lost-sub">&nbsp;</span>
       </div>
@@ -1084,10 +1084,11 @@
     setText("stat-open-sub", `${d.open_active} active + ${d.open_future} future`);
     setText("stat-activity-pct", `${d.activity_touched_pct}%`);
     setText("stat-activity-sub", `of ${d.open_pipeline} open opportunities`);
-    setText("stat-won", d.closed_won);
-    setText("stat-won-sub", `${d.total ? ((d.closed_won / d.total) * 100).toFixed(1) : "0.0"}% of total`);
-    setText("stat-lost", d.closed_lost);
-    setText("stat-lost-sub", `${d.total ? ((d.closed_lost / d.total) * 100).toFixed(1) : "0.0"}% of total`);
+    const closedThisMonth = d.closed_won_this_month + d.closed_lost_this_month;
+    setText("stat-won", d.closed_won_this_month);
+    setText("stat-won-sub", `${closedThisMonth ? ((d.closed_won_this_month / closedThisMonth) * 100).toFixed(1) : "0.0"}% of this month's closed`);
+    setText("stat-lost", d.closed_lost_this_month);
+    setText("stat-lost-sub", `${closedThisMonth ? ((d.closed_lost_this_month / closedThisMonth) * 100).toFixed(1) : "0.0"}% of this month's closed`);
     setText("stat-winrate", `${d.win_rate}%`);
     setText("stat-winrate-sub", `of ${d.closed_total} closed deals`);
     setText("stat-revenue", fmtRupiah(d.revenue_potential_mth));
