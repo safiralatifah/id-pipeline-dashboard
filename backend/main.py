@@ -48,6 +48,15 @@ TASK_OWNER_IDS = sorted({v["owner_id"] for v in TEAM_ROSTER.values() if v.get("o
 TASK_UNMAPPED_REPS = sorted(name for name, v in TEAM_ROSTER.items() if not v.get("owner_id"))
 TASK_OPEN_STATUSES = ["Not Started", "In Progress"]
 
+# Each Active rep is expected to create 10 new opportunities a month; a
+# manager's target is just that number times their headcount. "Unmapped"
+# isn't a real manager, so it has no target (MANAGER_TARGETS.get returns
+# None for it).
+INDIVIDUAL_MONTHLY_TARGET = 10
+MANAGER_REP_COUNTS = Counter(v.get("manager") for v in TEAM_ROSTER.values() if v.get("manager"))
+MANAGER_TARGETS = {name: count * INDIVIDUAL_MONTHLY_TARGET for name, count in MANAGER_REP_COUNTS.items()}
+OWNER_TARGETS = {name: INDIVIDUAL_MONTHLY_TARGET for name in TEAM_ROSTER}
+
 _cache: dict[str, Any] = {"data": None, "fetched_at": 0.0, "error": None, "refreshing": False}
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
@@ -509,7 +518,9 @@ def build_dashboard(
     created_month_keys = sorted(set(created_month_keys))
 
     manager_totals: dict[str, dict[str, int]] = {}
-    sales_head_totals: dict[str, dict[str, int]] = {}
+    # Pre-seeded with every Active rep so someone who created nothing this
+    # window still shows a row (0/10 is exactly the signal a target is for).
+    owner_created_totals: dict[str, dict[str, int]] = {name: {} for name in TEAM_ROSTER}
     unmapped_owners = set()
     for r in items:
         created = _parse_dt(r.get("created_at"))
@@ -519,25 +530,29 @@ def build_dashboard(
         owner = r.get("owner_name") or ""
         roster_entry = TEAM_ROSTER.get(owner)
         manager = (roster_entry or {}).get("manager") or "Unmapped"
-        sales_head = (roster_entry or {}).get("sales_head") or "Unmapped"
         if not roster_entry:
             unmapped_owners.add(owner)
         manager_totals.setdefault(manager, {}).setdefault(month_key, 0)
         manager_totals[manager][month_key] += 1
-        sales_head_totals.setdefault(sales_head, {}).setdefault(month_key, 0)
-        sales_head_totals[sales_head][month_key] += 1
+        if roster_entry:
+            owner_created_totals[owner][month_key] = owner_created_totals[owner].get(month_key, 0) + 1
 
-    def _rollup(totals: dict[str, dict[str, int]]) -> list[dict]:
+    def _rollup(totals: dict[str, dict[str, int]], targets: dict[str, int]) -> list[dict]:
         rows = []
         for name, by_month in totals.items():
             counts = {mk: by_month.get(mk, 0) for mk in created_month_keys}
-            rows.append({"name": name, "counts": counts, "total": sum(counts.values())})
+            rows.append({
+                "name": name,
+                "counts": counts,
+                "total": sum(counts.values()),
+                "target": targets.get(name),
+            })
         return sorted(rows, key=lambda x: -x["total"])
 
     created_by_month = {
         "months": created_month_keys,
-        "by_manager": _rollup(manager_totals),
-        "by_sales_head": _rollup(sales_head_totals),
+        "by_manager": _rollup(manager_totals, MANAGER_TARGETS),
+        "by_owner": _rollup(owner_created_totals, OWNER_TARGETS),
         "unmapped_owner_count": len(unmapped_owners),
         "unmapped_owners": sorted(o for o in unmapped_owners if o),
     }

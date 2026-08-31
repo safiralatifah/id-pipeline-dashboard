@@ -221,9 +221,9 @@
                     },
                     "created_by_month": {
                       "type": "object",
-                      "description": "Opportunities created per month, rolled up by Manager and Sales Head from the Active-rep team roster.",
+                      "description": "Opportunities created per month, rolled up by Manager and by individual owner (Active-rep team roster). Each rep has a 10-per-month target; a manager's target is 10 x their headcount.",
                       "properties": {
-                        "months": { "type": "array", "items": { "type": "string" } },
+                        "months": { "type": "array", "items": { "type": "string" }, "description": "Sorted ascending — the last element is the current month." },
                         "by_manager": {
                           "type": "array",
                           "items": {
@@ -231,18 +231,21 @@
                             "properties": {
                               "name": { "type": "string" },
                               "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
-                              "total": { "type": "integer" }
+                              "total": { "type": "integer" },
+                              "target": { "type": "integer", "nullable": true, "description": "10 x headcount reporting to this manager. Null for the 'Unmapped' bucket." }
                             }
                           }
                         },
-                        "by_sales_head": {
+                        "by_owner": {
                           "type": "array",
+                          "description": "One row per Active rep, including reps with 0 created this window.",
                           "items": {
                             "type": "object",
                             "properties": {
                               "name": { "type": "string" },
                               "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
-                              "total": { "type": "integer" }
+                              "total": { "type": "integer" },
+                              "target": { "type": "integer", "description": "Always 10." }
                             }
                           }
                         },

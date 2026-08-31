@@ -737,6 +737,15 @@
       </div>
     </div>
 
+    <div class="panel" style="margin-top:16px;">
+      <h2>Created Opportunities by Manager &amp; Salesperson</h2>
+      <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only). Current month shows progress toward each rep's monthly target of 10.</p>
+      <div class="section-label">By Manager</div>
+      <div id="table-by-manager"></div>
+      <div class="section-label" style="margin-top:18px;">By Salesperson</div>
+      <div id="table-by-owner"></div>
+    </div>
+
     <div class="panels2">
       <div class="panel">
         <h2>Deals by Stage</h2>
@@ -858,14 +867,6 @@
       <div id="bars-forecast" class="forecast-chart"></div>
     </div>
 
-    <div class="panel" style="margin-top:16px;">
-      <h2>Created Opportunities by Manager &amp; Sales Head</h2>
-      <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only).</p>
-      <div class="section-label">By Manager</div>
-      <div id="table-by-manager"></div>
-      <div class="section-label">By Sales Head</div>
-      <div id="table-by-sales-head"></div>
-    </div>
   </div>
 </div>
 
@@ -966,11 +967,13 @@
     </div>
 
     <div class="panel" style="margin-top:16px;">
-      <h2>Created Opportunities by Manager &amp; Sales Head</h2>
+      <h2>Created Opportunities by Manager &amp; Salesperson</h2>
       <div class="notes">
         <ul>
           <li>Population: the full dataset (open + closed), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
-          <li>Each opportunity's <code>owner_name</code> is looked up in a curated team roster (Active reps only &mdash; see <code>backend/team_roster.json</code>) to find that rep's <strong>Manager</strong> and <strong>Sales Head</strong>; owners not found in the roster are grouped as "Unmapped" (named in the panel's caption).</li>
+          <li><strong>By Manager</strong>: each opportunity's <code>owner_name</code> is looked up in a curated team roster (Active reps only &mdash; see <code>backend/team_roster.json</code>) to find that rep's Manager; owners not found in the roster are grouped as "Unmapped" (named in the panel's caption).</li>
+          <li><strong>By Salesperson</strong>: one row per Active rep in the roster, including reps who created nothing in this window (shown as 0) &mdash; unlike the other tables on this dashboard, this one isn't built only from matched deals, so a quiet rep is still visible.</li>
+          <li><strong>Target (current month column only)</strong>: each rep is expected to create 10 opportunities a month; a manager's target is 10 &times; their headcount (reps reporting to them, per the roster). The bar fills to <code>min(count &divide; target, 100%)</code> and is colored red (&lt;50%), orange (50&#8209;74%), yellow (75&#8209;99%), or green (&ge;100%). Earlier months show a plain count &mdash; the target is only meaningful for the month still in progress.</li>
         </ul>
       </div>
     </div>
@@ -1146,22 +1149,44 @@
     setText("forecast-sub", undatedCount ? `${sub} ${undatedCount} open deal(s) have no expected close date and are excluded.` : sub);
   }
 
+  function targetProgressColor(pct) {
+    if (pct < 50) return "var(--status-critical)";
+    if (pct < 75) return "var(--age-3)";
+    if (pct < 100) return "var(--age-2)";
+    return "var(--status-good)";
+  }
+
+  function targetCellHtml(count, target) {
+    if (target == null) return `<td class="num">${count}</td>`;
+    const pct = Math.min((count / target) * 100, 100);
+    const color = targetProgressColor(pct);
+    return `<td class="num">
+        <div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;">
+          <span style="font-weight:600; color:${color}; white-space:nowrap;">${count}/${target}</span>
+          <div style="width:40px; height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; flex:none;">
+            <div style="width:${pct}%; height:100%; background:${color};"></div>
+          </div>
+        </div>
+      </td>`;
+  }
+
   function renderTeamTable(containerId, rows) {
     const container = document.getElementById(containerId);
     if (!rows || !rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
     const months = window.__createdByMonthMonths || [];
+    const currentMonth = months[months.length - 1];
     container.innerHTML = `
       <table class="simple-table">
         <thead><tr>
           <th>Name</th>
-          ${months.map(m => `<th class="num">${monthLabel(m)}</th>`).join("")}
+          ${months.map(m => `<th class="num">${monthLabel(m)}${m === currentMonth ? " (target)" : ""}</th>`).join("")}
           <th class="num">Total</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => `
             <tr>
               <td class="name">${r.name}</td>
-              ${months.map(m => `<td class="num">${r.counts[m] ?? 0}</td>`).join("")}
+              ${months.map(m => m === currentMonth ? targetCellHtml(r.counts[m] ?? 0, r.target) : `<td class="num">${r.counts[m] ?? 0}</td>`).join("")}
               <td class="num"><b>${r.total}</b></td>
             </tr>`).join("")}
         </tbody>
@@ -1342,9 +1367,9 @@
 
     window.__createdByMonthMonths = d.created_by_month.months;
     renderTeamTable("table-by-manager", d.created_by_month.by_manager);
-    renderTeamTable("table-by-sales-head", d.created_by_month.by_sales_head);
+    renderTeamTable("table-by-owner", d.created_by_month.by_owner);
     const unmapped = d.created_by_month.unmapped_owners || [];
-    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only)${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
+    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only). Current month shows progress toward each rep's monthly target of 10${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
   }
 
   function renderError(message) {
