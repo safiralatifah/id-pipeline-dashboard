@@ -686,7 +686,7 @@
     <div class="panels2">
       <div class="panel">
         <h2>Deals by NV Product Line</h2>
-        <p class="panel-sub">Which logistics product each Indonesia opportunity is tagged under.</p>
+        <p class="panel-sub">Which logistics product each OPEN Indonesia opportunity is tagged under.</p>
         <div id="bars-product"></div>
         <div class="divider"></div>
         <div class="notes" id="product-empty-note"></div>
@@ -694,7 +694,7 @@
 
       <div class="panel">
         <h2>Deals by Service Level</h2>
-        <p class="panel-sub">A multi-select field &mdash; deals can carry more than one tag, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
+        <p class="panel-sub">Open deals only &mdash; a multi-select field, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
         <div id="bars-service"></div>
         <div class="divider"></div>
         <div class="notes">
@@ -705,7 +705,7 @@
 
     <div class="panel" style="margin-top:16px;">
       <h2>Top Salesperson</h2>
-      <p class="panel-sub">Opportunity Owner, ranked by deal count across all matching records.</p>
+      <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count.</p>
       <div id="bars-owner"></div>
       <div id="rest-owner" class="rest-list"></div>
     </div>
@@ -778,12 +778,13 @@
 (function() {
   let TOTAL = 0;
 
-  function renderBars(container, rows, colorFn) {
+  function renderBars(container, rows, colorFn, totalOverride) {
     if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
+    const denom = totalOverride ?? TOTAL;
     const maxCount = Math.max(...rows.map(r => r.count));
     container.innerHTML = rows.map(r => {
       const widthPct = Math.max((r.count / maxCount) * 100, 4);
-      const totalPct = TOTAL ? ((r.count / TOTAL) * 100).toFixed(1) : "0.0";
+      const totalPct = denom ? ((r.count / denom) * 100).toFixed(1) : "0.0";
       const color = colorFn(r);
       const labelInside = widthPct > 22;
       return `
@@ -799,7 +800,8 @@
     }).join("");
   }
 
-  function renderOwners(rows) {
+  function renderOwners(rows, totalOverride) {
+    const denom = totalOverride ?? TOTAL;
     const top = rows.slice(0, 12);
     const rest = rows.slice(12);
     const container = document.getElementById("bars-owner");
@@ -807,7 +809,7 @@
     const maxOwnerCount = Math.max(...top.map(r => r.count));
     container.innerHTML = top.map((r, i) => {
       const widthPct = Math.max((r.count / maxOwnerCount) * 100, 4);
-      const pct = TOTAL ? ((r.count / TOTAL) * 100).toFixed(1) : "0.0";
+      const pct = denom ? ((r.count / denom) * 100).toFixed(1) : "0.0";
       const labelInside = widthPct > 22;
       return `
         <div class="bar-row wide-name" title="${r.name}: ${r.count} deals (${pct}% of total)">
@@ -1094,9 +1096,9 @@
     renderBars(document.getElementById("bars-open"), d.open_stages, () => "var(--stage-open)");
     renderBars(document.getElementById("bars-closed"), d.closed_stages, r =>
       r.name === "Closed–Won" ? "var(--status-good)" : r.name === "Closed–Lost" ? "var(--status-critical)" : "var(--stage-future)");
-    renderBars(document.getElementById("bars-product"), d.product_lines, () => "var(--stage-open)");
-    renderBars(document.getElementById("bars-service"), d.service_levels, () => "var(--stage-open)");
-    renderOwners(d.owners);
+    renderBars(document.getElementById("bars-product"), d.product_lines, () => "var(--stage-open)", d.open_pipeline);
+    renderBars(document.getElementById("bars-service"), d.service_levels, () => "var(--stage-open)", d.open_pipeline);
+    renderOwners(d.owners, d.open_pipeline);
 
     renderDonut([
       { name: "Active pipeline", count: d.open_active, color: "var(--stage-open)" },
@@ -1106,7 +1108,7 @@
     ]);
 
     setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
-    setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.total ? ` (${((d.service_blank / d.total) * 100).toFixed(1)}%)` : ""}.`);
+    setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.open_pipeline ? ` (${((d.service_blank / d.open_pipeline) * 100).toFixed(1)}%)` : ""}.`);
 
     renderAgingStageGrid(d.aging_grid);
 

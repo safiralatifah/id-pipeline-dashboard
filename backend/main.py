@@ -200,7 +200,9 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
     closed_stage_names = {_normalize_stage("Closed–Won"), _normalize_stage("Closed–Lost")}
     open_items = [r for r in items if _normalize_stage(r.get("stage") or "") not in closed_stage_names]
 
-    product_counts = Counter(r.get("nv_product_line") or "" for r in items)
+    # Product line, service level, and owner leaderboard only consider OPEN
+    # (+ future) deals — closed-won/lost are excluded here per the user's ask.
+    product_counts = Counter(r.get("nv_product_line") or "" for r in open_items)
     product_lines = [
         {"name": p, "count": product_counts.get(p, 0)}
         for p in PRODUCT_LINE_ORDER
@@ -208,7 +210,7 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
     ]
 
     service_counts = {
-        v: sum(1 for r in items if v in (r.get("service_level") or []))
+        v: sum(1 for r in open_items if v in (r.get("service_level") or []))
         for v in SERVICE_LEVEL_VALUES
     }
     service_levels = [
@@ -216,9 +218,9 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
         for k, v in sorted(service_counts.items(), key=lambda x: -x[1])
         if v > 0
     ]
-    service_blank = sum(1 for r in items if not r.get("service_level"))
+    service_blank = sum(1 for r in open_items if not r.get("service_level"))
 
-    owner_counts = Counter(r.get("owner_name") or "(blank)" for r in items)
+    owner_counts = Counter(r.get("owner_name") or "(blank)" for r in open_items)
     owners = [{"name": k, "count": v} for k, v in owner_counts.most_common()]
 
     revenue = sum(float(r.get("total_potential_revenue_mth") or 0) for r in items)
