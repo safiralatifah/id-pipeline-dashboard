@@ -388,46 +388,38 @@ async def get_pipeline():
 
 
 _SENSITIVE_KEY_RE = re.compile(r"password|token|secret|api_key", re.IGNORECASE)
-_NOTEBOOK_OBJECT_GUESSES = ["Note", "Notebook", "NotebookEntry", "OpportunityNote", "OpportunityNotebook"]
 
 
 @app.get("/api/debug/notebook-probe")
 async def debug_notebook_probe():
-    """TEMPORARY — probe for the Notebook object's API name. Remove after use."""
+    """TEMPORARY — inspect /notebook/entries shape and volume. Remove after use."""
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
 
-    results = {}
     async with httpx.AsyncClient() as client:
-        for name in _NOTEBOOK_OBJECT_GUESSES:
-            try:
-                resp = await client.get(
-                    f"{CRM_BASE}/objects/{name}/records",
-                    headers={"X-API-Key": api_key},
-                    params={"page_size": 1, "page": 1},
-                    timeout=15,
-                )
-            except httpx.HTTPError as e:
-                results[name] = {"error": str(e)}
-                continue
-            if resp.status_code != 200:
-                results[name] = {"status": resp.status_code}
-                continue
-            data = resp.json()
-            items = data.get("items") or []
-            sample = items[0] if items else None
-            redacted = (
-                {k: v for k, v in sample.items() if not _SENSITIVE_KEY_RE.search(k)}
-                if sample
-                else None
-            )
-            results[name] = {
-                "status": 200,
-                "field_names": sorted(redacted.keys()) if redacted else [],
-                "sample": redacted,
-            }
-    return results
+        resp = await client.get(
+            f"{CRM_BASE}/notebook/entries",
+            headers={"X-API-Key": api_key},
+            params={"object_type": "Opportunity", "page_size": 5, "page": 1},
+            timeout=15,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    items = data.get("items") or []
+    redacted = [
+        {k: v for k, v in item.items() if not _SENSITIVE_KEY_RE.search(k)}
+        for item in items
+    ]
+    return {
+        "total": data.get("total"),
+        "page": data.get("page"),
+        "page_size": data.get("page_size"),
+        "has_next": data.get("has_next"),
+        "field_names": sorted(redacted[0].keys()) if redacted else [],
+        "samples": redacted,
+    }
 
 
 @app.get("/{full_path:path}")
