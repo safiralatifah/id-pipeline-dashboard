@@ -630,8 +630,9 @@
   }
   .hover-tip.visible { opacity: 1; transform: translate(-50%, -100%) translateY(-10px) scale(1); }
   [title], [data-tip] { cursor: default; }
-  .bar-fill, .stage-age-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
-  .bar-fill:hover, .stage-age-seg:hover { filter: brightness(1.12); }
+  .bar-fill, .stage-age-seg, .owner-age-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
+  .bar-fill:hover, .stage-age-seg:hover, .owner-age-seg:hover { filter: brightness(1.12); }
+  .owner-age-fill { display: flex; height: 100%; border-radius: 4px; overflow: hidden; }
 
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .simple-table th {
@@ -786,15 +787,10 @@
 
     <div class="panel" style="margin-top:16px;">
       <h2>Top Salesperson</h2>
-      <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count.</p>
+      <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count &mdash; each bar broken down by days since creation.</p>
+      <div id="owner-aging-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
       <div id="bars-owner"></div>
       <div id="rest-owner" class="rest-list"></div>
-
-      <div class="divider"></div>
-
-      <div class="section-label">Open deals by ageing</div>
-      <p class="panel-sub" style="margin-bottom:14px;">Days since creation, across all open deals.</p>
-      <div id="bars-aging"></div>
     </div>
 
     <div class="section-label" style="margin-top:24px; font-size:13px;">Pipeline Health &amp; Efficiency</div>
@@ -910,8 +906,7 @@
           <li>All four consider <strong>OPEN deals only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Deals by Stage above.</li>
           <li><strong>Deals by NV Product Line</strong>: count of open deals per <code>nv_product_line</code> value.</li>
           <li><strong>Deals by Service Level</strong>: <code>service_level</code> is a multi&#8209;select field, so one deal can add to more than one bar &mdash; percentages are share&#8209;of&#8209;open&#8209;pipeline per tag, not a partition. "Blank" counts deals with no Service Level tag at all.</li>
-          <li><strong>Top Salesperson</strong>: open deal count per <code>owner_name</code>, ranked descending.</li>
-          <li><strong>Open deals by ageing</strong> (below Top Salesperson): for every OPEN deal, <code>days = today &minus; created_at</code> (purely creation age, no Notebook fallback), bucketed into <strong>0&#8209;7d, 7&#8209;15d, 15&#8209;30d, 30d+</strong> &mdash; a plain count per bucket, not split by stage.</li>
+          <li><strong>Top Salesperson</strong>: open deal count per <code>owner_name</code>, ranked descending. Each rep's bar is itself split into ageing segments &mdash; for every OPEN deal, <code>days = today &minus; created_at</code> (purely creation age, no Notebook fallback), bucketed into <strong>0&#8209;7d, 7&#8209;15d, 15&#8209;30d, 30d+</strong> (see the color legend above the chart) &mdash; so a rep with a long bar mostly in the 30d+ color has a lot of ageing pipeline, not just a lot of pipeline.</li>
         </ul>
       </div>
     </div>
@@ -1004,16 +999,18 @@
     container.innerHTML = top.map((r, i) => {
       const widthPct = Math.max((r.count / maxOwnerCount) * 100, 4);
       const pct = denom ? ((r.count / denom) * 100).toFixed(1) : "0.0";
-      const labelInside = widthPct > 22;
+      const segs = (r.buckets || []).map((b, bi) => {
+        if (!b.count) return "";
+        const segPct = r.count ? (b.count / r.count) * 100 : 0;
+        return `<div class="owner-age-seg" style="width:${segPct}%; height:100%; background:${AGE_COLORS[bi]};" data-tip="${r.name} &middot; ${b.label}: ${b.count} deal(s)"></div>`;
+      }).join("");
       return `
         <div class="bar-row wide-name" title="${r.name}: ${r.count} deals (${pct}% of total)">
           <span class="bar-name"><span class="rank-num">${i + 1}</span> ${r.name}</span>
           <div class="bar-track">
-            <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:var(--accent);">
-              <span class="count" style="color:var(--accent-ink);">${r.count}</span>
-            </div>
+            <div class="owner-age-fill" style="width:${widthPct}%;">${segs}</div>
           </div>
-          <span class="bar-pct">${pct}%</span>
+          <span class="bar-pct">${r.count} &middot; ${pct}%</span>
         </div>`;
     }).join("");
 
@@ -1205,8 +1202,8 @@
   let ageMode = "share";
   let lastStageGrid = [];
 
-  function renderAgeLegend(labels) {
-    document.getElementById("age-grid-legend").innerHTML = labels.map((label, i) => `
+  function renderAgeLegend(labels, containerId) {
+    document.getElementById(containerId || "age-grid-legend").innerHTML = labels.map((label, i) => `
       <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary);">
         <span style="width:10px; height:10px; border-radius:3px; background:${AGE_COLORS[i]}; flex:none;"></span>${label}
       </span>`).join("");
@@ -1264,6 +1261,7 @@
       r.name === "Closed–Won" ? "var(--status-good)" : r.name === "Closed–Lost" ? "var(--status-critical)" : "var(--stage-future)");
     renderBars(document.getElementById("bars-product"), d.product_lines, () => "var(--stage-open)", d.open_pipeline);
     renderBars(document.getElementById("bars-service"), d.service_levels, () => "var(--stage-open)", d.open_pipeline);
+    renderAgeLegend(d.aging_buckets.map(b => b.label), "owner-age-legend");
     renderOwners(d.owners, d.open_pipeline);
 
     renderDonut([
@@ -1278,10 +1276,6 @@
 
     setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.open_pipeline ? ` (${((d.service_blank / d.open_pipeline) * 100).toFixed(1)}%)` : ""}.`);
-
-    const agingColorByLabel = {};
-    d.aging_buckets.forEach((b, i) => { agingColorByLabel[b.label] = AGE_COLORS[i] ?? "var(--stage-open)"; });
-    renderBars(document.getElementById("bars-aging"), d.aging_buckets.map(b => ({ name: b.label, count: b.count })), r => agingColorByLabel[r.name], d.open_pipeline);
 
     setText("activity-touched-pct", `${d.activity_touched_pct}%`);
     setText("activity-touched-sub", `of ${d.open_pipeline} open opportunities`);
@@ -1402,14 +1396,14 @@
   });
 
   document.addEventListener("mouseover", e => {
-    const seg = e.target.closest(".stage-age-seg, .age-stage-seg");
+    const seg = e.target.closest(".stage-age-seg, .owner-age-seg");
     if (!seg) return;
     Array.from(seg.parentElement.children).forEach(sib => {
       sib.style.opacity = sib === seg ? "1" : "0.25";
     });
   });
   document.addEventListener("mouseout", e => {
-    const seg = e.target.closest(".stage-age-seg, .age-stage-seg");
+    const seg = e.target.closest(".stage-age-seg, .owner-age-seg");
     if (!seg) return;
     const track = seg.parentElement;
     if (!(e.relatedTarget && track.contains(e.relatedTarget))) {
