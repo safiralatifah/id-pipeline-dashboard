@@ -234,6 +234,38 @@
                         "unmapped_owner_count": { "type": "integer" }
                       }
                     },
+                    "activity_summary": {
+                      "type": "array",
+                      "description": "Open deals bucketed by days since their Notebook was last touched (falls back to created_at if never touched). Reps are expected to add a Notebook entry at least every 7 days.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": { "type": "string", "example": "< 7d" },
+                          "color": { "type": "string", "example": "good", "description": "good | warning | orange | critical" },
+                          "count": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "activity_touched_pct": {
+                      "type": "number",
+                      "description": "Percent of open opportunities whose Notebook was touched within the last 7 days."
+                    },
+                    "activity_by_owner": {
+                      "type": "array",
+                      "description": "Per-owner breakdown of the same staleness buckets, sorted worst (most 30d+) first.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
+                          "total": { "type": "integer" }
+                        }
+                      }
+                    },
+                    "activity_undated_count": {
+                      "type": "integer",
+                      "description": "Open deals with neither a Notebook entry nor a created_at (should be ~0)."
+                    },
                     "lookback_days": { "type": "integer" },
                     "snapshot_at": { "type": "string", "format": "date-time" }
                   }

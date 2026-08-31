@@ -77,6 +77,23 @@ def _bucket_for(days: int) -> str:
     return "unknown"
 
 
+# Notebook staleness tiers — reps are expected to add a Notebook entry to
+# every open opportunity at least every 7 days.
+ACTIVITY_BUCKETS = [
+    ("< 7d", 0, 6, "good"),
+    ("7-14d", 7, 14, "warning"),
+    ("14-30d", 15, 30, "orange"),
+    ("30d+", 31, None, "critical"),
+]
+
+
+def _activity_bucket_for(days: int) -> tuple[str, str]:
+    for label, lo, hi, color in ACTIVITY_BUCKETS:
+        if days >= lo and (hi is None or days <= hi):
+            return label, color
+    return "30d+", "critical"
+
+
 async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
@@ -117,7 +134,40 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     return [r for r in items if EXCLUDE_NAME_SUBSTR not in (r.get("name") or "")]
 
 
-def build_dashboard(items: list[dict]) -> dict:
+async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, datetime]:
+    """Most recent Notebook entry per Opportunity record_id, across all countries
+    (the /notebook/entries endpoint has no record_type/country filter — we only
+    ever look up ids that belong to our Indonesia open-opportunity set)."""
+    api_key = os.environ.get("CRM_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
+
+    last_touch: dict[int, datetime] = {}
+    page = 1
+    while True:
+        resp = await client.get(
+            f"{CRM_BASE}/notebook/entries",
+            headers={"X-API-Key": api_key},
+            params={"object_type": "Opportunity", "page_size": 100, "page": page},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        for entry in data.get("items") or []:
+            record_id = entry.get("record_id")
+            created = _parse_dt(entry.get("created_at"))
+            if record_id is None or not created:
+                continue
+            if record_id not in last_touch or created > last_touch[record_id]:
+                last_touch[record_id] = created
+        if not data.get("has_next"):
+            break
+        page += 1
+
+    return last_touch
+
+
+def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime]) -> dict:
     now = datetime.now(timezone.utc)
     total = len(items)
     # Stage names come back from the CRM with inconsistent dash characters
@@ -333,6 +383,48 @@ def build_dashboard(items: list[dict]) -> dict:
         "unmapped_owners": sorted(o for o in unmapped_owners if o),
     }
 
+    # Activity: how recently each OPEN deal's Notebook was last touched.
+    # Reps are expected to add an entry at least every 7 days. Falls back to
+    # created_at when an opportunity has no Notebook entry at all (never
+    # touched is not the same as "recently touched").
+    activity_bucket_counts = Counter()
+    owner_activity: dict[str, Counter] = {}
+    owner_totals: dict[str, int] = {}
+    activity_undated_count = 0
+
+    for r in open_items:
+        last_touch = notebook_last_touch.get(r.get("id")) or _parse_dt(r.get("created_at"))
+        if not last_touch:
+            activity_undated_count += 1
+            continue
+        days = (now - last_touch).days
+        label, _color = _activity_bucket_for(days)
+        activity_bucket_counts[label] += 1
+        owner = r.get("owner_name") or "(blank)"
+        owner_activity.setdefault(owner, Counter())[label] += 1
+        owner_totals[owner] = owner_totals.get(owner, 0) + 1
+
+    activity_labels = [b[0] for b in ACTIVITY_BUCKETS]
+    activity_summary = [
+        {"label": label, "color": color, "count": activity_bucket_counts.get(label, 0)}
+        for label, _lo, _hi, color in ACTIVITY_BUCKETS
+    ]
+    touched_within_7d = activity_bucket_counts.get(activity_labels[0], 0)
+    activity_touched_pct = (
+        round(touched_within_7d / len(open_items) * 100, 1) if open_items else 0.0
+    )
+    activity_by_owner = sorted(
+        (
+            {
+                "name": owner,
+                "counts": {label: counts.get(label, 0) for label in activity_labels},
+                "total": owner_totals[owner],
+            }
+            for owner, counts in owner_activity.items()
+        ),
+        key=lambda row: (-row["counts"][activity_labels[-1]], -row["total"]),
+    )
+
     return {
         "total": total,
         "open_pipeline": open_active + future,
@@ -362,6 +454,10 @@ def build_dashboard(items: list[dict]) -> dict:
         "forecast": forecast,
         "forecast_undated_count": undated_count,
         "created_by_month": created_by_month,
+        "activity_summary": activity_summary,
+        "activity_touched_pct": activity_touched_pct,
+        "activity_by_owner": activity_by_owner,
+        "activity_undated_count": activity_undated_count,
         "lookback_days": LOOKBACK_DAYS,
     }
 
@@ -379,47 +475,13 @@ async def get_pipeline():
 
     async with httpx.AsyncClient() as client:
         items = await fetch_all_opportunities(client)
+        notebook_last_touch = await fetch_notebook_last_touch(client)
 
-    result = build_dashboard(items)
+    result = build_dashboard(items, notebook_last_touch)
     result["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     _cache["data"] = result
     _cache["fetched_at"] = now
     return result
-
-
-_SENSITIVE_KEY_RE = re.compile(r"password|token|secret|api_key", re.IGNORECASE)
-
-
-@app.get("/api/debug/notebook-probe")
-async def debug_notebook_probe():
-    """TEMPORARY — inspect /notebook/entries shape and volume. Remove after use."""
-    api_key = os.environ.get("CRM_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
-
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(
-            f"{CRM_BASE}/notebook/entries",
-            headers={"X-API-Key": api_key},
-            params={"object_type": "Opportunity", "page_size": 5, "page": 1},
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-
-    items = data.get("items") or []
-    redacted = [
-        {k: v for k, v in item.items() if not _SENSITIVE_KEY_RE.search(k)}
-        for item in items
-    ]
-    return {
-        "total": data.get("total"),
-        "page": data.get("page"),
-        "page_size": data.get("page_size"),
-        "has_next": data.get("has_next"),
-        "field_names": sorted(redacted[0].keys()) if redacted else [],
-        "samples": redacted,
-    }
 
 
 @app.get("/{full_path:path}")

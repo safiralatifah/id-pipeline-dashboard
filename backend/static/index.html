@@ -718,6 +718,20 @@
       <div id="aging-stage-grid"></div>
     </div>
 
+    <div class="panel" style="margin-top:16px;">
+      <h2>Activity &mdash; Notebook Freshness</h2>
+      <p class="panel-sub" style="margin-bottom:14px;">Reps are expected to add a Notebook entry to every open opportunity at least every 7 days.</p>
+      <div class="stat accent" style="max-width:260px; margin-bottom:18px;">
+        <span class="label">Touched in last 7 days</span>
+        <span class="value" id="activity-touched-pct">&ndash;</span>
+        <span class="sub" id="activity-touched-sub">&nbsp;</span>
+      </div>
+      <div id="bars-activity"></div>
+      <div class="divider"></div>
+      <div class="section-label">By Salesperson (worst first)</div>
+      <div id="table-activity-owner"></div>
+    </div>
+
     <div class="panels2" style="margin-top:16px;">
       <div class="panel">
         <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
@@ -943,6 +957,36 @@
       </table>`;
   }
 
+  const ACTIVITY_COLOR_VAR = { good: "var(--status-good)", warning: "var(--age-2)", orange: "var(--age-3)", critical: "var(--status-critical)" };
+
+  function renderActivitySummary(buckets) {
+    const container = document.getElementById("bars-activity");
+    const colorByLabel = {};
+    buckets.forEach(b => { colorByLabel[b.label] = ACTIVITY_COLOR_VAR[b.color]; });
+    renderBars(container, buckets.map(b => ({ name: b.label, count: b.count })), r => colorByLabel[r.name]);
+  }
+
+  function renderActivityOwnerTable(rows, bucketLabels) {
+    const container = document.getElementById("table-activity-owner");
+    if (!rows || !rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
+    container.innerHTML = `
+      <table class="simple-table">
+        <thead><tr>
+          <th>Owner</th>
+          ${bucketLabels.map(l => `<th class="num">${l}</th>`).join("")}
+          <th class="num">Total</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="name">${r.name}</td>
+              ${bucketLabels.map(l => `<td class="num">${r.counts[l] ?? 0}</td>`).join("")}
+              <td class="num"><b>${r.total}</b></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>`;
+  }
+
   const AGE_COLORS = ["var(--age-0)", "var(--age-2)", "var(--age-4)", "var(--age-5)"];
 
   const STAGE_ORDER = ["Prospecting", "New", "Proposal Submitted", "Negotiation", "EKYC Approval", "Contract Sent", "Agreed to Ship", "Onboarding", "Ready to Ship", "Future Opportunity"];
@@ -1045,6 +1089,12 @@
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.total ? ` (${((d.service_blank / d.total) * 100).toFixed(1)}%)` : ""}.`);
 
     renderAgingStageGrid(d.aging_grid);
+
+    setText("activity-touched-pct", `${d.activity_touched_pct}%`);
+    setText("activity-touched-sub", `of ${d.open_pipeline} open opportunities`);
+    renderActivitySummary(d.activity_summary);
+    renderActivityOwnerTable(d.activity_by_owner, d.activity_summary.map(b => b.label));
+
     renderStageDurationTable(d.stage_duration);
     renderAgeLegend(d.aging_buckets.map(b => b.label));
     renderStageAgeGrid(d.stage_duration_grid);
