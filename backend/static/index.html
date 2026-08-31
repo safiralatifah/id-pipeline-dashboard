@@ -418,6 +418,11 @@
     align-items: start;
     margin-top: 16px;
   }
+  .stack-col {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
   .empty-field {
     display: flex;
     flex-direction: column;
@@ -798,22 +803,24 @@
         <div class="notes" id="product-empty-note"></div>
       </div>
 
-      <div class="panel">
-        <h2>Deals by Service Level</h2>
-        <p class="panel-sub">Open deals only &mdash; a multi-select field, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
-        <div id="bars-service"></div>
-        <div class="divider"></div>
-        <div class="notes">
-          <strong style="color:var(--text-primary); font-weight:600;">Read as tag counts, not a partition.</strong> Because a deal can hold multiple Service Levels (e.g. "LTL" + "FTL"), percentages are share&#8209;of&#8209;total per tag, not mutually exclusive slices.
+      <div class="stack-col">
+        <div class="panel">
+          <h2>Deals by Service Level</h2>
+          <p class="panel-sub">Open deals only &mdash; a multi-select field, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
+          <div id="bars-service"></div>
+          <div class="divider"></div>
+          <div class="notes">
+            <strong style="color:var(--text-primary); font-weight:600;">Read as tag counts, not a partition.</strong> Because a deal can hold multiple Service Levels (e.g. "LTL" + "FTL"), percentages are share&#8209;of&#8209;total per tag, not mutually exclusive slices.
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Top Salesperson</h2>
+          <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count.</p>
+          <div id="bars-owner"></div>
+          <div id="rest-owner" class="rest-list"></div>
         </div>
       </div>
-    </div>
-
-    <div class="panel" style="margin-top:16px;">
-      <h2>Top Salesperson</h2>
-      <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count.</p>
-      <div id="bars-owner"></div>
-      <div id="rest-owner" class="rest-list"></div>
     </div>
 
     <div class="section-label" style="margin-top:24px; font-size:13px;">Pipeline Health &amp; Efficiency</div>
