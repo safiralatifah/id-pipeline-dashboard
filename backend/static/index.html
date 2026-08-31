@@ -975,6 +975,7 @@
           <th>Owner</th>
           ${bucketLabels.map(l => `<th class="num">${l}</th>`).join("")}
           <th class="num">Total</th>
+          <th class="num">% &lt;7d</th>
         </tr></thead>
         <tbody>
           ${rows.map(r => `
@@ -982,6 +983,7 @@
               <td class="name">${r.name}</td>
               ${bucketLabels.map(l => `<td class="num">${r.counts[l] ?? 0}</td>`).join("")}
               <td class="num"><b>${r.total}</b></td>
+              <td class="num">${r.touched_pct}%</td>
             </tr>`).join("")}
         </tbody>
       </table>`;

@@ -419,6 +419,9 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
                 "name": owner,
                 "counts": {label: counts.get(label, 0) for label in activity_labels},
                 "total": owner_totals[owner],
+                "touched_pct": round(
+                    counts.get(activity_labels[0], 0) / owner_totals[owner] * 100, 1
+                ),
             }
             for owner, counts in owner_activity.items()
         ),

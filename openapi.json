@@ -258,7 +258,8 @@
                         "properties": {
                           "name": { "type": "string" },
                           "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
-                          "total": { "type": "integer" }
+                          "total": { "type": "integer" },
+                          "touched_pct": { "type": "number", "description": "This owner's own percent touched within 7 days." }
                         }
                       }
                     },
