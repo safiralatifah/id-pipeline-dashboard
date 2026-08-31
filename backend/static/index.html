@@ -1186,15 +1186,13 @@
 
   function renderActivityOwnerTable(activityRows, taskRows, crmRows, bucketLabels) {
     const container = document.getElementById("table-activity-owner");
+    const activityByName = {};
+    (activityRows || []).forEach(r => { activityByName[r.name] = r; });
     const taskByName = {};
     (taskRows || []).forEach(r => { taskByName[r.name] = r; });
-    const crmByName = {};
-    (crmRows || []).forEach(r => { crmByName[r.name] = r; });
-    const activityNames = new Set((activityRows || []).map(r => r.name));
-    const rows = [
-      ...(activityRows || []).map(r => ({ name: r.name, activity: r })),
-      ...(taskRows || []).filter(r => !activityNames.has(r.name)).map(r => ({ name: r.name, activity: null })),
-    ];
+    // crmRows is already sorted best-first server-side and covers the full
+    // owner union, so it drives row order for the whole combined table.
+    const rows = crmRows || [];
     if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
     const shownBuckets = bucketLabels.filter(l => l !== "< 7d");
     container.innerHTML = `
@@ -1210,12 +1208,11 @@
           <th class="num">Open Tasks</th>
         </tr></thead>
         <tbody>
-          ${rows.map(({ name, activity }) => {
+          ${rows.map(crm => {
+            const { name } = crm;
+            const activity = activityByName[name];
             const t = taskByName[name];
-            const crm = crmByName[name];
-            const crmCell = crm
-              ? `<td class="num" style="color:${activityPctColor(crm.pct)}; font-weight:700;">${crm.pct}%</td>`
-              : `<td class="num" style="color:var(--text-muted);">&ndash;</td>`;
+            const crmCell = `<td class="num" style="color:${activityPctColor(crm.pct)}; font-weight:700;">${crm.pct}%</td>`;
             const activityCells = activity
               ? `<td class="num" style="color:${activityPctColor(activity.touched_pct)}; font-weight:600;">${activity.touched_pct}%</td>
                  ${shownBuckets.map(l => `<td class="num">${activity.counts[l] ?? 0}</td>`).join("")}

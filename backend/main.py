@@ -659,7 +659,7 @@ def build_dashboard(
             }
             for owner in crm_updated_owner_names
         ),
-        key=lambda row: row["pct"],
+        key=lambda row: -row["pct"],
     )
 
     return {
