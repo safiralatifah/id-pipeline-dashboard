@@ -22,6 +22,7 @@ with open(BASE_DIR / "team_roster.json", encoding="utf-8") as f:
 
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 RECORD_TYPE_INDONESIA = "12"
+CLOSED_HISTORY_DAYS = 365
 EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
 
 OPEN_STAGE_ORDER = [
@@ -140,15 +141,26 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
 
-    # All Indonesia Opportunity records, full history (72,721 as of writing,
-    # ~728 pages) — no created_at cutoff. This is far too slow to run inside
-    # an HTTP request (the platform's gateway times out around 30s no matter
-    # how much page concurrency is used), so it only ever runs from the
-    # background refresh loop below, never from the request path.
+    # Indonesia has 72,721 Opportunity records all-time — fetching (and
+    # holding in memory) every one blew both the platform's ~30s gateway
+    # timeout and its 512MB memory limit, even from the background refresh.
+    # Fetch instead: every OPEN deal regardless of age (so no old stale lead
+    # is ever missed) OR anything created within the last year (so recent
+    # closed-won/lost history, win rate, etc. still have real data).
+    closed_since = (datetime.now(timezone.utc) - timedelta(days=CLOSED_HISTORY_DAYS)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
     filters = {
         "logic": "AND",
         "conditions": [
             {"field": "record_type_id", "operator": "equals", "value": RECORD_TYPE_INDONESIA},
+            {
+                "logic": "OR",
+                "conditions": [
+                    {"field": "stage", "operator": "not_in", "value": ["Closed-Won", "Closed-Lost"]},
+                    {"field": "created_at", "operator": "greater_than", "value": closed_since},
+                ],
+            },
         ],
     }
     items = await _fetch_paginated(

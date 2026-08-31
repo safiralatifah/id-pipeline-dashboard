@@ -603,7 +603,7 @@
     <h1>Indonesia Opportunity Pipeline</h1>
     <div class="meta-row">
       <span class="chip"><span class="dot"></span>Record Type: <b>Indonesia (ID 12)</b></span>
-      <span class="chip">Created: <b>all-time</b></span>
+      <span class="chip">Population: <b>open (all-time) + closed (last 12mo)</b></span>
       <span class="chip">Snapshot: <b id="meta-snapshot">loading&hellip;</b></span>
       <span class="chip"><b id="meta-total">&hellip;</b> opportunities matched</span>
     </div>
@@ -674,7 +674,7 @@
           <strong style="color:var(--text-primary); font-weight:600;">Methodology</strong>
           <ul>
             <li>"Record Type Indonesia" and "Record Type 12" are the <strong>same filter</strong> &mdash; Indonesia's record type ID in this CRM is <code>12</code>.</li>
-            <li>Date range: no cutoff &mdash; every Indonesia Opportunity ever created. The "Created This Month" stat and the Created-by-Team/forecast panels apply their own month windows on top of this full population.</li>
+            <li>Population: every OPEN Indonesia opportunity regardless of age (so no old stale lead is missed), plus any opportunity &mdash; open or closed &mdash; created in the last 12 months. Indonesia has 72,721 Opportunity records all-time; fetching every one blew both the platform's request timeout and its memory limit, so closed/won history beyond 12 months isn't included.</li>
             <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per-field filters proved unreliable for the Service Level field below.</li>
             <li>"Last Mile &ndash; Parcel" and "Last Mile &ndash; Document" are excluded except for Raden Roro Inggil Pratiwi's opportunities (a data-quality rule, not a CRM limitation).</li>
             <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>

@@ -40,7 +40,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "total": { "type": "integer", "description": "All-time Indonesia Opportunity count (no date cutoff)." },
+                    "total": { "type": "integer", "description": "Every open Indonesia Opportunity (any age) plus any Opportunity created in the last 12 months (open or closed) — not the true all-time count of 72,721, which is too large to fetch per refresh." },
                     "created_this_month": { "type": "integer" },
                     "created_last_month": { "type": "integer" },
                     "open_pipeline": { "type": "integer" },
