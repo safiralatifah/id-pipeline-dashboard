@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Indonesia Pipeline Dashboard",
-    "description": "Serves a live dashboard of Ninja Van's Indonesia sales opportunity pipeline (composition, aging, stage bottlenecks, 3-month forecast, and team rollups), fetched from the Ninja Van SalesCRM API and cached for up to 5 minutes.",
+    "description": "Serves a dashboard of Ninja Van's all-time Indonesia sales opportunity pipeline (composition, aging, stage bottlenecks, forecast, team rollups, and Notebook activity), refreshed by a background job roughly every 15 minutes from the Ninja Van SalesCRM API — the full pull is ~73k records, too slow to run inside a request.",
     "version": "3.0.0"
   },
   "paths": {
@@ -30,7 +30,7 @@
     },
     "/api/pipeline": {
       "get": {
-        "summary": "Returns aggregated Indonesia opportunity pipeline metrics fetched live from the CRM (cached up to 5 minutes).",
+        "summary": "Returns aggregated Indonesia opportunity pipeline metrics from the last completed background refresh (roughly every 15 minutes).",
         "operationId": "get_pipeline",
         "responses": {
           "200": {
@@ -275,8 +275,8 @@
               }
             }
           },
-          "502": { "description": "The CRM rejected the API key (expired or revoked)." },
-          "503": { "description": "CRM_API_KEY is not configured on this app." }
+          "502": { "description": "The CRM rejected the API key, or the background refresh's last attempt failed." },
+          "503": { "description": "No data cached yet — the background refresh (fetches ~73k records, can take a few minutes) hasn't completed its first run since the app started. Retry shortly." }
         }
       }
     },

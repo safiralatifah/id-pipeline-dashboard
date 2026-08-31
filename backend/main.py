@@ -39,8 +39,11 @@ PRODUCT_LINE_ORDER = [
 # "contains", not "equals" (equals silently returns 0 rows for this field type).
 SERVICE_LEVEL_VALUES = ["Same Day", "Standard", "LTL", "Next Day", "FTL", "Dedicated", "FCL", "LCL"]
 
-_cache: dict[str, Any] = {"data": None, "fetched_at": 0.0}
-CACHE_TTL_SECONDS = 300
+_cache: dict[str, Any] = {"data": None, "fetched_at": 0.0, "error": None, "refreshing": False}
+# A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
+# all-time) — far too slow to run inside a request, so it only ever runs on
+# this background timer, never on-demand from get_pipeline().
+REFRESH_INTERVAL_SECONDS = 900
 
 _DASH_RE = re.compile("[-‐‑‒–—―]")
 
@@ -137,7 +140,11 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
 
-    # All Indonesia Opportunity records, full history — no created_at cutoff.
+    # All Indonesia Opportunity records, full history (72,721 as of writing,
+    # ~728 pages) — no created_at cutoff. This is far too slow to run inside
+    # an HTTP request (the platform's gateway times out around 30s no matter
+    # how much page concurrency is used), so it only ever runs from the
+    # background refresh loop below, never from the request path.
     filters = {
         "logic": "AND",
         "conditions": [
@@ -150,7 +157,20 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
         {"X-API-Key": api_key},
         {"filters": json.dumps(filters)},
     )
-    return [r for r in items if EXCLUDE_NAME_SUBSTR not in (r.get("name") or "")]
+    items = [r for r in items if EXCLUDE_NAME_SUBSTR not in (r.get("name") or "")]
+    # Data-quality filter: "Last Mile – Parcel" and "Last Mile – Document"
+    # are only valid for Raden Roro Inggil Pratiwi's opportunities; exclude
+    # both from everyone else.
+    RESTRICTED_PRODUCT_LINES = {"Last Mile – Parcel", "Last Mile – Document"}
+    items = [
+        r
+        for r in items
+        if not (
+            r.get("nv_product_line") in RESTRICTED_PRODUCT_LINES
+            and r.get("owner_name") != "Raden Roro Inggil Pratiwi"
+        )
+    ]
+    return items
 
 
 async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, datetime]:
@@ -499,23 +519,51 @@ def health():
     return {"status": "ok"}
 
 
+async def _refresh_dashboard_cache() -> None:
+    if _cache["refreshing"]:
+        return
+    _cache["refreshing"] = True
+    try:
+        async with httpx.AsyncClient() as client:
+            items, notebook_last_touch = await asyncio.gather(
+                fetch_all_opportunities(client),
+                fetch_notebook_last_touch(client),
+            )
+        result = build_dashboard(items, notebook_last_touch)
+        result["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _cache["data"] = result
+        _cache["fetched_at"] = time.time()
+        _cache["error"] = None
+    except Exception as e:
+        _cache["error"] = str(e)
+    finally:
+        _cache["refreshing"] = False
+
+
+async def _refresh_loop() -> None:
+    while True:
+        await _refresh_dashboard_cache()
+        await asyncio.sleep(REFRESH_INTERVAL_SECONDS)
+
+
+@app.on_event("startup")
+async def _start_background_refresh() -> None:
+    asyncio.create_task(_refresh_loop())
+
+
 @app.get("/api/pipeline")
 async def get_pipeline():
-    now = time.time()
-    if _cache["data"] is not None and now - _cache["fetched_at"] < CACHE_TTL_SECONDS:
-        return _cache["data"]
-
-    async with httpx.AsyncClient() as client:
-        items, notebook_last_touch = await asyncio.gather(
-            fetch_all_opportunities(client),
-            fetch_notebook_last_touch(client),
+    if _cache["data"] is None:
+        if _cache["error"]:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Initial data load failed: {_cache['error']}",
+            )
+        raise HTTPException(
+            status_code=503,
+            detail="Initial data load in progress (fetching ~73k records in the background) — retry shortly",
         )
-
-    result = build_dashboard(items, notebook_last_touch)
-    result["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-    _cache["data"] = result
-    _cache["fetched_at"] = now
-    return result
+    return _cache["data"]
 
 
 @app.get("/{full_path:path}")

@@ -675,7 +675,8 @@
           <ul>
             <li>"Record Type Indonesia" and "Record Type 12" are the <strong>same filter</strong> &mdash; Indonesia's record type ID in this CRM is <code>12</code>.</li>
             <li>Date range: no cutoff &mdash; every Indonesia Opportunity ever created. The "Created This Month" stat and the Created-by-Team/forecast panels apply their own month windows on top of this full population.</li>
-            <li>Data is fetched live from the CRM's own API on each refresh (cached up to 5 minutes), not sampled and not read off the CRM's own filter UI &mdash; that UI's per-field filters proved unreliable for the Service Level field below.</li>
+            <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per-field filters proved unreliable for the Service Level field below.</li>
+            <li>"Last Mile &ndash; Parcel" and "Last Mile &ndash; Document" are excluded except for Raden Roro Inggil Pratiwi's opportunities (a data-quality rule, not a CRM limitation).</li>
             <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>
             <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count on this page as a non-pipeline test artifact. Worth a look from whoever owns CRM security.</li>
           </ul>
@@ -1138,13 +1139,29 @@
     });
   }
 
+  function renderPending(message) {
+    setText("meta-snapshot", "loading…");
+    setText("meta-total", "…");
+    document.querySelectorAll(".stat .value").forEach(el => el.textContent = "…");
+    ["bars-open", "bars-closed", "bars-product", "bars-service", "bars-owner"].forEach(id => {
+      document.getElementById(id).innerHTML = `<p style="font-size:12.5px;color:var(--text-muted);">${message}</p>`;
+    });
+  }
+
   function load() {
     fetch("/api/pipeline")
       .then(res => {
+        if (res.status === 503) {
+          return res.json().then(body => {
+            renderPending(body.detail || "Initial data load in progress — retrying…");
+            setTimeout(load, 15000);
+            return null;
+          });
+        }
         if (!res.ok) return res.json().then(body => { throw new Error(body.detail || res.statusText); });
         return res.json();
       })
-      .then(render)
+      .then(data => { if (data) render(data); })
       .catch(err => renderError(`Could not load live CRM data: ${err.message}`));
   }
 
@@ -1208,7 +1225,7 @@
 </script>
 
 <footer>
-  <span>Source: salescrm.ninjavan.co &middot; Opportunity API, live (refreshed every 5 min)</span>
+  <span>Source: salescrm.ninjavan.co &middot; Opportunity API, all-time (refreshed &sim;every 15 min)</span>
   <span>Built for nvsalesplanning.id</span>
 </footer>
 
