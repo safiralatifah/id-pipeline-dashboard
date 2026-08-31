@@ -246,17 +246,25 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
     lost_norm = _normalize_stage("Closed–Lost")
     closed_won_this_month = 0
     closed_lost_this_month = 0
+    closed_won_last_month = 0
+    closed_lost_last_month = 0
     for r in items:
         stage_norm = _normalize_stage(r.get("stage") or "")
         if stage_norm not in (won_norm, lost_norm):
             continue
         changed = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("updated_at"))
-        if not changed or changed < this_month_start:
+        if not changed:
             continue
-        if stage_norm == won_norm:
-            closed_won_this_month += 1
-        else:
-            closed_lost_this_month += 1
+        if changed >= this_month_start:
+            if stage_norm == won_norm:
+                closed_won_this_month += 1
+            else:
+                closed_lost_this_month += 1
+        elif last_month_start <= changed <= last_month_end:
+            if stage_norm == won_norm:
+                closed_won_last_month += 1
+            else:
+                closed_lost_last_month += 1
     open_stages = [
         {"name": s, "count": stage_counts.get(_normalize_stage(s), 0)} for s in OPEN_STAGE_ORDER
     ]
@@ -517,6 +525,8 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
         "closed_lost": lost,
         "closed_won_this_month": closed_won_this_month,
         "closed_lost_this_month": closed_lost_this_month,
+        "closed_won_last_month": closed_won_last_month,
+        "closed_lost_last_month": closed_lost_last_month,
         "closed_total": closed_total,
         "win_rate": round(won / closed_total * 100, 1) if closed_total else 0,
         "revenue_potential_mth": revenue,
