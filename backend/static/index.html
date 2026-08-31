@@ -377,6 +377,19 @@
     margin: 18px 0 4px;
   }
   .section-label:first-child { margin-top: 0; }
+  .section-label-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin: 0 0 4px;
+  }
+  .section-label-row .section-label { margin: 0; }
+  .section-pct {
+    font-family: "IBM Plex Mono", monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+  }
 
   /* Composition donut */
   .donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 4px 0 6px; }
@@ -750,29 +763,31 @@
       </div>
     </div>
 
-    <div class="panels">
-      <div class="panel">
-        <h2>Deals by Stage</h2>
-        <p class="panel-sub">Count of opportunities currently sitting in each pipeline stage, ordered by the sales process sequence.</p>
+    <div class="panel">
+      <h2>Deals by Stage</h2>
+      <p class="panel-sub">Share of all matched opportunities by outcome bucket, broken down by pipeline stage.</p>
 
-        <div class="section-label">Active pipeline</div>
-        <div id="bars-open"></div>
-
-        <div class="section-label">Closed &amp; parked</div>
-        <div id="bars-closed"></div>
-      </div>
-
-      <div class="panel">
-        <h2>Pipeline Composition</h2>
-        <p class="panel-sub">Share of all matched opportunities by outcome bucket.</p>
-        <div class="donut-wrap">
-          <div class="donut-figure">
-            <svg viewBox="0 0 176 176" width="176" height="176" id="donut-svg"></svg>
-            <div class="donut-center"><span class="n" id="donut-total">&ndash;</span><span class="l">total</span></div>
-          </div>
-          <div class="legend" id="donut-legend"></div>
+      <div class="donut-wrap">
+        <div class="donut-figure">
+          <svg viewBox="0 0 176 176" width="176" height="176" id="donut-svg"></svg>
+          <div class="donut-center"><span class="n" id="donut-total">&ndash;</span><span class="l">total</span></div>
         </div>
+        <div class="legend" id="donut-legend"></div>
       </div>
+
+      <div class="divider"></div>
+
+      <div class="section-label-row">
+        <span class="section-label">Active pipeline</span>
+        <span class="section-pct" id="pct-active">&ndash;</span>
+      </div>
+      <div id="bars-open"></div>
+
+      <div class="section-label-row" style="margin-top:18px;">
+        <span class="section-label">Closed &amp; parked</span>
+        <span class="section-pct" id="pct-closed">&ndash;</span>
+      </div>
+      <div id="bars-closed"></div>
     </div>
 
     <div class="panels2">
@@ -906,8 +921,9 @@
       <h2>Deals by Stage &amp; Pipeline Composition</h2>
       <div class="notes">
         <ul>
-          <li><strong>Deals by Stage</strong>: count of deals currently sitting in each stage, full population, ordered by the sales process sequence (Active pipeline), then Closed &amp; parked (Closed&ndash;Won, Closed&ndash;Lost, Future Opportunity).</li>
-          <li><strong>Pipeline Composition</strong> (donut): the same population split into four outcome buckets &mdash; Active pipeline, Future opportunity, Closed&ndash;Won, Closed&ndash;Lost &mdash; as a share of the total.</li>
+          <li><strong>Pipeline Composition</strong> (donut): the full population split into four outcome buckets &mdash; Active pipeline, Future opportunity, Closed&ndash;Won, Closed&ndash;Lost &mdash; as a share of the total.</li>
+          <li><strong>Deals by Stage</strong> (bars below the donut): count of deals currently sitting in each stage, ordered by the sales process sequence (Active pipeline), then Closed &amp; parked (Closed&ndash;Won, Closed&ndash;Lost, Future Opportunity).</li>
+          <li>The percentage next to each section header (<strong>Active pipeline</strong>, <strong>Closed &amp; parked</strong>) is that section's share of the total &mdash; it matches the corresponding donut bucket(s) above (Closed &amp; parked = Future opportunity + Closed&ndash;Won + Closed&ndash;Lost combined).</li>
         </ul>
       </div>
     </div>
@@ -1320,6 +1336,9 @@
       { name: "Closed–Won", count: d.closed_won, color: "var(--status-good)" },
       { name: "Closed–Lost", count: d.closed_lost, color: "var(--status-critical)" },
     ]);
+    const closedParkedCount = d.open_future + d.closed_won + d.closed_lost;
+    setText("pct-active", d.total ? `${((d.open_active / d.total) * 100).toFixed(1)}% of total` : "–");
+    setText("pct-closed", d.total ? `${((closedParkedCount / d.total) * 100).toFixed(1)}% of total` : "–");
 
     setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.open_pipeline ? ` (${((d.service_blank / d.open_pipeline) * 100).toFixed(1)}%)` : ""}.`);
