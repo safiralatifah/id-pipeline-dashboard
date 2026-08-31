@@ -21,7 +21,6 @@ with open(BASE_DIR / "team_roster.json", encoding="utf-8") as f:
 
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 RECORD_TYPE_INDONESIA = "12"
-LOOKBACK_DAYS = 90
 EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
 
 OPEN_STAGE_ORDER = [
@@ -99,14 +98,11 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
 
-    created_since = (datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)).strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
-    )
+    # All Indonesia Opportunity records, full history — no created_at cutoff.
     filters = {
         "logic": "AND",
         "conditions": [
             {"field": "record_type_id", "operator": "equals", "value": RECORD_TYPE_INDONESIA},
-            {"field": "created_at", "operator": "greater_than", "value": created_since},
         ],
     }
 
@@ -170,6 +166,21 @@ async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, date
 def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime]) -> dict:
     now = datetime.now(timezone.utc)
     total = len(items)
+
+    # Opportunities created this calendar month vs last, for the headline stat.
+    this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month_end = this_month_start - timedelta(seconds=1)
+    last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    created_this_month = 0
+    created_last_month = 0
+    for r in items:
+        created = _parse_dt(r.get("created_at"))
+        if not created:
+            continue
+        if created >= this_month_start:
+            created_this_month += 1
+        elif last_month_start <= created <= last_month_end:
+            created_last_month += 1
     # Stage names come back from the CRM with inconsistent dash characters
     # (hyphen vs en dash) — normalize before matching against known buckets.
     stage_counts = Counter(_normalize_stage(r.get("stage") or "") for r in items)
@@ -430,6 +441,8 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
 
     return {
         "total": total,
+        "created_this_month": created_this_month,
+        "created_last_month": created_last_month,
         "open_pipeline": open_active + future,
         "open_active": open_active,
         "open_future": future,
@@ -461,7 +474,6 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
         "activity_touched_pct": activity_touched_pct,
         "activity_by_owner": activity_by_owner,
         "activity_undated_count": activity_undated_count,
-        "lookback_days": LOOKBACK_DAYS,
     }
 
 

@@ -603,16 +603,16 @@
     <h1>Indonesia Opportunity Pipeline</h1>
     <div class="meta-row">
       <span class="chip"><span class="dot"></span>Record Type: <b>Indonesia (ID 12)</b></span>
-      <span class="chip">Created: <b>last 90 days</b></span>
+      <span class="chip">Created: <b>all-time</b></span>
       <span class="chip">Snapshot: <b id="meta-snapshot">loading&hellip;</b></span>
       <span class="chip"><b id="meta-total">&hellip;</b> opportunities matched</span>
     </div>
 
     <div class="stat-grid">
       <div class="stat accent">
-        <span class="label">Total Opportunities</span>
+        <span class="label">Created This Month</span>
         <span class="value" id="stat-total">&ndash;</span>
-        <span class="sub">Indonesia, last 90 days</span>
+        <span class="sub" id="stat-total-sub">&nbsp;</span>
       </div>
       <div class="stat">
         <span class="label">Open Pipeline</span>
@@ -674,7 +674,7 @@
           <strong style="color:var(--text-primary); font-weight:600;">Methodology</strong>
           <ul>
             <li>"Record Type Indonesia" and "Record Type 12" are the <strong>same filter</strong> &mdash; Indonesia's record type ID in this CRM is <code>12</code>.</li>
-            <li>Date range: <code>Created Date &ge;</code> 90 days before each refresh &mdash; a rolling window, not a fixed date.</li>
+            <li>Date range: no cutoff &mdash; every Indonesia Opportunity ever created. The "Created This Month" stat and the Created-by-Team/forecast panels apply their own month windows on top of this full population.</li>
             <li>Data is fetched live from the CRM's own API on each refresh (cached up to 5 minutes), not sampled and not read off the CRM's own filter UI &mdash; that UI's per-field filters proved unreliable for the Service Level field below.</li>
             <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>
             <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count on this page as a non-pipeline test artifact. Worth a look from whoever owns CRM security.</li>
@@ -1068,7 +1068,15 @@
 
     setText("meta-snapshot", new Date(d.snapshot_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }));
     setText("meta-total", d.total);
-    setText("stat-total", d.total);
+    setText("stat-total", d.created_this_month);
+    if (d.created_last_month) {
+      const delta = d.created_this_month - d.created_last_month;
+      const pct = ((delta / d.created_last_month) * 100).toFixed(1);
+      const arrow = delta >= 0 ? "▲" : "▼";
+      setText("stat-total-sub", `${arrow} ${Math.abs(pct)}% vs last month (${d.created_last_month})`);
+    } else {
+      setText("stat-total-sub", `vs last month (${d.created_last_month})`);
+    }
     setText("stat-open", d.open_pipeline);
     setText("stat-open-sub", `${d.open_active} active + ${d.open_future} future`);
     setText("stat-activity-pct", `${d.activity_touched_pct}%`);

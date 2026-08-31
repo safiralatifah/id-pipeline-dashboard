@@ -40,7 +40,9 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "total": { "type": "integer" },
+                    "total": { "type": "integer", "description": "All-time Indonesia Opportunity count (no date cutoff)." },
+                    "created_this_month": { "type": "integer" },
+                    "created_last_month": { "type": "integer" },
                     "open_pipeline": { "type": "integer" },
                     "open_active": { "type": "integer" },
                     "open_future": { "type": "integer" },
@@ -267,7 +269,6 @@
                       "type": "integer",
                       "description": "Open deals with neither a Notebook entry nor a created_at (should be ~0)."
                     },
-                    "lookback_days": { "type": "integer" },
                     "snapshot_at": { "type": "string", "format": "date-time" }
                   }
                 }
