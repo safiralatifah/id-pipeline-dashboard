@@ -13,7 +13,10 @@
   body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}
   img{max-width:100%}
 
-  .viz-root {
+  .app-shell {
+    display: flex;
+    min-height: 100vh;
+    align-items: stretch;
     color-scheme: light;
     --surface-1:      #fcfcfb;
     --surface-2:      #f4f2ee;
@@ -48,7 +51,7 @@
     --shadow: 0 1px 2px rgba(26,21,18,0.06), 0 8px 24px -12px rgba(26,21,18,0.18);
   }
   @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) .viz-root {
+    :root:where(:not([data-theme="light"])) .app-shell {
       color-scheme: dark;
       --surface-1:      #1c1917;
       --surface-2:      #24201d;
@@ -83,7 +86,7 @@
       --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px -12px rgba(0,0,0,0.5);
     }
   }
-  :root[data-theme="dark"] .viz-root {
+  :root[data-theme="dark"] .app-shell {
     color-scheme: dark;
     --surface-1:      #1c1917;
     --surface-2:      #24201d;
@@ -125,6 +128,48 @@
     padding: 32px 20px 56px;
     box-sizing: border-box;
     min-height: 100%;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .sidebar {
+    flex: none;
+    width: 190px;
+    background: var(--surface-1);
+    border-right: 1px solid var(--border);
+    padding: 20px 12px;
+    box-sizing: border-box;
+  }
+  .sidebar-title {
+    font-family: "Sora", sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--text-primary);
+    padding: 0 8px 16px;
+  }
+  .nav-item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 10px;
+    margin-bottom: 2px;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+  }
+  .nav-item:hover { background: var(--surface-2); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+
+  @media (max-width: 700px) {
+    .app-shell { flex-direction: column; }
+    .sidebar { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 6px; padding: 12px; overflow-x: auto; }
+    .sidebar-title { display: none; }
+    .nav-item { width: auto; white-space: nowrap; margin-bottom: 0; }
   }
   .viz-root * { box-sizing: border-box; }
   .wrap { max-width: 1180px; margin: 0 auto; }
@@ -597,7 +642,14 @@
 </head>
 <body>
 
-<div class="viz-root">
+<div class="app-shell">
+<nav class="sidebar">
+  <div class="sidebar-title">Indonesia Pipeline</div>
+  <button type="button" class="nav-item active" data-view="overview">Overview</button>
+  <button type="button" class="nav-item" data-view="dictionary">Dictionary</button>
+</nav>
+
+<div class="viz-root" id="view-overview">
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
     <h1>Indonesia Opportunity Pipeline</h1>
@@ -672,19 +724,6 @@
             <div class="donut-center"><span class="n" id="donut-total">&ndash;</span><span class="l">total</span></div>
           </div>
           <div class="legend" id="donut-legend"></div>
-        </div>
-
-        <div class="divider"></div>
-        <div class="notes">
-          <strong style="color:var(--text-primary); font-weight:600;">Methodology</strong>
-          <ul>
-            <li>"Record Type Indonesia" and "Record Type 12" are the <strong>same filter</strong> &mdash; Indonesia's record type ID in this CRM is <code>12</code>.</li>
-            <li>Population: every OPEN Indonesia opportunity regardless of age (so no old stale lead is missed), plus any opportunity &mdash; open or closed &mdash; created in the last 12 months. Indonesia has 72,721 Opportunity records all-time; fetching every one blew both the platform's request timeout and its memory limit, so closed/won history beyond 12 months isn't included.</li>
-            <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per-field filters proved unreliable for the Service Level field below.</li>
-            <li>"Last Mile &ndash; Parcel" and "Last Mile &ndash; Document" are excluded except for Raden Roro Inggil Pratiwi's opportunities (a data-quality rule, not a CRM limitation).</li>
-            <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>
-            <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count on this page as a non-pipeline test artifact. Worth a look from whoever owns CRM security.</li>
-          </ul>
         </div>
       </div>
     </div>
@@ -778,6 +817,125 @@
       <div id="table-by-sales-head"></div>
     </div>
   </div>
+</div>
+
+<div class="viz-root" id="view-dictionary" style="display:none;">
+  <div class="wrap">
+    <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
+    <h1>KPI &amp; Metric Dictionary</h1>
+    <p class="panel-sub" style="margin-bottom:24px; font-size:13px;">What every number on the Overview tab means and exactly how it's calculated.</p>
+
+    <div class="panel">
+      <h2>Data population &amp; methodology</h2>
+      <div class="notes">
+        <ul>
+          <li>"Record Type Indonesia" and "Record Type 12" are the <strong>same filter</strong> &mdash; Indonesia's record type ID in this CRM is <code>12</code>.</li>
+          <li><strong>Population</strong>: every <strong>OPEN</strong> Indonesia opportunity regardless of age (so no old stale lead is missed), plus any opportunity &mdash; open or closed &mdash; created in the last 12 months. Indonesia has 72,721 Opportunity records all&#8209;time; fetching every one blew both the platform's request timeout and its memory limit, so closed/won history beyond 12 months isn't included. This population is what "Total" / "opportunities matched" refers to everywhere below unless a metric says otherwise.</li>
+          <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per&#8209;field filters proved unreliable for the Service Level field.</li>
+          <li>"Last Mile &ndash; Parcel" and "Last Mile &ndash; Document" are excluded except for Raden Roro Inggil Pratiwi's opportunities (a data&#8209;quality rule, not a CRM limitation).</li>
+          <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>
+          <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count as a non&#8209;pipeline test artifact.</li>
+          <li><strong>Open</strong> (used throughout as "open deals" / "open + future") means every stage except Closed&ndash;Won and Closed&ndash;Lost &mdash; this includes Future Opportunity.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Top summary cards</h2>
+      <div class="notes">
+        <ul>
+          <li><strong>Created This Month / vs last month</strong>: count of opportunities (any stage) whose <code>created_at</code> falls in the current / previous calendar month.</li>
+          <li><strong>Open Pipeline</strong>: count of all OPEN deals (open_active + Future Opportunity).</li>
+          <li><strong>Touched in Last 7 Days</strong>: of all OPEN deals, the % whose most recent Notebook entry (or <code>created_at</code> if it has none) is within the last 7 days. See "Activity" below for the full definition.</li>
+          <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of deals whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. deals that actually closed this month, not deals merely created this month.</li>
+          <li><strong>Win Rate</strong>: <code>closed_won &divide; (closed_won + closed_lost)</code> over the full population (12mo + all&#8209;time open). Answers "of deals that reached a final outcome, how many did we win?" &mdash; still&#8209;open deals are excluded from both sides of the ratio.</li>
+          <li><strong>Pipeline Conversion</strong>: <code>closed_won &divide; total</code> &mdash; total includes still&#8209;open deals, so this answers "of every opportunity ever in this population, what share ended up won?" (necessarily lower than Win Rate, since it also counts deals that haven't concluded yet).</li>
+          <li><strong>Potential Rev / Mth</strong>: sum of <code>total_potential_revenue_mth</code> (and, for the sub&#8209;label, <code>committed_revenue_mth</code>) across the full population.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Deals by Stage &amp; Pipeline Composition</h2>
+      <div class="notes">
+        <ul>
+          <li><strong>Deals by Stage</strong>: count of deals currently sitting in each stage, full population, ordered by the sales process sequence (Active pipeline), then Closed &amp; parked (Closed&ndash;Won, Closed&ndash;Lost, Future Opportunity).</li>
+          <li><strong>Pipeline Composition</strong> (donut): the same population split into four outcome buckets &mdash; Active pipeline, Future opportunity, Closed&ndash;Won, Closed&ndash;Lost &mdash; as a share of the total.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Product Line, Service Level, Top Salesperson</h2>
+      <div class="notes">
+        <ul>
+          <li>All three consider <strong>OPEN deals only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Deals by Stage above.</li>
+          <li><strong>Deals by NV Product Line</strong>: count of open deals per <code>nv_product_line</code> value.</li>
+          <li><strong>Deals by Service Level</strong>: <code>service_level</code> is a multi&#8209;select field, so one deal can add to more than one bar &mdash; percentages are share&#8209;of&#8209;open&#8209;pipeline per tag, not a partition. "Blank" counts deals with no Service Level tag at all.</li>
+          <li><strong>Top Salesperson</strong>: open deal count per <code>owner_name</code>, ranked descending.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Deal Aging</h2>
+      <div class="notes">
+        <ul>
+          <li>For every OPEN deal: <code>days = today &minus; created_at</code> (or the Notebook fallback isn't used here &mdash; this is purely creation age), bucketed into <strong>0&#8209;7d, 7&#8209;15d, 15&#8209;30d, 30d+</strong>.</li>
+          <li>The panel shows, for each bucket, which <strong>stage</strong> those aging deals are currently sitting in &mdash; e.g. "of deals open 30+ days, most are stuck in EKYC Approval."</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Activity &mdash; Notebook Freshness</h2>
+      <div class="notes">
+        <ul>
+          <li>Notebook entries are fetched separately from Opportunities (<code>GET /notebook/entries?object_type=Opportunity</code>, paginated) and reduced to the <strong>most recent entry's <code>created_at</code> per opportunity id</strong>.</li>
+          <li>For every OPEN deal: <code>last_touch</code> = that Notebook date, or <code>created_at</code> if the deal has no Notebook entry at all (never touched &ne; recently touched).</li>
+          <li><code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched).</li>
+          <li><strong>Touched in Last 7 Days %</strong> = count in the &lt;7d tier &divide; total open deals.</li>
+          <li><strong>By Salesperson table</strong>: the same 4&#8209;tier breakdown per <code>owner_name</code>, with each owner's own "Activity Updated (%)" (their &lt;7d count &divide; their own open deal count), sorted worst&#8209;first (most 30d+ deals).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Stage Bottlenecks &amp; Stage &times; Ageing</h2>
+      <div class="notes">
+        <ul>
+          <li>Both use <code>stage_last_changed_at</code> (falling back to <code>created_at</code>) &mdash; i.e. how long a deal has sat in its <strong>current</strong> stage, not since it was created.</li>
+          <li><strong>Stage Bottlenecks</strong>: average days&#8209;in&#8209;current&#8209;stage per stage, across OPEN deals only, longest first.</li>
+          <li><strong>Stage &times; Ageing</strong>: for each stage, the same day buckets as Deal Aging (0&#8209;7d/7&#8209;15d/15&#8209;30d/30d+), shown as a composition bar &mdash; Share mode normalizes every stage's bar to 100%; Count mode scales bar width by the stage's total deal count so stages can be compared by volume too.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Pipeline Strength (Forecast)</h2>
+      <div class="notes">
+        <ul>
+          <li>Population: OPEN deals with an <code>expected_close_date</code> (deals with none are excluded and counted in the panel's caption).</li>
+          <li><strong>Overdue</strong>: <code>expected_close_date &lt; today</code>. Everything else is bucketed by the month of <code>expected_close_date</code>, starting at the current month and continuing through however far into the future the data goes (no fixed 3&#8209;month cap).</li>
+          <li>Each bar is stacked by <strong>stage</strong> and labeled with count + potential revenue, so it's visible whether deals due to close soon are actually in a late stage (Agreed to Ship / Ready to Ship) or an unrealistically early one.</li>
+          <li>Bar height uses a square&#8209;root scale (not linear) so low&#8209;count months next to a high&#8209;count one don't flatten to an invisible sliver &mdash; the printed count above each bar is always the real number.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Created Opportunities by Manager &amp; Sales Head</h2>
+      <div class="notes">
+        <ul>
+          <li>Population: the full dataset (open + closed), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
+          <li>Each opportunity's <code>owner_name</code> is looked up in a curated team roster (Active reps only &mdash; see <code>backend/team_roster.json</code>) to find that rep's <strong>Manager</strong> and <strong>Sales Head</strong>; owners not found in the roster are grouped as "Unmapped" (named in the panel's caption).</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+
 </div>
 
 <script>
@@ -1178,6 +1336,14 @@
       ageMode = btn.dataset.mode;
       document.querySelectorAll(".age-mode-btn").forEach(b => b.classList.toggle("active", b === btn));
       renderStageAgeGrid(lastStageGrid);
+    });
+  });
+
+  document.querySelectorAll(".nav-item").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b === btn));
+      document.getElementById("view-overview").style.display = btn.dataset.view === "overview" ? "" : "none";
+      document.getElementById("view-dictionary").style.display = btn.dataset.view === "dictionary" ? "" : "none";
     });
   });
 
