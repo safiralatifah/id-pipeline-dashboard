@@ -50,6 +50,8 @@
                     "closed_lost": { "type": "integer" },
                     "closed_total": { "type": "integer" },
                     "win_rate": { "type": "number" },
+                    "lead_time_to_won_avg_days": { "type": "number", "nullable": true, "description": "Average days from created_at to the stage change that closed each Closed-Won deal (created_at stands in for a missing 'entered New stage' timestamp). Null if there are no Closed-Won deals in range." },
+                    "lead_time_to_won_count": { "type": "integer", "description": "Number of Closed-Won deals included in the lead-time average." },
                     "revenue_potential_mth": { "type": "number" },
                     "revenue_committed_mth": { "type": "number" },
                     "open_stages": {

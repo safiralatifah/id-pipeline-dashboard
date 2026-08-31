@@ -561,37 +561,6 @@
     overflow: hidden;
     background: var(--surface-2);
   }
-  .age-stage-row {
-    display: grid;
-    grid-template-columns: 64px 1fr 46px;
-    align-items: center;
-    gap: 10px;
-    padding: 7px 0;
-  }
-  .age-stage-row + .age-stage-row { border-top: 1px solid var(--gridline); }
-  .age-stage-row .age-stage-name { font-size: 12.5px; font-weight: 500; color: var(--text-primary); }
-  .age-stage-row .age-stage-n { font-family: "IBM Plex Mono", monospace; color: var(--text-muted); font-size: 11.5px; text-align: right; }
-  .age-stage-track {
-    display: flex;
-    height: 22px;
-    border-radius: 5px;
-    overflow: hidden;
-    background: var(--surface-2);
-  }
-  .age-stage-seg {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 10.5px;
-    font-weight: 600;
-    color: #fff;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-  }
-
   .forecast-chart {
     display: flex;
     align-items: flex-end;
@@ -626,7 +595,6 @@
 
   @media (max-width: 900px) {
     .stage-age-row { grid-template-columns: 104px 1fr 46px; }
-    .age-stage-row { grid-template-columns: 52px 1fr 40px; }
   }
   .stage-age-seg {
     height: 100%;
@@ -662,8 +630,8 @@
   }
   .hover-tip.visible { opacity: 1; transform: translate(-50%, -100%) translateY(-10px) scale(1); }
   [title], [data-tip] { cursor: default; }
-  .bar-fill, .stage-age-seg, .age-stage-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
-  .bar-fill:hover, .stage-age-seg:hover, .age-stage-seg:hover { filter: brightness(1.12); }
+  .bar-fill, .stage-age-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
+  .bar-fill:hover, .stage-age-seg:hover { filter: brightness(1.12); }
 
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .simple-table th {
@@ -821,18 +789,17 @@
       <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count.</p>
       <div id="bars-owner"></div>
       <div id="rest-owner" class="rest-list"></div>
+
+      <div class="divider"></div>
+
+      <div class="section-label">Open deals by ageing</div>
+      <p class="panel-sub" style="margin-bottom:14px;">Days since creation, across all open deals.</p>
+      <div id="bars-aging"></div>
     </div>
 
     <div class="section-label" style="margin-top:24px; font-size:13px;">Pipeline Health &amp; Efficiency</div>
 
     <div class="panel">
-      <h2>Deal Aging (open deals)</h2>
-      <p class="panel-sub" style="margin-bottom:14px;">Days since creation, broken down by which stage those deals are sitting in now.</p>
-      <div id="age-stage-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
-      <div id="aging-stage-grid"></div>
-    </div>
-
-    <div class="panel" style="margin-top:16px;">
       <h2>Activity &mdash; Notebook Freshness</h2>
       <p class="panel-sub" style="margin-bottom:14px;">Reps are expected to add a Notebook entry to every open opportunity at least every 7 days.</p>
       <div class="stat accent" style="max-width:260px; margin-bottom:18px;">
@@ -866,6 +833,8 @@
         <h2>Stage Bottlenecks</h2>
         <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
         <div id="table-stage-duration"></div>
+        <div class="divider"></div>
+        <div class="notes"><strong style="color:var(--text-primary); font-weight:600;">Avg lead time to Closed&ndash;Won:</strong> <span id="lead-time-line">&ndash;</span></div>
       </div>
     </div>
 
@@ -935,23 +904,14 @@
     </div>
 
     <div class="panel" style="margin-top:16px;">
-      <h2>Product Line, Service Level, Top Salesperson</h2>
+      <h2>Product Line, Service Level, Top Salesperson &amp; Ageing</h2>
       <div class="notes">
         <ul>
-          <li>All three consider <strong>OPEN deals only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Deals by Stage above.</li>
+          <li>All four consider <strong>OPEN deals only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Deals by Stage above.</li>
           <li><strong>Deals by NV Product Line</strong>: count of open deals per <code>nv_product_line</code> value.</li>
           <li><strong>Deals by Service Level</strong>: <code>service_level</code> is a multi&#8209;select field, so one deal can add to more than one bar &mdash; percentages are share&#8209;of&#8209;open&#8209;pipeline per tag, not a partition. "Blank" counts deals with no Service Level tag at all.</li>
           <li><strong>Top Salesperson</strong>: open deal count per <code>owner_name</code>, ranked descending.</li>
-        </ul>
-      </div>
-    </div>
-
-    <div class="panel" style="margin-top:16px;">
-      <h2>Deal Aging</h2>
-      <div class="notes">
-        <ul>
-          <li>For every OPEN deal: <code>days = today &minus; created_at</code> (or the Notebook fallback isn't used here &mdash; this is purely creation age), bucketed into <strong>0&#8209;7d, 7&#8209;15d, 15&#8209;30d, 30d+</strong>.</li>
-          <li>The panel shows, for each bucket, which <strong>stage</strong> those aging deals are currently sitting in &mdash; e.g. "of deals open 30+ days, most are stuck in EKYC Approval."</li>
+          <li><strong>Open deals by ageing</strong> (below Top Salesperson): for every OPEN deal, <code>days = today &minus; created_at</code> (purely creation age, no Notebook fallback), bucketed into <strong>0&#8209;7d, 7&#8209;15d, 15&#8209;30d, 30d+</strong> &mdash; a plain count per bucket, not split by stage.</li>
         </ul>
       </div>
     </div>
@@ -975,7 +935,8 @@
         <ul>
           <li>Both use <code>stage_last_changed_at</code> (falling back to <code>created_at</code>) &mdash; i.e. how long a deal has sat in its <strong>current</strong> stage, not since it was created.</li>
           <li><strong>Stage Bottlenecks</strong>: average days&#8209;in&#8209;current&#8209;stage per stage, across OPEN deals only, longest first.</li>
-          <li><strong>Stage &times; Ageing</strong>: for each stage, the same day buckets as Deal Aging (0&#8209;7d/7&#8209;15d/15&#8209;30d/30d+), shown as a composition bar &mdash; Share mode normalizes every stage's bar to 100%; Count mode scales bar width by the stage's total deal count so stages can be compared by volume too.</li>
+          <li><strong>Stage &times; Ageing</strong>: for each stage, the same day buckets used throughout (0&#8209;7d/7&#8209;15d/15&#8209;30d/30d+), shown as a composition bar &mdash; Share mode normalizes every stage's bar to 100%; Count mode scales bar width by the stage's total deal count so stages can be compared by volume too.</li>
+          <li><strong>Avg lead time to Closed&ndash;Won</strong> (below the Stage Bottlenecks table): for every Closed&ndash;Won deal, <code>days = stage_last_changed_at (or updated_at) &minus; created_at</code>. The CRM has no separate "entered New stage" timestamp, so <code>created_at</code> is used as a proxy for it &mdash; the same approximation the ageing buckets rely on.</li>
         </ul>
       </div>
     </div>
@@ -1241,29 +1202,6 @@
     return i >= 0 ? STAGE_COLORS[i % STAGE_COLORS.length] : "#8f867a";
   }
 
-  function renderAgingStageGrid(rows) {
-    const container = document.getElementById("aging-stage-grid");
-    const present = new Set();
-    rows.forEach(r => r.stages.forEach(s => present.add(s.name)));
-    document.getElementById("age-stage-legend").innerHTML = STAGE_ORDER.filter(s => present.has(s)).map(s => `
-      <span style="display:inline-flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary);">
-        <span style="width:10px; height:10px; border-radius:3px; background:${stageColor(s)}; flex:none;"></span>${s}
-      </span>`).join("");
-
-    if (!rows.some(r => r.total)) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open deals.</p>'; return; }
-    container.innerHTML = rows.map(row => {
-      const segs = row.stages.map(s => {
-        const pct = row.total ? (s.count / row.total) * 100 : 0;
-        return `<div class="age-stage-seg" style="width:${pct}%; background:${stageColor(s.name)};" title="${row.label} · ${s.name}: ${s.count} deal(s)">${pct > 10 ? s.count : ""}</div>`;
-      }).join("");
-      return `
-        <div class="age-stage-row">
-          <span class="age-stage-name">${row.label}</span>
-          <div class="age-stage-track">${segs}</div>
-          <span class="age-stage-n">${row.total}</span>
-        </div>`;
-    }).join("");
-  }
   let ageMode = "share";
   let lastStageGrid = [];
 
@@ -1341,7 +1279,9 @@
     setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
     setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.open_pipeline ? ` (${((d.service_blank / d.open_pipeline) * 100).toFixed(1)}%)` : ""}.`);
 
-    renderAgingStageGrid(d.aging_grid);
+    const agingColorByLabel = {};
+    d.aging_buckets.forEach((b, i) => { agingColorByLabel[b.label] = AGE_COLORS[i] ?? "var(--stage-open)"; });
+    renderBars(document.getElementById("bars-aging"), d.aging_buckets.map(b => ({ name: b.label, count: b.count })), r => agingColorByLabel[r.name], d.open_pipeline);
 
     setText("activity-touched-pct", `${d.activity_touched_pct}%`);
     setText("activity-touched-sub", `of ${d.open_pipeline} open opportunities`);
@@ -1349,6 +1289,9 @@
     renderActivityOwnerTable(d.activity_by_owner, d.activity_summary.map(b => b.label));
 
     renderStageDurationTable(d.stage_duration);
+    setText("lead-time-line", d.lead_time_to_won_avg_days != null
+      ? `${d.lead_time_to_won_avg_days} days on average, creation → Closed-Won (${d.lead_time_to_won_count} deal(s)).`
+      : "No Closed-Won deals in range.");
     renderAgeLegend(d.aging_buckets.map(b => b.label));
     renderStageAgeGrid(d.stage_duration_grid);
     renderForecast(d.forecast, d.forecast_undated_count);

@@ -265,6 +265,25 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
                 closed_won_last_month += 1
             else:
                 closed_lost_last_month += 1
+    # Lead time to Closed-Won: days from creation to the stage change that
+    # closed the deal. The CRM has no separate "entered New stage" timestamp,
+    # so created_at is used as a proxy for it (opportunities are created
+    # directly into New) — the same approximation Deal Aging already relies
+    # on for "days since creation".
+    lead_time_days: list[int] = []
+    for r in items:
+        if _normalize_stage(r.get("stage") or "") != won_norm:
+            continue
+        created = _parse_dt(r.get("created_at"))
+        closed_at = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("updated_at"))
+        if not created or not closed_at or closed_at < created:
+            continue
+        lead_time_days.append((closed_at - created).days)
+    lead_time_to_won_avg_days = (
+        round(sum(lead_time_days) / len(lead_time_days), 1) if lead_time_days else None
+    )
+    lead_time_to_won_count = len(lead_time_days)
+
     open_stages = [
         {"name": s, "count": stage_counts.get(_normalize_stage(s), 0)} for s in OPEN_STAGE_ORDER
     ]
@@ -529,6 +548,8 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
         "closed_lost_last_month": closed_lost_last_month,
         "closed_total": closed_total,
         "win_rate": round(won / closed_total * 100, 1) if closed_total else 0,
+        "lead_time_to_won_avg_days": lead_time_to_won_avg_days,
+        "lead_time_to_won_count": lead_time_to_won_count,
         "revenue_potential_mth": revenue,
         "revenue_committed_mth": committed,
         "open_stages": open_stages,
