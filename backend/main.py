@@ -40,6 +40,14 @@ PRODUCT_LINE_ORDER = [
 # "contains", not "equals" (equals silently returns 0 rows for this field type).
 SERVICE_LEVEL_VALUES = ["Same Day", "Standard", "LTL", "Next Day", "FTL", "Dedicated", "FCL", "LCL"]
 
+# Task is a global object (642k+ rows across every country) with no
+# record_type_id we can filter Indonesia by, so instead we scope the fetch to
+# just the owner_ids in our Indonesia team roster — cheap, and correct since
+# a rep only owns their own country's work.
+TASK_OWNER_IDS = sorted({v["owner_id"] for v in TEAM_ROSTER.values() if v.get("owner_id")})
+TASK_UNMAPPED_REPS = sorted(name for name, v in TEAM_ROSTER.items() if not v.get("owner_id"))
+TASK_OPEN_STATUSES = ["Not Started", "In Progress"]
+
 _cache: dict[str, Any] = {"data": None, "fetched_at": 0.0, "error": None, "refreshing": False}
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
@@ -57,7 +65,11 @@ def _parse_dt(s: str | None) -> datetime | None:
     if not s:
         return None
     try:
-        return datetime.fromisoformat(s.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        # Task.due_date comes back with no offset at all (e.g.
+        # "2026-09-07T00:00:00") — treat as UTC like every other timestamp
+        # here, otherwise arithmetic against an aware `now` raises.
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
     except ValueError:
         pass
     try:
@@ -210,7 +222,32 @@ async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, date
     return last_touch
 
 
-def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime]) -> dict:
+async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
+    """Not Started / In Progress Tasks owned by our Indonesia reps."""
+    api_key = os.environ.get("CRM_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
+    if not TASK_OWNER_IDS:
+        return []
+
+    filters = {
+        "logic": "AND",
+        "conditions": [
+            {"field": "owner_id", "operator": "in", "value": TASK_OWNER_IDS},
+            {"field": "status", "operator": "in", "value": TASK_OPEN_STATUSES},
+        ],
+    }
+    return await _fetch_paginated(
+        client,
+        f"{CRM_BASE}/objects/Task/records",
+        {"X-API-Key": api_key},
+        {"filters": json.dumps(filters)},
+    )
+
+
+def build_dashboard(
+    items: list[dict], notebook_last_touch: dict[int, datetime], tasks: list[dict]
+) -> dict:
     now = datetime.now(timezone.utc)
     total = len(items)
 
@@ -550,6 +587,43 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
         key=lambda row: (-row["counts"][activity_labels[-1]], -row["total"]),
     )
 
+    # Task Activity: of every open (Not Started / In Progress) Task a rep
+    # owns, how many were touched in the last 7 days AND aren't overdue.
+    # "Touched" = updated_at, falling back to created_at when a task has
+    # never been edited since it was logged (same fallback idea as Notebook
+    # activity above). Tasks is a 642k-row global object with no country
+    # field, so fetch_open_tasks() already scoped this to our own reps'
+    # owner_ids — reps with no owner_id in the roster (TASK_UNMAPPED_REPS)
+    # can't be measured here at all.
+    today = now.date()
+    task_total_by_owner: Counter = Counter()
+    task_active_by_owner: Counter = Counter()
+    for t in tasks:
+        owner = t.get("owner_name") or "(blank)"
+        task_total_by_owner[owner] += 1
+        last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
+        due = _parse_dt(t.get("due_date"))
+        recent = bool(last_activity) and (now - last_activity).days <= 7
+        not_overdue = due is None or due.date() >= today
+        if recent and not_overdue:
+            task_active_by_owner[owner] += 1
+
+    task_total = sum(task_total_by_owner.values())
+    task_active_total = sum(task_active_by_owner.values())
+    task_activity_pct = round(task_active_total / task_total * 100, 1) if task_total else 0.0
+    task_activity_by_owner = sorted(
+        (
+            {
+                "name": owner,
+                "total": total,
+                "active": task_active_by_owner.get(owner, 0),
+                "active_pct": round(task_active_by_owner.get(owner, 0) / total * 100, 1) if total else 0.0,
+            }
+            for owner, total in task_total_by_owner.items()
+        ),
+        key=lambda row: row["active_pct"],
+    )
+
     return {
         "total": total,
         "created_this_month": created_this_month,
@@ -591,6 +665,11 @@ def build_dashboard(items: list[dict], notebook_last_touch: dict[int, datetime])
         "activity_touched_pct": activity_touched_pct,
         "activity_by_owner": activity_by_owner,
         "activity_undated_count": activity_undated_count,
+        "task_total": task_total,
+        "task_active_total": task_active_total,
+        "task_activity_pct": task_activity_pct,
+        "task_activity_by_owner": task_activity_by_owner,
+        "task_unmapped_reps": TASK_UNMAPPED_REPS,
     }
 
 
@@ -605,11 +684,12 @@ async def _refresh_dashboard_cache() -> None:
     _cache["refreshing"] = True
     try:
         async with httpx.AsyncClient() as client:
-            items, notebook_last_touch = await asyncio.gather(
+            items, notebook_last_touch, tasks = await asyncio.gather(
                 fetch_all_opportunities(client),
                 fetch_notebook_last_touch(client),
+                fetch_open_tasks(client),
             )
-        result = build_dashboard(items, notebook_last_touch)
+        result = build_dashboard(items, notebook_last_touch, tasks)
         result["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         _cache["data"] = result
         _cache["fetched_at"] = time.time()

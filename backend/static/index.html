@@ -809,6 +809,20 @@
       <div id="table-activity-owner"></div>
     </div>
 
+    <div class="panel" style="margin-top:16px;">
+      <h2>Task Activity</h2>
+      <p class="panel-sub" style="margin-bottom:14px;">Of each rep's open (Not Started / In Progress) Tasks, the share touched in the last 7 days that also aren't overdue.</p>
+      <div class="stat accent" style="max-width:260px; margin-bottom:18px;">
+        <span class="label">Active in last 7 days</span>
+        <span class="value" id="task-activity-pct">&ndash;</span>
+        <span class="sub" id="task-activity-sub">&nbsp;</span>
+      </div>
+      <div class="divider"></div>
+      <div class="section-label">By Salesperson (worst first)</div>
+      <div id="table-task-activity"></div>
+      <p class="panel-sub" id="task-unmapped-note" style="margin-top:12px;"></p>
+    </div>
+
     <div class="panels2" style="margin-top:16px;">
       <div class="panel">
         <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
@@ -920,6 +934,19 @@
           <li><code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched).</li>
           <li><strong>Touched in Last 7 Days %</strong> = count in the &lt;7d tier &divide; total open deals.</li>
           <li><strong>By Salesperson table</strong>: the same 4&#8209;tier breakdown per <code>owner_name</code>, with each owner's own "Activity Updated (%)" (their &lt;7d count &divide; their own open deal count), sorted worst&#8209;first (most 30d+ deals).</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Task Activity</h2>
+      <div class="notes">
+        <ul>
+          <li>Population: CRM <strong>Task</strong> records (not Opportunities) with <code>status</code> in <strong>Not Started</strong> or <strong>In Progress</strong> &mdash; Completed and Deferred tasks are excluded entirely.</li>
+          <li>Task is a global object with no country field, so it's fetched pre&#8209;filtered server&#8209;side to just the <code>owner_id</code>s in the Indonesia team roster (a rep only owns their own country's work) &mdash; not a full global pull.</li>
+          <li>A task counts as <strong>Active</strong> when both hold: (1) <code>last_touch</code> (=<code>updated_at</code>, falling back to <code>created_at</code> if the task has never been edited since it was logged) is within the last 7 days, AND (2) it is <strong>not overdue</strong> (<code>due_date</code> is blank, or is today or later).</li>
+          <li><strong>Active (%)</strong> per owner = their Active task count &divide; their total open (Not Started + In Progress) task count.</li>
+          <li>Reps with no <code>owner_id</code> on file in the team roster can't be queried at all and are named in the panel's caption &mdash; they're absent from the table, not counted as 0%.</li>
         </ul>
       </div>
     </div>
@@ -1190,6 +1217,29 @@
       </table>`;
   }
 
+  function renderTaskActivityTable(rows) {
+    const container = document.getElementById("table-task-activity");
+    if (!rows || !rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
+    container.innerHTML = `
+      <table class="simple-table">
+        <thead><tr>
+          <th>Owner</th>
+          <th class="num" style="color:var(--accent);">Active (%)</th>
+          <th class="num">Active</th>
+          <th class="num">Open Tasks</th>
+        </tr></thead>
+        <tbody>
+          ${rows.map(r => `
+            <tr>
+              <td class="name">${r.name}</td>
+              <td class="num" style="color:${activityPctColor(r.active_pct)}; font-weight:600;">${r.active_pct}%</td>
+              <td class="num">${r.active}</td>
+              <td class="num"><b>${r.total}</b></td>
+            </tr>`).join("")}
+        </tbody>
+      </table>`;
+  }
+
   const AGE_COLORS = ["var(--age-0)", "var(--age-2)", "var(--age-4)", "var(--age-5)"];
 
   const STAGE_ORDER = ["Prospecting", "New", "Proposal Submitted", "Negotiation", "EKYC Approval", "Contract Sent", "Agreed to Ship", "Onboarding", "Ready to Ship", "Future Opportunity"];
@@ -1281,6 +1331,14 @@
     setText("activity-touched-sub", `of ${d.open_pipeline} open opportunities`);
     renderActivitySummary(d.activity_summary);
     renderActivityOwnerTable(d.activity_by_owner, d.activity_summary.map(b => b.label));
+
+    setText("task-activity-pct", `${d.task_activity_pct}%`);
+    setText("task-activity-sub", `of ${d.task_total} open task(s)`);
+    renderTaskActivityTable(d.task_activity_by_owner);
+    const taskUnmapped = d.task_unmapped_reps || [];
+    setText("task-unmapped-note", taskUnmapped.length
+      ? `${taskUnmapped.length} rep(s) have no CRM user id on file and can't be measured here: ${taskUnmapped.join(", ")}.`
+      : "");
 
     renderStageDurationTable(d.stage_duration);
     setText("lead-time-line", d.lead_time_to_won_avg_days != null

@@ -282,6 +282,27 @@
                       "type": "integer",
                       "description": "Open deals with neither a Notebook entry nor a created_at (should be ~0)."
                     },
+                    "task_total": { "type": "integer", "description": "Open (Not Started / In Progress) Task records owned by reps in the team roster." },
+                    "task_active_total": { "type": "integer", "description": "Of task_total, how many were touched (updated_at, falling back to created_at) within the last 7 days and aren't overdue." },
+                    "task_activity_pct": { "type": "number" },
+                    "task_activity_by_owner": {
+                      "type": "array",
+                      "description": "Per-owner open Task counts and the same 'active' definition, sorted worst (lowest active_pct) first.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "total": { "type": "integer" },
+                          "active": { "type": "integer" },
+                          "active_pct": { "type": "number" }
+                        }
+                      }
+                    },
+                    "task_unmapped_reps": {
+                      "type": "array",
+                      "description": "Roster names with no CRM owner_id on file — their Tasks can't be queried at all.",
+                      "items": { "type": "string" }
+                    },
                     "snapshot_at": { "type": "string", "format": "date-time" }
                   }
                 }
