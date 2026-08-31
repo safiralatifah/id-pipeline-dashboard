@@ -610,4 +610,7 @@ async def get_pipeline():
 
 @app.get("/{full_path:path}")
 def serve_dashboard(full_path: str):
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )

@@ -768,42 +768,42 @@
       </div>
     </div>
 
-    <div class="panel">
-      <h2>Deals by Stage</h2>
-      <p class="panel-sub">Share of all matched opportunities by outcome bucket, broken down by pipeline stage.</p>
-
-      <div class="donut-wrap">
-        <div class="donut-figure">
-          <svg viewBox="0 0 176 176" width="176" height="176" id="donut-svg"></svg>
-          <div class="donut-center"><span class="n" id="donut-total">&ndash;</span><span class="l">total</span></div>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="section-label-row">
-        <span class="section-label">Active pipeline</span>
-        <span class="section-pct" id="pct-active">&ndash;</span>
-      </div>
-      <div id="bars-open"></div>
-
-      <div class="section-label-row" style="margin-top:18px;">
-        <span class="section-label">Closed &amp; parked</span>
-        <span class="section-pct" id="pct-closed">&ndash;</span>
-      </div>
-      <div id="bars-closed"></div>
-    </div>
-
     <div class="panels2">
       <div class="panel">
-        <h2>Deals by NV Product Line</h2>
-        <p class="panel-sub">Which logistics product each OPEN Indonesia opportunity is tagged under.</p>
-        <div id="bars-product"></div>
+        <h2>Deals by Stage</h2>
+        <p class="panel-sub">Share of all matched opportunities by outcome bucket, broken down by pipeline stage.</p>
+
+        <div class="donut-wrap">
+          <div class="donut-figure">
+            <svg viewBox="0 0 176 176" width="176" height="176" id="donut-svg"></svg>
+            <div class="donut-center"><span class="n" id="donut-total">&ndash;</span><span class="l">total</span></div>
+          </div>
+        </div>
+
         <div class="divider"></div>
-        <div class="notes" id="product-empty-note"></div>
+
+        <div class="section-label-row">
+          <span class="section-label">Active pipeline</span>
+          <span class="section-pct" id="pct-active">&ndash;</span>
+        </div>
+        <div id="bars-open"></div>
+
+        <div class="section-label-row" style="margin-top:18px;">
+          <span class="section-label">Closed &amp; parked</span>
+          <span class="section-pct" id="pct-closed">&ndash;</span>
+        </div>
+        <div id="bars-closed"></div>
       </div>
 
       <div class="stack-col">
+        <div class="panel">
+          <h2>Deals by NV Product Line</h2>
+          <p class="panel-sub">Which logistics product each OPEN Indonesia opportunity is tagged under.</p>
+          <div id="bars-product"></div>
+          <div class="divider"></div>
+          <div class="notes" id="product-empty-note"></div>
+        </div>
+
         <div class="panel">
           <h2>Deals by Service Level</h2>
           <p class="panel-sub">Open deals only &mdash; a multi-select field, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
@@ -813,14 +813,14 @@
             <strong style="color:var(--text-primary); font-weight:600;">Read as tag counts, not a partition.</strong> Because a deal can hold multiple Service Levels (e.g. "LTL" + "FTL"), percentages are share&#8209;of&#8209;total per tag, not mutually exclusive slices.
           </div>
         </div>
-
-        <div class="panel">
-          <h2>Top Salesperson</h2>
-          <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count.</p>
-          <div id="bars-owner"></div>
-          <div id="rest-owner" class="rest-list"></div>
-        </div>
       </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Top Salesperson</h2>
+      <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count.</p>
+      <div id="bars-owner"></div>
+      <div id="rest-owner" class="rest-list"></div>
     </div>
 
     <div class="section-label" style="margin-top:24px; font-size:13px;">Pipeline Health &amp; Efficiency</div>
