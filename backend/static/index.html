@@ -772,7 +772,6 @@
           <svg viewBox="0 0 176 176" width="176" height="176" id="donut-svg"></svg>
           <div class="donut-center"><span class="n" id="donut-total">&ndash;</span><span class="l">total</span></div>
         </div>
-        <div class="legend" id="donut-legend"></div>
       </div>
 
       <div class="divider"></div>
@@ -1097,14 +1096,6 @@
       svg.appendChild(path);
       angle += sweep + gapDeg;
     });
-
-    document.getElementById("donut-legend").innerHTML = comp.map(seg => `
-      <div class="legend-item">
-        <span class="legend-swatch" style="background:${seg.color};"></span>
-        <span class="lname">${seg.name}</span>
-        <span class="lval">${seg.count}</span>
-        <span class="lpct">${((seg.count/compTotal)*100).toFixed(1)}%</span>
-      </div>`).join("");
   }
 
   function fmtRupiah(n) {
