@@ -375,7 +375,21 @@
                                 "type": "object",
                                 "properties": {
                                   "name": { "type": "string" },
-                                  "count": { "type": "integer" }
+                                  "count": { "type": "integer" },
+                                  "items": {
+                                    "type": "array",
+                                    "description": "This rep's own matching deals (uncapped), same shape as the category's top-level items, worst first.",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": { "type": "integer" },
+                                        "name": { "type": "string", "nullable": true },
+                                        "crm_url": { "type": "string" },
+                                        "owner_name": { "type": "string", "nullable": true },
+                                        "days": { "type": "integer", "nullable": true }
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -401,11 +415,26 @@
                             },
                             "by_owner": {
                               "type": "array",
+                              "description": "One row per rep with at least one matching deal, sorted worst-first. Rendered instead of items when scope_size is >1.",
                               "items": {
                                 "type": "object",
                                 "properties": {
                                   "name": { "type": "string" },
-                                  "count": { "type": "integer" }
+                                  "count": { "type": "integer" },
+                                  "items": {
+                                    "type": "array",
+                                    "description": "This rep's own matching deals (uncapped), same shape as the category's top-level items, worst first.",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": { "type": "integer" },
+                                        "name": { "type": "string", "nullable": true },
+                                        "crm_url": { "type": "string" },
+                                        "owner_name": { "type": "string", "nullable": true },
+                                        "days": { "type": "integer", "nullable": true }
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -431,11 +460,26 @@
                             },
                             "by_owner": {
                               "type": "array",
+                              "description": "One row per rep with at least one matching deal, sorted worst-first. Rendered instead of items when scope_size is >1.",
                               "items": {
                                 "type": "object",
                                 "properties": {
                                   "name": { "type": "string" },
-                                  "count": { "type": "integer" }
+                                  "count": { "type": "integer" },
+                                  "items": {
+                                    "type": "array",
+                                    "description": "This rep's own matching deals (uncapped), same shape as the category's top-level items, worst first.",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": { "type": "integer" },
+                                        "name": { "type": "string", "nullable": true },
+                                        "crm_url": { "type": "string" },
+                                        "owner_name": { "type": "string", "nullable": true },
+                                        "days": { "type": "integer", "nullable": true, "description": "Days since last Notebook touch (or created_at)." }
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -467,7 +511,21 @@
                                 "type": "object",
                                 "properties": {
                                   "name": { "type": "string" },
-                                  "count": { "type": "integer" }
+                                  "count": { "type": "integer" },
+                                  "items": {
+                                    "type": "array",
+                                    "description": "This rep's own matching tasks (uncapped), same shape as the category's top-level items, worst first.",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": { "type": "integer" },
+                                        "subject": { "type": "string" },
+                                        "owner_name": { "type": "string", "nullable": true },
+                                        "days_since_update": { "type": "integer", "nullable": true },
+                                        "crm_url": { "type": "string", "nullable": true }
+                                      }
+                                    }
+                                  }
                                 }
                               }
                             }

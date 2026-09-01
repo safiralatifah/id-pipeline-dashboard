@@ -544,6 +544,17 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .ai-owner-group { border-bottom: 1px solid var(--gridline); padding: 3px 0; }
+  .ai-owner-group:last-child { border-bottom: none; }
+  .ai-owner-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 4px 0;
+  }
+  .ai-owner-items { display: flex; flex-direction: column; padding-left: 14px; }
+  .ai-owner-items .ai-item { padding: 5px 0; font-size: 12px; }
   .ai-pace-row {
     display: flex;
     align-items: center;
@@ -1622,11 +1633,14 @@
       </div>`;
   }
 
-  function aiOwnerRowHtml(row) {
+  function aiOwnerGroupHtml(owner, itemFn) {
     return `
-      <div class="ai-item">
-        <span class="ai-item-name">${row.name}</span>
-        <span class="ai-item-days">${row.count}</span>
+      <div class="ai-owner-group">
+        <div class="ai-owner-header">
+          <span class="ai-item-name">${owner.name}</span>
+          <span class="ai-item-days">${owner.count}</span>
+        </div>
+        <div class="ai-owner-items">${owner.items.map(it => itemFn({ ...it, owner_name: null })).join("")}</div>
       </div>`;
   }
 
@@ -1637,7 +1651,7 @@
     section.style.display = "";
     document.getElementById(sentenceId).textContent = sentenceFn(total);
     const rows = scopeSize > 1
-      ? category.by_owner.map(aiOwnerRowHtml)
+      ? category.by_owner.map(o => aiOwnerGroupHtml(o, itemFn))
       : category.items.map(itemFn);
     document.getElementById(listId).innerHTML = rows.join("");
   }

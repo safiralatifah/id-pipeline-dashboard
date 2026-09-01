@@ -568,16 +568,26 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
         key=lambda p: p["created"] - p["target"],
     )
 
-    def _by_owner(rows: list[dict]) -> list[dict]:
-        counts = Counter(r.get("owner_name") for r in rows if r.get("owner_name"))
-        return sorted(
-            ({"name": name, "count": count} for name, count in counts.items()),
+    def _category(rows: list[dict], day_field: str | None) -> dict:
+        # Rows arrive pre-sorted worst-first; day_field turns raw opportunity
+        # rows into the compact item shape, tasks are already in it.
+        final_items = [_action_item_row(r, day_field) for r in rows] if day_field else rows
+
+        # Grouped by owner using the same final item dicts (so a manager's
+        # per-rep breakdown can drill into the actual deals/tasks, hyperlinks
+        # included, instead of just a bare count) — sort order within each
+        # owner's group is inherited from the overall worst-first sort.
+        grouped: dict[str, list[dict]] = {}
+        for it in final_items:
+            owner = it.get("owner_name")
+            if owner:
+                grouped.setdefault(owner, []).append(it)
+        by_owner = sorted(
+            ({"name": name, "count": len(its), "items": its} for name, its in grouped.items()),
             key=lambda x: -x["count"],
         )
 
-    def _category(rows: list[dict], day_field: str | None) -> dict:
-        items = [_action_item_row(r, day_field) for r in rows[:ACTION_ITEM_LIST_LIMIT]] if day_field else rows[:ACTION_ITEM_LIST_LIMIT]
-        return {"items": items, "total": len(rows), "by_owner": _by_owner(rows)}
+        return {"items": final_items[:ACTION_ITEM_LIST_LIMIT], "total": len(rows), "by_owner": by_owner}
 
     return {
         "overdue": _category(overdue, "last_stage_duration_days"),
