@@ -415,12 +415,14 @@ def build_dashboard(
     new_business_items = [r for r in items if r.get("type") in CREATED_OPPORTUNITY_TYPES]
     created_this_month = 0
     created_last_month = 0
+    created_this_month_ids: set = set()
     for r in new_business_items:
         created = _parse_dt(r.get("created_at"))
         if not created:
             continue
         if created >= this_month_start:
             created_this_month += 1
+            created_this_month_ids.add(r.get("id"))
         elif last_month_start <= created <= last_month_end:
             created_last_month += 1
     # Stage names come back from the CRM with inconsistent dash characters
@@ -443,6 +445,8 @@ def build_dashboard(
     closed_lost_this_month = 0
     closed_won_last_month = 0
     closed_lost_last_month = 0
+    closed_won_this_month_ids: set = set()
+    closed_lost_this_month_ids: set = set()
     for r in items:
         stage_norm = _normalize_stage(r.get("stage") or "")
         if stage_norm not in (won_norm, lost_norm):
@@ -453,8 +457,10 @@ def build_dashboard(
         if changed >= this_month_start:
             if stage_norm == won_norm:
                 closed_won_this_month += 1
+                closed_won_this_month_ids.add(r.get("id"))
             else:
                 closed_lost_this_month += 1
+                closed_lost_this_month_ids.add(r.get("id"))
         elif last_month_start <= changed <= last_month_end:
             if stage_norm == won_norm:
                 closed_won_last_month += 1
@@ -486,6 +492,16 @@ def build_dashboard(
     closed_total = won + lost
     closed_stage_names = {_normalize_stage("Closed–Won"), _normalize_stage("Closed–Lost")}
     open_items = [r for r in items if _normalize_stage(r.get("stage") or "") not in closed_stage_names]
+    # Pipeline Conversion denominator: the *unique* deals in play this month
+    # — created, still open, or resolved either way — not a sum of the four
+    # counts (which would double-count e.g. a deal created and closed within
+    # the same month).
+    pipeline_conversion_ids = (
+        created_this_month_ids
+        | {r.get("id") for r in open_items}
+        | closed_won_this_month_ids
+        | closed_lost_this_month_ids
+    )
 
     # Product line, service level, and owner leaderboard only consider OPEN
     # (+ future) deals — closed-won/lost are excluded here per the user's ask.
@@ -826,14 +842,12 @@ def build_dashboard(
         key=lambda row: -row["pct"],
     )
 
-    # Pipeline Conversion: of everything "in play" this month — newly
+    # Pipeline Conversion: of the unique deals "in play" this month — newly
     # created, still open, or resolved (won or lost) this month — what share
-    # actually became Closed-Won this month. A rough activity-volume
-    # denominator, not a clean partition (a deal created and closed within
-    # the same month counts in more than one bucket), by design.
-    pipeline_conversion_denominator = (
-        created_this_month + (open_active + future) + closed_won_this_month + closed_lost_this_month
-    )
+    # actually became Closed-Won this month. pipeline_conversion_ids is
+    # already de-duplicated (a deal created and closed within the same
+    # month only counts once), computed just after open_items above.
+    pipeline_conversion_denominator = len(pipeline_conversion_ids)
     pipeline_conversion_pct = (
         round(closed_won_this_month / pipeline_conversion_denominator * 100, 1)
         if pipeline_conversion_denominator else 0.0
