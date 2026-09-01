@@ -811,6 +811,11 @@
   .stage-age-seg, .owner-age-seg { cursor: pointer; }
   .bar-name[data-owner-row], .stage-age-name[data-stage-row] { cursor: pointer; }
   .bar-name[data-owner-row]:hover, .stage-age-name[data-stage-row]:hover { text-decoration: underline; }
+  .bar-row-clickable { cursor: pointer; transition: opacity 0.15s ease; }
+  .bar-row-clickable:hover { opacity: 0.8; }
+  td.name[data-filter-key] { cursor: pointer; }
+  td.name[data-filter-key]:hover { text-decoration: underline; }
+  .forecast-seg, .forecast-col { cursor: pointer; }
   .opp-filter-chip {
     display: inline-flex;
     align-items: center;
@@ -1444,7 +1449,7 @@
     });
   }
 
-  function renderBars(container, rows, colorFn, totalOverride) {
+  function renderBars(container, rows, colorFn, totalOverride, filterKeyFn) {
     if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
     const denom = totalOverride ?? TOTAL;
     const maxCount = Math.max(...rows.map(r => r.count));
@@ -1453,8 +1458,10 @@
       const totalPct = denom ? ((r.count / denom) * 100).toFixed(1) : "0.0";
       const color = colorFn(r);
       const labelInside = widthPct > 22;
+      const f = filterKeyFn ? filterKeyFn(r) : null;
+      const filterAttrs = f ? ` data-filter-key="${f.key}" data-filter-value="${f.value}"` : "";
       return `
-        <div class="bar-row" title="${r.name}: ${r.count} deals (${totalPct}% of total)">
+        <div class="bar-row${f ? ' bar-row-clickable' : ''}"${filterAttrs} title="${r.name}: ${r.count} deals (${totalPct}% of total)${f ? ' — click to filter Opportunity List' : ''}">
           <span class="bar-name">${r.name}</span>
           <div class="bar-track">
             <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:${color};">
@@ -1532,8 +1539,13 @@
       path.setAttribute("fill", seg.color.startsWith("var") ? getComputedVar(seg.color) : seg.color);
       path.setAttribute("stroke", getComputedVar("var(--surface-1)"));
       path.setAttribute("stroke-width", "2");
+      if (seg.stageGroup) {
+        path.dataset.filterKey = "stage_group";
+        path.dataset.filterValue = seg.stageGroup;
+        path.style.cursor = "pointer";
+      }
       const t = document.createElementNS(ns, "title");
-      t.textContent = `${seg.name}: ${seg.count} (${((seg.count/compTotal)*100).toFixed(1)}%)`;
+      t.textContent = `${seg.name}: ${seg.count} (${((seg.count/compTotal)*100).toFixed(1)}%)${seg.stageGroup ? " — click to filter Opportunity List" : ""}`;
       path.appendChild(t);
       svg.appendChild(path);
       angle += sweep + gapDeg;
@@ -1568,7 +1580,7 @@
       <table class="simple-table">
         <thead><tr><th>Stage</th><th class="num">Avg days</th><th class="num">Deals</th></tr></thead>
         <tbody>
-          ${rows.map(r => `<tr><td class="name">${r.name}</td><td class="num">${r.avg_days}</td><td class="num">${r.count}</td></tr>`).join("")}
+          ${rows.map(r => `<tr><td class="name" data-filter-key="stage" data-filter-value="${r.name}">${r.name}</td><td class="num">${r.avg_days}</td><td class="num">${r.count}</td></tr>`).join("")}
         </tbody>
       </table>`;
   }
@@ -1589,10 +1601,10 @@
       const barHeight = Math.round((b.count ? Math.sqrt(b.count / maxCount) : 0) * trackHeight);
       const segs = b.stages.map(s => {
         const pct = b.count ? (s.count / b.count) * 100 : 0;
-        return `<div class="forecast-seg" style="height:${pct}%; background:${stageColor(s.name)};" data-tip="${label} · ${s.name}: ${s.count} deal(s), ${fmtRupiah(s.revenue)}"></div>`;
+        return `<div class="forecast-seg" data-stage="${s.name}" style="height:${pct}%; background:${stageColor(s.name)};" data-tip="${label} · ${s.name}: ${s.count} deal(s), ${fmtRupiah(s.revenue)} — click to filter Opportunity List"></div>`;
       }).join("");
       return `
-        <div class="forecast-col">
+        <div class="forecast-col" data-bucket-key="${b.key}">
           <span class="forecast-count">${b.count}</span>
           <span class="forecast-revenue">${fmtRupiah(b.revenue)}</span>
           <div class="forecast-track">
@@ -1720,7 +1732,7 @@
 
   const ROSTER_TABLE_NAME_COL_WIDTH = "200px";
 
-  function renderTeamTable(containerId, rows) {
+  function renderTeamTable(containerId, rows, filterKey) {
     const container = document.getElementById(containerId);
     if (!rows || !rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
     const months = window.__createdByMonthMonths || [];
@@ -1739,7 +1751,7 @@
         <tbody>
           ${rows.map(r => `
             <tr>
-              <td class="name">${r.name}</td>
+              <td class="name"${filterKey ? ` data-filter-key="${filterKey}" data-filter-value="${r.name}"` : ""}>${r.name}</td>
               ${months.map((m, i) => {
                 if (m === currentMonth) return targetCellHtml(r.counts[m] ?? 0, r.target);
                 const prevCount = i > 0 ? (r.counts[months[i - 1]] ?? 0) : null;
@@ -1756,7 +1768,8 @@
     const container = document.getElementById("bars-activity");
     const colorByLabel = {};
     buckets.forEach(b => { colorByLabel[b.label] = ACTIVITY_COLOR_VAR[b.color]; });
-    renderBars(container, buckets.map(b => ({ name: b.label, count: b.count })), r => colorByLabel[r.name]);
+    renderBars(container, buckets.map(b => ({ name: b.label, count: b.count })), r => colorByLabel[r.name],
+      undefined, r => ({ key: "notebook_bucket", value: r.name }));
   }
 
   function activityPctColor(pct) {
@@ -1807,7 +1820,7 @@
                  <td class="num">${t.active}</td>
                  <td class="num"><b>${t.total}</b></td>`
               : `<td class="num" style="color:var(--text-muted);">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td>`;
-            return `<tr><td class="name">${name}</td>${crmCell}${activityCells}${taskCells}</tr>`;
+            return `<tr><td class="name" data-filter-key="owner_name" data-filter-value="${name}">${name}</td>${crmCell}${activityCells}${taskCells}</tr>`;
           }).join("")}
         </tbody>
       </table>`;
@@ -1888,19 +1901,20 @@
     setText("stat-revenue-sub", `${fmtRupiah(d.revenue_committed_mth)} committed`);
     setText("donut-total", d.total);
 
-    renderBars(document.getElementById("bars-open"), d.open_stages, () => "var(--stage-open)");
+    renderBars(document.getElementById("bars-open"), d.open_stages, () => "var(--stage-open)", undefined, r => ({ key: "stage", value: r.name }));
     renderBars(document.getElementById("bars-closed"), d.closed_stages, r =>
-      r.name === "Closed–Won" ? "var(--status-good)" : r.name === "Closed–Lost" ? "var(--status-critical)" : "var(--stage-future)");
-    renderBars(document.getElementById("bars-product"), d.product_lines, () => "var(--stage-open)", d.open_pipeline);
-    renderBars(document.getElementById("bars-service"), d.service_levels, () => "var(--stage-open)", d.open_pipeline);
+      r.name === "Closed–Won" ? "var(--status-good)" : r.name === "Closed–Lost" ? "var(--status-critical)" : "var(--stage-future)",
+      undefined, r => ({ key: "stage_group", value: CLOSED_STAGE_GROUP[r.name] }));
+    renderBars(document.getElementById("bars-product"), d.product_lines, () => "var(--stage-open)", d.open_pipeline, r => ({ key: "product_line", value: r.name }));
+    renderBars(document.getElementById("bars-service"), d.service_levels, () => "var(--stage-open)", d.open_pipeline, r => ({ key: "service_level", value: r.name }));
     renderAgeLegend(d.aging_buckets.map(b => b.label), "owner-age-legend");
     renderOwners(d.owners, d.open_pipeline);
 
     renderDonut([
-      { name: "Active pipeline", count: d.open_active, color: "var(--stage-open)" },
-      { name: "Future opportunity", count: d.open_future, color: "var(--stage-future)" },
-      { name: "Closed–Won", count: d.closed_won, color: "var(--status-good)" },
-      { name: "Closed–Lost", count: d.closed_lost, color: "var(--status-critical)" },
+      { name: "Active pipeline", count: d.open_active, color: "var(--stage-open)", stageGroup: "open" },
+      { name: "Future opportunity", count: d.open_future, color: "var(--stage-future)", stageGroup: "future" },
+      { name: "Closed–Won", count: d.closed_won, color: "var(--status-good)", stageGroup: "closed_won" },
+      { name: "Closed–Lost", count: d.closed_lost, color: "var(--status-critical)", stageGroup: "closed_lost" },
     ]);
     const closedParkedCount = d.open_future + d.closed_won + d.closed_lost;
     setText("pct-active", d.total ? `${((d.open_active / d.total) * 100).toFixed(1)}% of total` : "–");
@@ -1934,8 +1948,8 @@
     renderActionItems(d.action_items);
 
     window.__createdByMonthMonths = d.created_by_month.months;
-    renderTeamTable("table-by-manager", d.created_by_month.by_manager);
-    renderTeamTable("table-by-owner", d.created_by_month.by_owner);
+    renderTeamTable("table-by-manager", d.created_by_month.by_manager, "manager");
+    renderTeamTable("table-by-owner", d.created_by_month.by_owner, "owner_name");
     const unmapped = d.created_by_month.unmapped_owners || [];
     setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only). Current month shows progress toward each rep's monthly target of 10${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
   }
@@ -2154,11 +2168,21 @@
   }
 
   const AGE_BUCKET_RANGES = { "0-7d": [0, 7], "7-15d": [8, 15], "15-30d": [16, 30], "30d+": [31, null] };
+  const ACTIVITY_BUCKET_RANGES = { "< 7d": [0, 6], "7-14d": [7, 14], "14-30d": [15, 30], "30d+": [31, null] };
+  const CLOSED_STAGE_GROUP = { "Closed–Won": "closed_won", "Closed–Lost": "closed_lost", "Future Opportunity": "future" };
+  const STAGE_GROUP_LABEL = { open: "Active pipeline", future: "Future Opportunity", closed_won: "Closed–Won", closed_lost: "Closed–Lost" };
 
   function oppRowMatchesStructFilter(r, f) {
     if (!f) return true;
     if (f.ownerName && r.owner_name !== f.ownerName) return false;
+    if (f.manager && r.manager !== f.manager) return false;
     if (f.stage && r.stage !== f.stage) return false;
+    if (f.stageGroup && r.stage_group !== f.stageGroup) return false;
+    if (f.productLine && r.nv_product_line !== f.productLine) return false;
+    if (f.serviceLevel && !(r.service_level || []).includes(f.serviceLevel)) return false;
+    if (f.overdue && !r.overdue) return false;
+    if (f.closeDateFrom && (!r.expected_close_date || r.expected_close_date < f.closeDateFrom)) return false;
+    if (f.closeDateTo && (!r.expected_close_date || r.expected_close_date > f.closeDateTo)) return false;
     if (f.ageField) {
       const days = r[f.ageField];
       if (days == null) return false;
@@ -2166,6 +2190,29 @@
       if (f.ageMax != null && days > f.ageMax) return false;
     }
     return true;
+  }
+
+  function filterFromBarKey(key, value) {
+    switch (key) {
+      case "stage": return { filter: { stage: value }, label: value };
+      case "stage_group": return { filter: { stageGroup: value }, label: STAGE_GROUP_LABEL[value] || value };
+      case "product_line": return { filter: { productLine: value }, label: value };
+      case "service_level": return { filter: { serviceLevel: value }, label: value };
+      case "owner_name": return { filter: { ownerName: value }, label: value };
+      case "manager": return { filter: { manager: value }, label: `Manager: ${value}` };
+      case "notebook_bucket": {
+        const range = ACTIVITY_BUCKET_RANGES[value] || [null, null];
+        return { filter: { ageField: "notebook_days_since_touch", ageMin: range[0], ageMax: range[1] }, label: `Notebook stale ${value}` };
+      }
+      default: return null;
+    }
+  }
+
+  function forecastBucketRange(key) {
+    if (key === "overdue") return { overdue: true };
+    const [y, m] = key.split("-").map(Number);
+    const lastDay = new Date(Date.UTC(y, m, 0)).getUTCDate();
+    return { closeDateFrom: `${key}-01`, closeDateTo: `${key}-${String(lastDay).padStart(2, "0")}` };
   }
 
   function switchToOpplist() {
@@ -2386,6 +2433,29 @@
     const stageRow = e.target.closest("[data-stage-row]");
     if (stageRow) {
       applyOppChartFilter({ stage: stageRow.dataset.stageRow }, stageRow.dataset.stageRow);
+      return;
+    }
+    const fseg = e.target.closest(".forecast-seg");
+    if (fseg) {
+      const col = fseg.closest(".forecast-col");
+      const bucketKey = col.dataset.bucketKey;
+      const range = forecastBucketRange(bucketKey);
+      const bucketLabel = bucketKey === "overdue" ? "Overdue" : monthLabel(bucketKey);
+      applyOppChartFilter({ stage: fseg.dataset.stage, ...range }, `${bucketLabel} — ${fseg.dataset.stage}`);
+      return;
+    }
+    const fcol = e.target.closest(".forecast-col");
+    if (fcol) {
+      const bucketKey = fcol.dataset.bucketKey;
+      const range = forecastBucketRange(bucketKey);
+      const bucketLabel = bucketKey === "overdue" ? "Overdue" : monthLabel(bucketKey);
+      applyOppChartFilter(range, bucketLabel);
+      return;
+    }
+    const genEl = e.target.closest("[data-filter-key]");
+    if (genEl) {
+      const result = filterFromBarKey(genEl.dataset.filterKey, genEl.dataset.filterValue);
+      if (result) applyOppChartFilter(result.filter, result.label);
     }
   });
 })();
