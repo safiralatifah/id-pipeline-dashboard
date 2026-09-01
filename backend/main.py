@@ -319,11 +319,34 @@ def _apply_task_filters(
     return [t for t in tasks if keep(t)]
 
 
+def _scoped_roster_names(owners: list[str] | None, managers: list[str] | None) -> set[str]:
+    """Which team_roster names the By Salesperson table pre-seeds with
+    zero-count rows — narrowed to match the active Salesperson/Manager
+    filters (same AND semantics as _apply_filters) so e.g. filtering to one
+    manager only lists that manager's own reps, not the whole company."""
+    scope = set(TEAM_ROSTER)
+    if owners:
+        scope &= set(owners)
+    if managers:
+        managers_set = set(managers)
+        scope &= {name for name, v in TEAM_ROSTER.items() if v.get("manager") in managers_set}
+    return scope
+
+
 def build_dashboard(
-    items: list[dict], notebook_last_touch: dict[int, datetime], tasks: list[dict]
+    items: list[dict],
+    notebook_last_touch: dict[int, datetime],
+    tasks: list[dict],
+    roster_scope: set[str] | None = None,
 ) -> dict:
     now = datetime.now(timezone.utc)
     total = len(items)
+    # Which roster names the By Salesperson table pre-seeds with zero-count
+    # rows — narrowed by the caller to match the active Salesperson/Manager
+    # filters, so filtering to one manager doesn't still list the entire
+    # company's reps at 0/10.
+    if roster_scope is None:
+        roster_scope = set(TEAM_ROSTER)
 
     # Opportunities created this calendar month vs last, for the headline stat.
     this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -583,9 +606,9 @@ def build_dashboard(
     created_month_keys = sorted(set(created_month_keys))
 
     manager_totals: dict[str, dict[str, int]] = {}
-    # Pre-seeded with every Active rep so someone who created nothing this
+    # Pre-seeded with every rep in scope so someone who created nothing this
     # window still shows a row (0/10 is exactly the signal a target is for).
-    owner_created_totals: dict[str, dict[str, int]] = {name: {} for name in TEAM_ROSTER}
+    owner_created_totals: dict[str, dict[str, int]] = {name: {} for name in roster_scope}
     unmapped_owners = set()
     for r in items:
         created = _parse_dt(r.get("created_at"))
@@ -599,7 +622,7 @@ def build_dashboard(
             unmapped_owners.add(owner)
         manager_totals.setdefault(manager, {}).setdefault(month_key, 0)
         manager_totals[manager][month_key] += 1
-        if roster_entry:
+        if roster_entry and owner in owner_created_totals:
             owner_created_totals[owner][month_key] = owner_created_totals[owner].get(month_key, 0) + 1
 
     def _rollup(totals: dict[str, dict[str, int]], targets: dict[str, int]) -> list[dict]:
@@ -857,7 +880,8 @@ async def get_pipeline(
         )
     filtered_items = _apply_filters(_cache["items"], owners, managers, product_lines, service_levels)
     filtered_tasks = _apply_task_filters(_cache["tasks"], owners, managers)
-    result = build_dashboard(filtered_items, _cache["notebook_last_touch"], filtered_tasks)
+    roster_scope = _scoped_roster_names(owners, managers)
+    result = build_dashboard(filtered_items, _cache["notebook_last_touch"], filtered_tasks, roster_scope)
     result["snapshot_at"] = _cache["snapshot_at"]
     result["filter_options"] = _filter_options(_cache["items"])
     return result
