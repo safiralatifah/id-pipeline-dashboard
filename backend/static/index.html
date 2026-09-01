@@ -788,12 +788,17 @@
     max-width: 280px;
     line-height: 1.4;
   }
-  .opplist-table td.notebook-content { overflow: hidden; text-overflow: ellipsis; }
-  .opplist-table td.notebook-content.expanded { white-space: normal; overflow: visible; text-overflow: clip; }
-  .opplist-table a.opp-link { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 12.5px; }
+  .opplist-table td.notebook-content { overflow: hidden; }
+  .opplist-table td.notebook-content.expanded { white-space: normal; overflow: visible; }
+  .opplist-table td.opp-name-cell, .opplist-table th.opp-name-cell {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .opplist-table a.opp-link { color: var(--accent); text-decoration: none; font-weight: 500; font-size: 12px; }
   .opplist-table a.opp-link:hover { text-decoration: underline; }
-  .opplist-table a.opp-toggle-note { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
-  .opplist-table a.opp-toggle-note:hover { text-decoration: underline; }
+  .opplist-table .opp-note-toggle { cursor: pointer; text-decoration: underline dotted var(--text-muted); text-underline-offset: 2px; }
+  .opplist-table .opp-note-toggle:hover { color: var(--text-primary); }
   .opplist-table tbody tr:hover { background: var(--surface-2); }
   .opplist-badge {
     display: inline-flex;
@@ -1787,12 +1792,19 @@
 
   let oppNotebookExpanded = new Set();
 
+  function oppColClass(col, row) {
+    if (col.num) return "num";
+    if (col.key === "name") return "opp-name-cell";
+    if (col.key === "notebook_content") return `notebook-content${row && oppNotebookExpanded.has(row.id) ? " expanded" : ""}`;
+    return "";
+  }
+
   function oppCellHtml(row, key) {
     const v = row[key];
     switch (key) {
       case "name":
         return row.crm_url
-          ? `<a class="opp-link" href="${row.crm_url}" target="_blank" rel="noopener">${v || "(untitled)"}</a>`
+          ? `<a class="opp-link" href="${row.crm_url}" target="_blank" rel="noopener" title="${v || ""}">${v || "(untitled)"}</a>`
           : (v || "&ndash;");
       case "product":
         return oppProductLabel(row) || "&ndash;";
@@ -1812,11 +1824,12 @@
         return fmtRupiah(v || 0);
       case "notebook_content": {
         if (!v) return "&ndash;";
+        if (v.length <= 50) return v;
         const expanded = oppNotebookExpanded.has(row.id);
-        const toggle = v.length > 50
-          ? ` <a href="#" class="opp-toggle-note" data-id="${row.id}">${expanded ? "Show less" : "Read more"}</a>`
-          : "";
-        return `${v}${toggle}`;
+        // Truncated in JS (not CSS ellipsis) so the toggle span is part of
+        // the already-short string, never hidden behind an ellipsis cut.
+        const text = expanded ? v : `${v.slice(0, 50)}&hellip;`;
+        return `<span class="opp-note-toggle" data-id="${row.id}">${text}</span>`;
       }
       default:
         return v == null || v === "" ? "&ndash;" : v;
@@ -1877,20 +1890,14 @@
     document.getElementById(`opplist-thead-${sectionId}`).innerHTML = OPP_COLUMNS.map(col => {
       const sortable = col.sortable !== false;
       const arrow = sortable && state.sortKey === col.key ? `<span class="sort-arrow">${state.sortDir === "asc" ? "▲" : "▼"}</span>` : "";
-      const cls = col.num ? "num" : (col.key === "notebook_content" ? "notebook-content" : "");
-      return `<th class="${cls}" data-key="${col.key}" data-sortable="${sortable}">${col.label}${arrow}</th>`;
+      return `<th class="${oppColClass(col, null)}" data-key="${col.key}" data-sortable="${sortable}">${col.label}${arrow}</th>`;
     }).join("");
 
     document.getElementById(`opplist-tbody-${sectionId}`).innerHTML = pageRows.length
       ? pageRows.map(row => `
           <tr>
             ${OPP_COLUMNS.map(col => {
-              const cls = col.num
-                ? "num"
-                : col.key === "notebook_content"
-                  ? `notebook-content${oppNotebookExpanded.has(row.id) ? " expanded" : ""}`
-                  : "";
-              return `<td class="${cls}">${oppCellHtml(row, col.key)}</td>`;
+              return `<td class="${oppColClass(col, row)}">${oppCellHtml(row, col.key)}</td>`;
             }).join("")}
           </tr>`).join("")
       : `<tr><td colspan="${OPP_COLUMNS.length}" style="color:var(--text-muted); padding:12px 0;">No matching opportunities.</td></tr>`;
@@ -1945,9 +1952,8 @@
   });
 
   document.getElementById("opplist-sections").addEventListener("click", e => {
-    const a = e.target.closest(".opp-toggle-note");
+    const a = e.target.closest(".opp-note-toggle");
     if (!a) return;
-    e.preventDefault();
     const id = Number(a.dataset.id);
     if (oppNotebookExpanded.has(id)) oppNotebookExpanded.delete(id);
     else oppNotebookExpanded.add(id);
