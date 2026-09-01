@@ -33,6 +33,7 @@ except (json.JSONDecodeError, AttributeError):
     TEAM_EMAIL_MAP = {}
 
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
+CRM_OPPORTUNITY_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Opportunity/records"
 RECORD_TYPE_INDONESIA = "12"
 CLOSED_HISTORY_DAYS = 365
 EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
@@ -231,10 +232,14 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     return items
 
 
-async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, datetime]:
+async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, dict]:
     """Most recent Notebook entry per Opportunity record_id, across all countries
     (the /notebook/entries endpoint has no record_type/country filter — we only
-    ever look up ids that belong to our Indonesia open-opportunity set)."""
+    ever look up ids that belong to our Indonesia open-opportunity set).
+    summary_preview (the AI-generated note summary) is only populated by the
+    CRM for the entry's own creator or an admin — for any other viewer it
+    comes back null, so the Opportunity List's Notebook Content column can be
+    blank for entries our API key's user didn't write and isn't admin on."""
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
@@ -245,14 +250,15 @@ async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, date
         {"X-API-Key": api_key},
         {"object_type": "Opportunity"},
     )
-    last_touch: dict[int, datetime] = {}
+    last_touch: dict[int, dict] = {}
     for entry in entries:
         record_id = entry.get("record_id")
         created = _parse_dt(entry.get("created_at"))
         if record_id is None or not created:
             continue
-        if record_id not in last_touch or created > last_touch[record_id]:
-            last_touch[record_id] = created
+        existing = last_touch.get(record_id)
+        if existing is None or created > existing["last_touch"]:
+            last_touch[record_id] = {"last_touch": created, "content": entry.get("summary_preview")}
     return last_touch
 
 
@@ -382,6 +388,21 @@ def _resolve_viewer(request: Request) -> tuple[str | None, set[str] | None]:
     return viewer_name, (scope or None)
 
 
+def _effective_owners(
+    request: Request, owners: list[str] | None
+) -> tuple[str | None, set[str] | None, list[str] | None]:
+    """(viewer_name, allowed_owners, effective_owners) — effective_owners is
+    the owners filter actually applied: the client's own selection clamped
+    to the viewer's identity scope, or the full scope if they selected
+    nothing, or just the client's own selection if the viewer is
+    unrestricted."""
+    viewer_name, allowed_owners = _resolve_viewer(request)
+    effective_owners = owners
+    if allowed_owners is not None:
+        effective_owners = list(set(owners) & allowed_owners) if owners else list(allowed_owners)
+    return viewer_name, allowed_owners, effective_owners
+
+
 def _scoped_roster_names(owners: list[str] | None, managers: list[str] | None) -> set[str]:
     """Which team_roster names the By Salesperson table pre-seeds with
     zero-count rows — narrowed to match the active Salesperson/Manager
@@ -396,9 +417,56 @@ def _scoped_roster_names(owners: list[str] | None, managers: list[str] | None) -
     return scope
 
 
+def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, dict]) -> list[dict]:
+    """One row per matched Opportunity for the Opportunity List tab — a flat
+    detail view alongside the aggregated numbers build_dashboard() produces."""
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    closed_stage_names = {_normalize_stage("Closed–Won"), _normalize_stage("Closed–Lost")}
+    rows = []
+    for r in items:
+        rid = r.get("id")
+        stage = r.get("stage") or ""
+        is_open = _normalize_stage(stage) not in closed_stage_names
+        owner = r.get("owner_name") or ""
+        manager = (TEAM_ROSTER.get(owner) or {}).get("manager")
+        created = _parse_dt(r.get("created_at"))
+        changed = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("updated_at"))
+        close_date = _parse_dt(r.get("expected_close_date"))
+        nb_entry = notebook_last_touch.get(rid)
+        nb_touch = nb_entry["last_touch"] if nb_entry else None
+        nb_effective = nb_touch or created
+        nb_days = (now - nb_effective).days if nb_effective else None
+        nb_label = _activity_bucket_for(nb_days)[0] if nb_days is not None else None
+        rows.append({
+            "id": rid,
+            "name": r.get("name"),
+            "crm_url": f"{CRM_OPPORTUNITY_URL_BASE}/{rid}" if rid is not None else None,
+            "owner_name": owner or None,
+            "manager": manager,
+            "stage": r.get("stage"),
+            "type": r.get("type"),
+            "nv_product_line": r.get("nv_product_line"),
+            "service_level": r.get("service_level") or [],
+            "created_at": r.get("created_at"),
+            "aging_days": (now - created).days if created else None,
+            "stage_last_changed_at": r.get("stage_last_changed_at") or r.get("updated_at"),
+            "last_stage_duration_days": (now - changed).days if changed else None,
+            "expected_close_date": r.get("expected_close_date"),
+            "overdue": bool(is_open and close_date and close_date.date() < today),
+            "total_potential_revenue_mth": float(r.get("total_potential_revenue_mth") or 0),
+            "committed_revenue_mth": float(r.get("committed_revenue_mth") or 0),
+            "notebook_last_touch": nb_touch.strftime("%Y-%m-%dT%H:%M:%SZ") if nb_touch else None,
+            "notebook_days_since_touch": nb_days,
+            "notebook_freshness": nb_label,
+            "notebook_content": nb_entry.get("content") if nb_entry else None,
+        })
+    return rows
+
+
 def build_dashboard(
     items: list[dict],
-    notebook_last_touch: dict[int, datetime],
+    notebook_last_touch: dict[int, dict],
     tasks: list[dict],
     roster_scope: set[str] | None = None,
 ) -> dict:
@@ -737,7 +805,8 @@ def build_dashboard(
     activity_undated_count = 0
 
     for r in open_items:
-        last_touch = notebook_last_touch.get(r.get("id")) or _parse_dt(r.get("created_at"))
+        nb_entry = notebook_last_touch.get(r.get("id"))
+        last_touch = (nb_entry["last_touch"] if nb_entry else None) or _parse_dt(r.get("created_at"))
         if not last_touch:
             activity_undated_count += 1
             continue
@@ -979,10 +1048,7 @@ async def get_pipeline(
     # pipeline, a Manager/Sales Head their team's — this is the real
     # boundary (clamps whatever the client asked for), not just a UI
     # default, since X-Forwarded-Email can't be spoofed once SSO is on.
-    viewer_name, allowed_owners = _resolve_viewer(request)
-    effective_owners = owners
-    if allowed_owners is not None:
-        effective_owners = list(set(owners) & allowed_owners) if owners else list(allowed_owners)
+    viewer_name, allowed_owners, effective_owners = _effective_owners(request, owners)
 
     filtered_items = _apply_filters(_cache["items"], effective_owners, managers, product_lines, service_levels)
     filtered_tasks = _apply_task_filters(_cache["tasks"], effective_owners, managers)
@@ -993,6 +1059,40 @@ async def get_pipeline(
     result["viewer_name"] = viewer_name
     result["viewer_scoped"] = allowed_owners is not None
     return result
+
+
+@app.get("/api/opportunities")
+async def get_opportunities(
+    request: Request,
+    owners: list[str] | None = Query(None),
+    managers: list[str] | None = Query(None),
+    product_lines: list[str] | None = Query(None),
+    service_levels: list[str] | None = Query(None),
+):
+    """Flat per-opportunity rows for the Opportunity List tab — same
+    filters, same identity scoping, and the same cached fetch as
+    /api/pipeline, just not pre-aggregated."""
+    if _cache["items"] is None:
+        if _cache["error"]:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Initial data load failed: {_cache['error']}",
+            )
+        raise HTTPException(
+            status_code=503,
+            detail="Initial data load in progress (fetching ~73k records in the background) — retry shortly",
+        )
+
+    viewer_name, allowed_owners, effective_owners = _effective_owners(request, owners)
+    filtered_items = _apply_filters(_cache["items"], effective_owners, managers, product_lines, service_levels)
+    rows = _build_opportunity_rows(filtered_items, _cache["notebook_last_touch"])
+    return {
+        "rows": rows,
+        "total": len(rows),
+        "snapshot_at": _cache["snapshot_at"],
+        "viewer_name": viewer_name,
+        "viewer_scoped": allowed_owners is not None,
+    }
 
 
 @app.get("/{full_path:path}")

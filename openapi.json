@@ -353,6 +353,61 @@
         }
       }
     },
+    "/api/opportunities": {
+      "get": {
+        "summary": "Flat per-opportunity rows for the Opportunity List tab — same filters and identity scoping as /api/pipeline, not pre-aggregated.",
+        "operationId": "get_opportunities",
+        "responses": {
+          "200": {
+            "description": "One row per matched Opportunity.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "total": { "type": "integer" },
+                    "snapshot_at": { "type": "string", "format": "date-time" },
+                    "viewer_name": { "type": "string", "nullable": true },
+                    "viewer_scoped": { "type": "boolean" },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "name": { "type": "string", "nullable": true },
+                          "crm_url": { "type": "string", "description": "Direct link to the record in the CRM web app." },
+                          "owner_name": { "type": "string", "nullable": true },
+                          "manager": { "type": "string", "nullable": true, "description": "From the team roster; null if the owner isn't an Active rep on file." },
+                          "stage": { "type": "string" },
+                          "type": { "type": "string", "nullable": true, "description": "Acquisition | Cross-Selling | Pricing | Up-Selling | Regain | Others." },
+                          "nv_product_line": { "type": "string", "nullable": true },
+                          "service_level": { "type": "array", "items": { "type": "string" } },
+                          "created_at": { "type": "string", "format": "date-time" },
+                          "aging_days": { "type": "integer", "nullable": true, "description": "Days since created_at — same definition as Deal Aging." },
+                          "stage_last_changed_at": { "type": "string", "nullable": true },
+                          "last_stage_duration_days": { "type": "integer", "nullable": true, "description": "Days since stage_last_changed_at — same definition as Stage Bottlenecks." },
+                          "expected_close_date": { "type": "string", "nullable": true },
+                          "overdue": { "type": "boolean", "description": "Open, with an expected_close_date already in the past." },
+                          "total_potential_revenue_mth": { "type": "number" },
+                          "committed_revenue_mth": { "type": "number" },
+                          "notebook_last_touch": { "type": "string", "nullable": true },
+                          "notebook_days_since_touch": { "type": "integer", "nullable": true },
+                          "notebook_freshness": { "type": "string", "nullable": true, "description": "< 7d | 7-14d | 14-30d | 30d+, same buckets as the Activity panel." },
+                          "notebook_content": { "type": "string", "nullable": true, "description": "AI summary of the most recent Notebook entry. Only populated when the CRM API key's user wrote it or is an admin — otherwise null even if a note exists." }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": { "description": "The CRM rejected the API key, or the background refresh's last attempt failed." },
+          "503": { "description": "No data cached yet — retry shortly." }
+        }
+      }
+    },
     "/{full_path}": {
       "get": {
         "summary": "Serves the Indonesia opportunity pipeline dashboard page for any path.",

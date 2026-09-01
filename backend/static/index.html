@@ -778,6 +778,29 @@
   .roster-table { table-layout: fixed; }
   .roster-table td.name, .roster-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+  .opplist-table { white-space: nowrap; }
+  .opplist-table th { cursor: pointer; user-select: none; }
+  .opplist-table th:hover { color: var(--text-secondary); }
+  .opplist-table th .sort-arrow { margin-left: 4px; color: var(--accent); }
+  .opplist-table td.notebook-content, .opplist-table th.notebook-content {
+    white-space: normal;
+    min-width: 220px;
+    max-width: 280px;
+    line-height: 1.4;
+  }
+  .opplist-table a.opp-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .opplist-table a.opp-link:hover { text-decoration: underline; }
+  .opplist-badge {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--status-critical);
+    background: var(--status-critical-soft);
+    border-radius: 999px;
+    padding: 2px 8px;
+  }
+
   @media (max-width: 900px) {
     .panels { grid-template-columns: 1fr; }
     .bar-row { grid-template-columns: 104px 1fr 46px; }
@@ -799,6 +822,10 @@
   <button type="button" class="nav-item active" data-view="overview">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="14"></line><line x1="12" y1="20" x2="12" y2="8"></line><line x1="18" y1="20" x2="18" y2="4"></line></svg>
     <span>Overview</span>
+  </button>
+  <button type="button" class="nav-item" data-view="opplist">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="20" y2="6"></line><line x1="8" y1="12" x2="20" y2="12"></line><line x1="8" y1="18" x2="20" y2="18"></line><line x1="4" y1="6" x2="4.01" y2="6"></line><line x1="4" y1="12" x2="4.01" y2="12"></line><line x1="4" y1="18" x2="4.01" y2="18"></line></svg>
+    <span>Opportunity List</span>
   </button>
   <button type="button" class="nav-item" data-view="dictionary">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
@@ -1024,11 +1051,51 @@
   </div>
 </div>
 
+<div class="viz-root" id="view-opplist" style="display:none;">
+  <div class="wrap">
+    <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
+    <h1>Opportunity List</h1>
+    <p class="panel-sub" style="margin:-8px 0 20px;">Every matched opportunity, one row each &mdash; uses the same filters and identity scoping as Overview (set filters there, they apply here too).</p>
+
+    <div class="panel">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+        <input type="text" id="opplist-search" placeholder="Search name, owner, manager, stage&hellip;" style="flex:1; min-width:220px; max-width:360px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
+        <span id="opplist-count" style="font-size:12.5px; color:var(--text-muted);"></span>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="simple-table opplist-table" id="opplist-table">
+          <thead><tr id="opplist-thead-row"></tr></thead>
+          <tbody id="opplist-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px;">
+        <button type="button" class="filter-btn" id="opplist-prev">&larr; Prev</button>
+        <span id="opplist-page-info" style="font-size:12.5px; color:var(--text-muted);"></span>
+        <button type="button" class="filter-btn" id="opplist-next">Next &rarr;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="viz-root" id="view-dictionary" style="display:none;">
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
     <h1>KPI &amp; Metric Dictionary</h1>
     <p class="panel-sub" style="margin-bottom:24px; font-size:13px;">What every number on the Overview tab means and exactly how it's calculated.</p>
+
+    <div class="panel">
+      <h2>Opportunity List</h2>
+      <div class="notes">
+        <ul>
+          <li>One row per matched Opportunity (same population as "Total" on Overview: open all&#8209;time + closed in the last 12 months), not aggregated &mdash; it uses the same filters and identity scoping as the Overview tab (set filters there; this list respects them without its own copy of the filter bar).</li>
+          <li><strong>Aging</strong> = days since <code>created_at</code> (same definition as Deal Aging). <strong>Last Stage Duration</strong> = days since <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) &mdash; same definition as Stage Bottlenecks.</li>
+          <li><strong>Overdue</strong>: the deal is still open and <code>expected_close_date</code> has already passed.</li>
+          <li><strong>Notebook Last Touch / Freshness</strong>: same Notebook last&#8209;entry lookup and 4&#8209;tier bucketing as the Activity panel, computed here for every row (not just open deals).</li>
+          <li><strong>Notebook Content</strong>: the AI&#8209;generated summary of the most recent Notebook entry. The CRM only returns this text to the entry's own creator or an admin &mdash; for any other entry it comes back blank even though a note exists, because the API key this app runs under isn't that entry's creator.</li>
+          <li>Click a column header to sort by it (click again to reverse); click an Opportunity Name to open that record directly in the CRM.</li>
+        </ul>
+      </div>
+    </div>
 
     <div class="panel">
       <h2>Data population &amp; methodology</h2>
@@ -1177,6 +1244,7 @@
           if (!cb.checked && i !== -1) list.splice(i, 1);
           updateFilterUi();
           load();
+          refreshOpplistIfActive();
         });
       });
     });
@@ -1224,6 +1292,7 @@
       updateFilterUi();
       renderFilterOptions(window.__filterOptions || {});
       load();
+      refreshOpplistIfActive();
     });
   }
 
@@ -1658,6 +1727,174 @@
     });
   }
 
+  function fmtDate(iso) {
+    if (!iso) return "&ndash;";
+    const d = new Date(iso);
+    if (isNaN(d)) return "&ndash;";
+    return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+  }
+
+  const NB_FRESHNESS_COLOR = {
+    "< 7d": "var(--status-good)",
+    "7-14d": "var(--age-2)",
+    "14-30d": "var(--age-3)",
+    "30d+": "var(--status-critical)",
+  };
+
+  const OPP_COLUMNS = [
+    { key: "name", label: "Opportunity Name" },
+    { key: "owner_name", label: "Owner" },
+    { key: "manager", label: "Manager" },
+    { key: "stage", label: "Stage" },
+    { key: "type", label: "Type" },
+    { key: "nv_product_line", label: "NV Product Line" },
+    { key: "service_level", label: "Service Level", sortable: false },
+    { key: "created_at", label: "Created At" },
+    { key: "aging_days", label: "Aging", num: true },
+    { key: "last_stage_duration_days", label: "Last Stage Duration", num: true },
+    { key: "expected_close_date", label: "Expected Close Date" },
+    { key: "overdue", label: "Overdue" },
+    { key: "total_potential_revenue_mth", label: "Potential Rev / Mth", num: true },
+    { key: "committed_revenue_mth", label: "Committed Rev / Mth", num: true },
+    { key: "notebook_last_touch", label: "Notebook Last Touch" },
+    { key: "notebook_freshness", label: "Notebook Freshness" },
+    { key: "notebook_content", label: "Notebook Content", sortable: false },
+  ];
+  const OPP_PAGE_SIZE = 50;
+  let oppAllRows = [];
+  let oppSortKey = "aging_days";
+  let oppSortDir = "desc";
+  let oppSearch = "";
+  let oppPage = 1;
+  let oppLoaded = false;
+
+  function oppCellValue(row, key) {
+    if (key === "service_level") return (row.service_level || []).join(", ");
+    return row[key];
+  }
+
+  function oppCellHtml(row, key) {
+    const v = row[key];
+    switch (key) {
+      case "name":
+        return row.crm_url
+          ? `<a class="opp-link" href="${row.crm_url}" target="_blank" rel="noopener">${v || "(untitled)"}</a>`
+          : (v || "&ndash;");
+      case "service_level":
+        return (row.service_level || []).join(", ") || "&ndash;";
+      case "created_at":
+      case "expected_close_date":
+      case "notebook_last_touch":
+        return fmtDate(v);
+      case "aging_days":
+      case "last_stage_duration_days":
+        return v == null ? "&ndash;" : `${v}d`;
+      case "overdue":
+        return v ? '<span class="opplist-badge">Overdue</span>' : "&ndash;";
+      case "total_potential_revenue_mth":
+      case "committed_revenue_mth":
+        return fmtRupiah(v || 0);
+      case "notebook_freshness":
+        return v ? `<span style="color:${NB_FRESHNESS_COLOR[v] || "inherit"}; font-weight:600;">${v}</span>` : "&ndash;";
+      case "notebook_content":
+        return v || "&ndash;";
+      default:
+        return v == null || v === "" ? "&ndash;" : v;
+    }
+  }
+
+  function loadOpportunities() {
+    document.getElementById("opplist-count").textContent = "Loading…";
+    fetch(`/api/opportunities${filterQueryString()}`)
+      .then(res => {
+        if (res.status === 503) {
+          return res.json().then(body => { throw new Error(body.detail || "Initial data load in progress — retry shortly"); });
+        }
+        if (!res.ok) return res.json().then(body => { throw new Error(body.detail || res.statusText); });
+        return res.json();
+      })
+      .then(data => {
+        oppAllRows = data.rows || [];
+        oppLoaded = true;
+        oppPage = 1;
+        renderOpportunityList();
+      })
+      .catch(err => {
+        document.getElementById("opplist-count").textContent = "";
+        document.getElementById("opplist-tbody").innerHTML =
+          `<tr><td colspan="${OPP_COLUMNS.length}" style="color:var(--status-critical); padding:12px 0;">Could not load opportunities: ${err.message}</td></tr>`;
+      });
+  }
+
+  function refreshOpplistIfActive() {
+    if (oppLoaded && document.getElementById("view-opplist").style.display !== "none") loadOpportunities();
+  }
+
+  function renderOpportunityList() {
+    const q = oppSearch.trim().toLowerCase();
+    let rows = !q
+      ? oppAllRows
+      : oppAllRows.filter(r =>
+          ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q))
+        );
+
+    rows = rows.slice().sort((a, b) => {
+      const av = oppCellValue(a, oppSortKey);
+      const bv = oppCellValue(b, oppSortKey);
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return oppSortDir === "asc" ? cmp : -cmp;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(rows.length / OPP_PAGE_SIZE));
+    oppPage = Math.min(oppPage, totalPages);
+    const start = (oppPage - 1) * OPP_PAGE_SIZE;
+    const pageRows = rows.slice(start, start + OPP_PAGE_SIZE);
+
+    document.getElementById("opplist-count").textContent = `${rows.length} of ${oppAllRows.length} opportunit${oppAllRows.length === 1 ? "y" : "ies"}`;
+    document.getElementById("opplist-page-info").textContent = rows.length
+      ? `Page ${oppPage} of ${totalPages} (${start + 1}–${Math.min(start + OPP_PAGE_SIZE, rows.length)})`
+      : "No results";
+    document.getElementById("opplist-prev").disabled = oppPage <= 1;
+    document.getElementById("opplist-next").disabled = oppPage >= totalPages;
+
+    document.getElementById("opplist-thead-row").innerHTML = OPP_COLUMNS.map(col => {
+      const sortable = col.sortable !== false;
+      const arrow = sortable && oppSortKey === col.key ? `<span class="sort-arrow">${oppSortDir === "asc" ? "▲" : "▼"}</span>` : "";
+      const cls = col.num ? "num" : (col.key === "notebook_content" ? "notebook-content" : "");
+      return `<th class="${cls}" data-key="${col.key}" data-sortable="${sortable}">${col.label}${arrow}</th>`;
+    }).join("");
+
+    document.getElementById("opplist-tbody").innerHTML = pageRows.length
+      ? pageRows.map(row => `
+          <tr>
+            ${OPP_COLUMNS.map(col => {
+              const cls = col.num ? "num" : (col.key === "notebook_content" ? "notebook-content" : "");
+              return `<td class="${cls}">${oppCellHtml(row, col.key)}</td>`;
+            }).join("")}
+          </tr>`).join("")
+      : `<tr><td colspan="${OPP_COLUMNS.length}" style="color:var(--text-muted); padding:12px 0;">No matching opportunities.</td></tr>`;
+
+    document.querySelectorAll("#opplist-thead-row th[data-sortable=true]").forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.key;
+        if (oppSortKey === key) oppSortDir = oppSortDir === "asc" ? "desc" : "asc";
+        else { oppSortKey = key; oppSortDir = "asc"; }
+        renderOpportunityList();
+      });
+    });
+  }
+
+  document.getElementById("opplist-search").addEventListener("input", e => {
+    oppSearch = e.target.value;
+    oppPage = 1;
+    renderOpportunityList();
+  });
+  document.getElementById("opplist-prev").addEventListener("click", () => { oppPage -= 1; renderOpportunityList(); });
+  document.getElementById("opplist-next").addEventListener("click", () => { oppPage += 1; renderOpportunityList(); });
+
   function load() {
     fetch(`/api/pipeline${filterQueryString()}`)
       .then(res => {
@@ -1687,7 +1924,9 @@
     btn.addEventListener("click", () => {
       document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b === btn));
       document.getElementById("view-overview").style.display = btn.dataset.view === "overview" ? "" : "none";
+      document.getElementById("view-opplist").style.display = btn.dataset.view === "opplist" ? "" : "none";
       document.getElementById("view-dictionary").style.display = btn.dataset.view === "dictionary" ? "" : "none";
+      if (btn.dataset.view === "opplist") loadOpportunities();
     });
   });
 
