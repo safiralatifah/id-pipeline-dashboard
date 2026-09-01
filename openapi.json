@@ -348,66 +348,131 @@
                       "nullable": true,
                       "description": "Personalized 'needs attention' summary for the Overview tab. Null unless the viewer is identity-scoped OR the request explicitly filtered by Salesperson/Manager (an admin can preview any rep's or manager's view this way) — never present on an unfiltered, unrestricted request.",
                       "properties": {
+                        "scope_size": { "type": "integer", "description": "Number of reps in the viewer's roster scope. 1 for an individual rep (or an admin previewing a single Salesperson filter); >1 for a Manager/Sales Head (or an admin previewing one). Drives whether the frontend renders per-deal item examples (1) or a per-rep count breakdown (>1) for each category below." },
                         "overdue": {
-                          "type": "array",
-                          "description": "Open (non-Future-Opportunity) deals past expected_close_date, worst first. Capped at 8 — see overdue_total for the real count.",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": { "type": "integer" },
-                              "name": { "type": "string", "nullable": true },
-                              "crm_url": { "type": "string" },
-                              "owner_name": { "type": "string", "nullable": true },
-                              "days": { "type": "integer", "nullable": true, "description": "Days in the current stage." }
+                          "type": "object",
+                          "description": "Open (non-Future-Opportunity) deals past expected_close_date, worst first.",
+                          "properties": {
+                            "total": { "type": "integer" },
+                            "items": {
+                              "type": "array",
+                              "description": "Up to 8 example deals, worst first. Rendered only when scope_size is 1.",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "integer" },
+                                  "name": { "type": "string", "nullable": true },
+                                  "crm_url": { "type": "string" },
+                                  "owner_name": { "type": "string", "nullable": true },
+                                  "days": { "type": "integer", "nullable": true, "description": "Days in the current stage." }
+                                }
+                              }
+                            },
+                            "by_owner": {
+                              "type": "array",
+                              "description": "One row per rep with at least one matching deal, sorted worst-first. Rendered instead of items when scope_size is >1.",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": { "type": "string" },
+                                  "count": { "type": "integer" }
+                                }
+                              }
                             }
                           }
                         },
-                        "overdue_total": { "type": "integer" },
                         "stalled": {
-                          "type": "array",
-                          "description": "Open (non-Future-Opportunity) deals with no stage movement in 30+ days, worst first. Capped at 8.",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": { "type": "integer" },
-                              "name": { "type": "string", "nullable": true },
-                              "crm_url": { "type": "string" },
-                              "owner_name": { "type": "string", "nullable": true },
-                              "days": { "type": "integer", "nullable": true }
+                          "type": "object",
+                          "description": "Open (non-Future-Opportunity) deals with no stage movement in 30+ days, worst first. Same {total, items, by_owner} shape as overdue.",
+                          "properties": {
+                            "total": { "type": "integer" },
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "integer" },
+                                  "name": { "type": "string", "nullable": true },
+                                  "crm_url": { "type": "string" },
+                                  "owner_name": { "type": "string", "nullable": true },
+                                  "days": { "type": "integer", "nullable": true }
+                                }
+                              }
+                            },
+                            "by_owner": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": { "type": "string" },
+                                  "count": { "type": "integer" }
+                                }
+                              }
                             }
                           }
                         },
-                        "stalled_total": { "type": "integer" },
                         "notebook_stale": {
-                          "type": "array",
-                          "description": "Open (non-Future-Opportunity) deals without a Notebook update in 14+ days, worst first. Capped at 8.",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": { "type": "integer" },
-                              "name": { "type": "string", "nullable": true },
-                              "crm_url": { "type": "string" },
-                              "owner_name": { "type": "string", "nullable": true },
-                              "days": { "type": "integer", "nullable": true, "description": "Days since last Notebook touch (or created_at)." }
+                          "type": "object",
+                          "description": "Open (non-Future-Opportunity) deals without a Notebook update in 14+ days, worst first. Same {total, items, by_owner} shape as overdue.",
+                          "properties": {
+                            "total": { "type": "integer" },
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "integer" },
+                                  "name": { "type": "string", "nullable": true },
+                                  "crm_url": { "type": "string" },
+                                  "owner_name": { "type": "string", "nullable": true },
+                                  "days": { "type": "integer", "nullable": true, "description": "Days since last Notebook touch (or created_at)." }
+                                }
+                              }
+                            },
+                            "by_owner": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": { "type": "string" },
+                                  "count": { "type": "integer" }
+                                }
+                              }
                             }
                           }
                         },
-                        "notebook_stale_total": { "type": "integer" },
                         "tasks_pending": {
-                          "type": "array",
-                          "description": "Open Tasks (Not Started / In Progress) that aren't Active by the same rule the Activity panel uses, worst first. Capped at 8.",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": { "type": "integer" },
-                              "subject": { "type": "string" },
-                              "owner_name": { "type": "string", "nullable": true },
-                              "days_since_update": { "type": "integer", "nullable": true },
-                              "crm_url": { "type": "string", "nullable": true, "description": "Null when the Task isn't linked to an Opportunity." }
+                          "type": "object",
+                          "description": "Open Tasks (Not Started / In Progress) that aren't Active by the same rule the Activity panel uses, worst first.",
+                          "properties": {
+                            "total": { "type": "integer" },
+                            "items": {
+                              "type": "array",
+                              "description": "Up to 8 example tasks, worst first. Rendered only when scope_size is 1.",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "integer" },
+                                  "subject": { "type": "string" },
+                                  "owner_name": { "type": "string", "nullable": true },
+                                  "days_since_update": { "type": "integer", "nullable": true },
+                                  "crm_url": { "type": "string", "nullable": true, "description": "Null when the Task isn't linked to an Opportunity." }
+                                }
+                              }
+                            },
+                            "by_owner": {
+                              "type": "array",
+                              "description": "One row per rep with at least one matching task, sorted worst-first. Rendered instead of items when scope_size is >1.",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": { "type": "string" },
+                                  "count": { "type": "integer" }
+                                }
+                              }
                             }
                           }
                         },
-                        "tasks_pending_total": { "type": "integer" },
                         "monthly_pace": {
                           "type": "array",
                           "description": "Every rep in scope (even at 0 created), sorted most-behind-target first.",

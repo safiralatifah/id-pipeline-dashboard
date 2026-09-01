@@ -568,16 +568,27 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
         key=lambda p: p["created"] - p["target"],
     )
 
+    def _by_owner(rows: list[dict]) -> list[dict]:
+        counts = Counter(r.get("owner_name") for r in rows if r.get("owner_name"))
+        return sorted(
+            ({"name": name, "count": count} for name, count in counts.items()),
+            key=lambda x: -x["count"],
+        )
+
+    def _category(rows: list[dict], day_field: str | None) -> dict:
+        items = [_action_item_row(r, day_field) for r in rows[:ACTION_ITEM_LIST_LIMIT]] if day_field else rows[:ACTION_ITEM_LIST_LIMIT]
+        return {"items": items, "total": len(rows), "by_owner": _by_owner(rows)}
+
     return {
-        "overdue": [_action_item_row(r, "last_stage_duration_days") for r in overdue[:ACTION_ITEM_LIST_LIMIT]],
-        "overdue_total": len(overdue),
-        "stalled": [_action_item_row(r, "last_stage_duration_days") for r in stalled[:ACTION_ITEM_LIST_LIMIT]],
-        "stalled_total": len(stalled),
-        "notebook_stale": [_action_item_row(r, "notebook_days_since_touch") for r in notebook_stale[:ACTION_ITEM_LIST_LIMIT]],
-        "notebook_stale_total": len(notebook_stale),
-        "tasks_pending": pending_tasks[:ACTION_ITEM_LIST_LIMIT],
-        "tasks_pending_total": len(pending_tasks),
+        "overdue": _category(overdue, "last_stage_duration_days"),
+        "stalled": _category(stalled, "last_stage_duration_days"),
+        "notebook_stale": _category(notebook_stale, "notebook_days_since_touch"),
+        "tasks_pending": _category(pending_tasks, None),
         "monthly_pace": monthly_pace,
+        # Tells the frontend whether to show per-deal examples (one person in
+        # scope) or a per-rep breakdown (a manager/admin looking at a team) —
+        # the two lists above only differ in that framing, not the numbers.
+        "scope_size": len(roster_scope),
     }
 
 

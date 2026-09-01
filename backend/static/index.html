@@ -512,6 +512,7 @@
     color: var(--text-secondary);
   }
 
+  .ai-sentence { font-size: 12.5px; color: var(--text-secondary); margin: 2px 0 8px; }
   .ai-list { display: flex; flex-direction: column; }
   .ai-item {
     display: flex;
@@ -995,32 +996,32 @@
       <div id="ai-overdue-section" style="display:none;">
         <div class="section-label-row">
           <span class="section-label">Overdue</span>
-          <span class="section-pct" id="ai-overdue-count"></span>
         </div>
+        <p class="ai-sentence" id="ai-overdue-sentence"></p>
         <div id="ai-overdue-list" class="ai-list"></div>
       </div>
 
       <div id="ai-stalled-section" style="display:none; margin-top:18px;">
         <div class="section-label-row">
           <span class="section-label">Stalled in Stage</span>
-          <span class="section-pct" id="ai-stalled-count"></span>
         </div>
+        <p class="ai-sentence" id="ai-stalled-sentence"></p>
         <div id="ai-stalled-list" class="ai-list"></div>
       </div>
 
       <div id="ai-notebook-section" style="display:none; margin-top:18px;">
         <div class="section-label-row">
           <span class="section-label">Notebook Needs Updating</span>
-          <span class="section-pct" id="ai-notebook-count"></span>
         </div>
+        <p class="ai-sentence" id="ai-notebook-sentence"></p>
         <div id="ai-notebook-list" class="ai-list"></div>
       </div>
 
       <div id="ai-tasks-section" style="display:none; margin-top:18px;">
         <div class="section-label-row">
           <span class="section-label">Tasks Awaiting Action</span>
-          <span class="section-pct" id="ai-tasks-count"></span>
         </div>
+        <p class="ai-sentence" id="ai-tasks-sentence"></p>
         <div id="ai-tasks-list" class="ai-list"></div>
       </div>
 
@@ -1621,12 +1622,24 @@
       </div>`;
   }
 
-  function aiSection(sectionId, listId, countId, items, total, itemFn) {
+  function aiOwnerRowHtml(row) {
+    return `
+      <div class="ai-item">
+        <span class="ai-item-name">${row.name}</span>
+        <span class="ai-item-days">${row.count}</span>
+      </div>`;
+  }
+
+  function aiSection(sectionId, listId, sentenceId, category, scopeSize, itemFn, sentenceFn) {
     const section = document.getElementById(sectionId);
-    if (!items.length) { section.style.display = "none"; return; }
+    const total = category ? category.total : 0;
+    if (!total) { section.style.display = "none"; return; }
     section.style.display = "";
-    document.getElementById(countId).textContent = total;
-    document.getElementById(listId).innerHTML = items.map(itemFn).join("");
+    document.getElementById(sentenceId).textContent = sentenceFn(total);
+    const rows = scopeSize > 1
+      ? category.by_owner.map(aiOwnerRowHtml)
+      : category.items.map(itemFn);
+    document.getElementById(listId).innerHTML = rows.join("");
   }
 
   function renderActionItems(ai) {
@@ -1634,10 +1647,20 @@
     if (!ai) { panel.style.display = "none"; return; }
     panel.style.display = "";
 
-    aiSection("ai-overdue-section", "ai-overdue-list", "ai-overdue-count", ai.overdue, ai.overdue_total, r => aiItemHtml(r, "d"));
-    aiSection("ai-stalled-section", "ai-stalled-list", "ai-stalled-count", ai.stalled, ai.stalled_total, r => aiItemHtml(r, "d"));
-    aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-count", ai.notebook_stale, ai.notebook_stale_total, r => aiItemHtml(r, "d"));
-    aiSection("ai-tasks-section", "ai-tasks-list", "ai-tasks-count", ai.tasks_pending, ai.tasks_pending_total, aiTaskItemHtml);
+    const scopeSize = ai.scope_size || 1;
+
+    aiSection("ai-overdue-section", "ai-overdue-list", "ai-overdue-sentence", ai.overdue, scopeSize,
+      r => aiItemHtml(r, "d"),
+      t => `${t} deal${t === 1 ? "" : "s"} past expected close date and still open.`);
+    aiSection("ai-stalled-section", "ai-stalled-list", "ai-stalled-sentence", ai.stalled, scopeSize,
+      r => aiItemHtml(r, "d"),
+      t => `${t} deal${t === 1 ? "" : "s"} with no stage movement in 30+ days.`);
+    aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-sentence", ai.notebook_stale, scopeSize,
+      r => aiItemHtml(r, "d"),
+      t => `${t} deal${t === 1 ? "" : "s"} without a Notebook update in 14+ days.`);
+    aiSection("ai-tasks-section", "ai-tasks-list", "ai-tasks-sentence", ai.tasks_pending, scopeSize,
+      aiTaskItemHtml,
+      t => `${t} open task${t === 1 ? "" : "s"} awaiting action — overdue or without a recent update.`);
 
     const pace = ai.monthly_pace || [];
     document.getElementById("ai-pace-content").innerHTML = pace.map(p => {
