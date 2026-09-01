@@ -779,16 +779,18 @@
   .roster-table td.name, .roster-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .opplist-table { white-space: nowrap; }
+  .opplist-table td, .opplist-table th { vertical-align: middle; }
   .opplist-table th { cursor: pointer; user-select: none; }
   .opplist-table th:hover { color: var(--text-secondary); }
   .opplist-table th .sort-arrow { margin-left: 4px; color: var(--accent); }
   .opplist-table td.notebook-content, .opplist-table th.notebook-content {
-    white-space: normal;
     min-width: 220px;
     max-width: 280px;
     line-height: 1.4;
   }
-  .opplist-table a.opp-link { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .opplist-table td.notebook-content { overflow: hidden; text-overflow: ellipsis; }
+  .opplist-table td.notebook-content.expanded { white-space: normal; overflow: visible; text-overflow: clip; }
+  .opplist-table a.opp-link { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 12.5px; }
   .opplist-table a.opp-link:hover { text-decoration: underline; }
   .opplist-table a.opp-toggle-note { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
   .opplist-table a.opp-toggle-note:hover { text-decoration: underline; }
@@ -1811,13 +1813,10 @@
       case "notebook_content": {
         if (!v) return "&ndash;";
         const expanded = oppNotebookExpanded.has(row.id);
-        if (expanded) {
-          return `${v} <a href="#" class="opp-toggle-note" data-id="${row.id}">Show less</a>`;
-        }
-        const preview = v.length > 60 ? `${v.slice(0, 60)}&hellip;` : v;
-        return v.length > 60
-          ? `${preview} <a href="#" class="opp-toggle-note" data-id="${row.id}">Read more</a>`
-          : v;
+        const toggle = v.length > 50
+          ? ` <a href="#" class="opp-toggle-note" data-id="${row.id}">${expanded ? "Show less" : "Read more"}</a>`
+          : "";
+        return `${v}${toggle}`;
       }
       default:
         return v == null || v === "" ? "&ndash;" : v;
@@ -1886,7 +1885,11 @@
       ? pageRows.map(row => `
           <tr>
             ${OPP_COLUMNS.map(col => {
-              const cls = col.num ? "num" : (col.key === "notebook_content" ? "notebook-content" : "");
+              const cls = col.num
+                ? "num"
+                : col.key === "notebook_content"
+                  ? `notebook-content${oppNotebookExpanded.has(row.id) ? " expanded" : ""}`
+                  : "";
               return `<td class="${cls}">${oppCellHtml(row, col.key)}</td>`;
             }).join("")}
           </tr>`).join("")
