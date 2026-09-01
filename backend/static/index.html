@@ -512,6 +512,49 @@
     color: var(--text-secondary);
   }
 
+  .ai-list { display: flex; flex-direction: column; }
+  .ai-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 0;
+    border-bottom: 1px solid var(--gridline);
+    font-size: 12.5px;
+  }
+  .ai-item:last-child { border-bottom: none; }
+  .ai-item-name {
+    color: var(--text-primary);
+    font-weight: 500;
+    text-decoration: none;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  a.ai-item-name:hover { text-decoration: underline; }
+  .ai-item-owner { color: var(--text-muted); font-size: 12px; flex: none; }
+  .ai-item-days {
+    font-family: "IBM Plex Mono", monospace;
+    font-weight: 600;
+    color: var(--status-critical);
+    flex: none;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+  .ai-pace-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .ai-pace-row:last-child { border-bottom: none; }
+  .ai-pace-name { flex: 1; min-width: 0; font-size: 12.5px; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ai-pace-count { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; white-space: nowrap; flex: none; }
+  .ai-pace-bar { width: 80px; height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; flex: none; }
+
   /* Composition donut */
   .donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 4px 0 6px; }
   .donut-figure { position: relative; width: 176px; height: 176px; }
@@ -945,6 +988,48 @@
       </div>
     </div>
 
+    <div class="panel" id="action-items-panel" style="margin-top:16px; display:none; border-color:var(--accent);">
+      <h2>Action Items</h2>
+      <p class="panel-sub" id="action-items-sub" style="margin-bottom:16px;">Deals and tasks that need attention, based on your current pipeline.</p>
+
+      <div id="ai-overdue-section" style="display:none;">
+        <div class="section-label-row">
+          <span class="section-label">Overdue</span>
+          <span class="section-pct" id="ai-overdue-count"></span>
+        </div>
+        <div id="ai-overdue-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-stalled-section" style="display:none; margin-top:18px;">
+        <div class="section-label-row">
+          <span class="section-label">Stalled in Stage</span>
+          <span class="section-pct" id="ai-stalled-count"></span>
+        </div>
+        <div id="ai-stalled-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-notebook-section" style="display:none; margin-top:18px;">
+        <div class="section-label-row">
+          <span class="section-label">Notebook Needs Updating</span>
+          <span class="section-pct" id="ai-notebook-count"></span>
+        </div>
+        <div id="ai-notebook-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-tasks-section" style="display:none; margin-top:18px;">
+        <div class="section-label-row">
+          <span class="section-label">Tasks Awaiting Action</span>
+          <span class="section-pct" id="ai-tasks-count"></span>
+        </div>
+        <div id="ai-tasks-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-pace-section" style="margin-top:18px;">
+        <div class="section-label">Monthly Pace</div>
+        <div id="ai-pace-content"></div>
+      </div>
+    </div>
+
     <div class="panel" style="margin-top:16px;">
       <h2>Created Opportunities by Manager &amp; Salesperson</h2>
       <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only). Current month shows progress toward each rep's monthly target of 10.</p>
@@ -1126,6 +1211,22 @@
           <li><strong>Open</strong> (used throughout as "open deals" / "open + future") means every stage except Closed&ndash;Won and Closed&ndash;Lost &mdash; this includes Future Opportunity.</li>
           <li><strong>Filter bar</strong> (Salesperson / Manager / NV Product Line / Service Level, top of the Overview tab): multi&#8209;select, applies to the <strong>entire dashboard</strong> &mdash; every stat card, chart, and table on this page recomputes against the filtered population, not just the panels that already broke deals down by that field. Selections within one filter are OR'd (any match), across different filters they're AND'd (must match all). Manager filters by each deal's owner's Manager in the team roster; a deal whose owner isn't in the roster won't match any Manager filter. Service Level is a multi&#8209;select field on the deal itself, so it matches if the deal has <em>any</em> of the selected levels. Task Activity respects the Salesperson/Manager filters but ignores Product Line/Service Level (Tasks aren't tagged with either).</li>
           <li><strong>Identity&#8209;scoped viewing</strong>: if the person who's logged in (via the platform's Google SSO, identified by an unspoofable <code>X-Forwarded-Email</code> header) is mapped to a name in the team roster, the whole dashboard is pre&#8209;restricted to what they're allowed to see &mdash; a Salesperson sees only their own pipeline; a Manager or Sales Head sees their full downstream team (Sales Head covers every rep under every manager reporting to them, not just direct reports). This is a real boundary, not just a default: the filter bar can only narrow further within that scope, never escape it. A <strong>"Viewing as &hellip;"</strong> chip next to the title shows when this is active. Anyone not in the email&#8209;to&#8209;roster mapping (or if SSO isn't the access method) sees the full unrestricted dashboard.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Action Items</h2>
+      <div class="notes">
+        <ul>
+          <li><strong>Who sees it</strong>: only an identity&#8209;scoped viewer (a mapped Salesperson or Manager/Sales Head), or an unmapped/admin viewer who has deliberately filtered the dashboard down to a specific Salesperson or Manager. An unmapped viewer with no such filter never sees this panel &mdash; it's personalized, not a general summary.</li>
+          <li>Every category below only considers <strong>OPEN, non&#8209;Future&#8209;Opportunity</strong> deals (Future Opportunity is deliberately parked, not actively worked) within whatever scope applies (your own pipeline, or your team's).</li>
+          <li><strong>Overdue</strong>: <code>expected_close_date</code> has passed and the deal is still open. Sorted by days in the current stage, worst first.</li>
+          <li><strong>Stalled in Stage</strong>: <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) is 30+ days old &mdash; the same threshold Stage Bottlenecks/Stage &times; Ageing use for their "30d+" tier.</li>
+          <li><strong>Notebook Needs Updating</strong>: last Notebook touch (or <code>created_at</code> if none) is 14+ days old &mdash; the same threshold the Activity panel's "14&#8209;30d" tier starts at.</li>
+          <li><strong>Tasks Awaiting Action</strong>: open Tasks (Not Started / In Progress) that aren't "Active" by the exact same rule the Activity panel's Task side uses (touched within 7 days AND not overdue).</li>
+          <li>Each of the four lists above is capped at 8 items (worst first); the count shown next to the section header is the real total, not just how many are listed.</li>
+          <li><strong>Monthly Pace</strong>: every rep in scope against the same 10&#8209;opportunity monthly target as Created Opportunities by Manager &amp; Salesperson, sorted most&#8209;behind&#8209;target first &mdash; includes reps with 0 created this month.</li>
         </ul>
       </div>
     </div>
@@ -1495,6 +1596,62 @@
       </td>`;
   }
 
+  function aiItemHtml(item, unit) {
+    const nameHtml = item.crm_url
+      ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.name || "(untitled)"}</a>`
+      : `<span class="ai-item-name">${item.name || "(untitled)"}</span>`;
+    return `
+      <div class="ai-item">
+        ${nameHtml}
+        ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
+        <span class="ai-item-days">${item.days}${unit}</span>
+      </div>`;
+  }
+
+  function aiTaskItemHtml(item) {
+    const nameHtml = item.crm_url
+      ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.subject}</a>`
+      : `<span class="ai-item-name">${item.subject}</span>`;
+    const days = item.days_since_update == null ? "&ndash;" : `${item.days_since_update}d`;
+    return `
+      <div class="ai-item">
+        ${nameHtml}
+        ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
+        <span class="ai-item-days">${days}</span>
+      </div>`;
+  }
+
+  function aiSection(sectionId, listId, countId, items, total, itemFn) {
+    const section = document.getElementById(sectionId);
+    if (!items.length) { section.style.display = "none"; return; }
+    section.style.display = "";
+    document.getElementById(countId).textContent = total;
+    document.getElementById(listId).innerHTML = items.map(itemFn).join("");
+  }
+
+  function renderActionItems(ai) {
+    const panel = document.getElementById("action-items-panel");
+    if (!ai) { panel.style.display = "none"; return; }
+    panel.style.display = "";
+
+    aiSection("ai-overdue-section", "ai-overdue-list", "ai-overdue-count", ai.overdue, ai.overdue_total, r => aiItemHtml(r, "d"));
+    aiSection("ai-stalled-section", "ai-stalled-list", "ai-stalled-count", ai.stalled, ai.stalled_total, r => aiItemHtml(r, "d"));
+    aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-count", ai.notebook_stale, ai.notebook_stale_total, r => aiItemHtml(r, "d"));
+    aiSection("ai-tasks-section", "ai-tasks-list", "ai-tasks-count", ai.tasks_pending, ai.tasks_pending_total, aiTaskItemHtml);
+
+    const pace = ai.monthly_pace || [];
+    document.getElementById("ai-pace-content").innerHTML = pace.map(p => {
+      const pct = p.target ? Math.min((p.created / p.target) * 100, 100) : 0;
+      const color = targetProgressColor(pct);
+      return `
+        <div class="ai-pace-row">
+          <span class="ai-pace-name">${p.name}</span>
+          <span class="ai-pace-count" style="color:${color};">${p.created}/${p.target}</span>
+          <div class="ai-pace-bar"><div style="width:${pct}%; height:100%; background:${color};"></div></div>
+        </div>`;
+    }).join("") || '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>';
+  }
+
   function pastMonthCellHtml(count, target, prevCount) {
     const pct = target ? `<span style="color:var(--text-muted); font-size:11.5px;"> (${Math.round((count / target) * 100)}%)</span>` : "";
     let trend = "";
@@ -1717,6 +1874,8 @@
     renderAgeLegend(d.aging_buckets.map(b => b.label));
     renderStageAgeGrid(d.stage_duration_grid);
     renderForecast(d.forecast, d.forecast_undated_count);
+
+    renderActionItems(d.action_items);
 
     window.__createdByMonthMonths = d.created_by_month.months;
     renderTeamTable("table-by-manager", d.created_by_month.by_manager);

@@ -71,6 +71,14 @@ TASK_OPEN_STATUSES = ["Not Started", "In Progress"]
 # against an existing account rather than new pipeline.
 CREATED_OPPORTUNITY_TYPES = {"Acquisition", "Cross-Selling"}
 
+# Action Items thresholds — deliberately the same numbers already used
+# elsewhere on the dashboard (Stage Bottlenecks' implicit "long" stage stay,
+# and the Notebook Activity 14d tier) so this panel doesn't introduce a
+# second, inconsistent definition of "stuck".
+ACTION_ITEM_STALE_STAGE_DAYS = 30
+ACTION_ITEM_STALE_NOTEBOOK_DAYS = 14
+ACTION_ITEM_LIST_LIMIT = 8
+
 # Each Active rep is expected to create 10 new opportunities a month; a
 # manager's target is just that number times their headcount. "Unmapped"
 # isn't a real manager, so it has no target (MANAGER_TARGETS.get returns
@@ -487,11 +495,98 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
     return rows
 
 
+def _action_item_row(r: dict, day_field: str) -> dict:
+    return {
+        "id": r["id"],
+        "name": r["name"],
+        "crm_url": r["crm_url"],
+        "owner_name": r["owner_name"],
+        "days": r[day_field],
+    }
+
+
+def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: set[str]) -> dict:
+    """Personalized "what needs attention" for the Action Items panel — built
+    from the same per-opportunity rows the Opportunity List tab uses, plus
+    Task activity, so every threshold here matches what those other panels
+    already show (no second definition of "stuck" or "stale")."""
+    now = datetime.now(timezone.utc)
+    today = now.date()
+
+    # Future Opportunity is deliberately parked, not actively worked — an
+    # old Future Opportunity deal isn't "stuck" the way an active one is.
+    active_rows = [r for r in opp_rows if r["stage_group"] == "open"]
+
+    overdue = sorted((r for r in active_rows if r["overdue"]), key=lambda r: -(r["last_stage_duration_days"] or 0))
+    stalled = sorted(
+        (r for r in active_rows if (r["last_stage_duration_days"] or 0) >= ACTION_ITEM_STALE_STAGE_DAYS),
+        key=lambda r: -(r["last_stage_duration_days"] or 0),
+    )
+    notebook_stale = sorted(
+        (r for r in active_rows if (r["notebook_days_since_touch"] or 0) >= ACTION_ITEM_STALE_NOTEBOOK_DAYS),
+        key=lambda r: -(r["notebook_days_since_touch"] or 0),
+    )
+
+    # Tasks pending: open Tasks (already Not Started / In Progress only, per
+    # fetch_open_tasks) that aren't "Active" by the same rule Task Activity
+    # uses — touched within 7 days AND not overdue.
+    pending_tasks = []
+    for t in tasks:
+        last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
+        due = _parse_dt(t.get("due_date"))
+        recent = bool(last_activity) and (now - last_activity).days <= 7
+        not_overdue = due is None or due.date() >= today
+        if recent and not_overdue:
+            continue
+        related_id = t.get("related_record_id")
+        pending_tasks.append({
+            "id": t.get("id"),
+            "subject": t.get("subject") or "(no subject)",
+            "owner_name": t.get("owner_name"),
+            "days_since_update": (now - last_activity).days if last_activity else None,
+            "crm_url": (
+                f"{CRM_OPPORTUNITY_URL_BASE}/{related_id}"
+                if t.get("related_object_type") == "Opportunity" and related_id is not None
+                else None
+            ),
+        })
+    pending_tasks.sort(key=lambda t: -(t["days_since_update"] or 0))
+
+    # Monthly pace: every rep in scope, even at 0 — same "don't hide the
+    # people doing nothing" approach as the Created Opportunities table.
+    this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    created_counts: Counter = Counter()
+    for r in opp_rows:
+        created = _parse_dt(r.get("created_at"))
+        if created and created >= this_month_start and r.get("type") in CREATED_OPPORTUNITY_TYPES:
+            created_counts[r.get("owner_name")] += 1
+    monthly_pace = sorted(
+        (
+            {"name": name, "created": created_counts.get(name, 0), "target": INDIVIDUAL_MONTHLY_TARGET}
+            for name in roster_scope
+        ),
+        key=lambda p: p["created"] - p["target"],
+    )
+
+    return {
+        "overdue": [_action_item_row(r, "last_stage_duration_days") for r in overdue[:ACTION_ITEM_LIST_LIMIT]],
+        "overdue_total": len(overdue),
+        "stalled": [_action_item_row(r, "last_stage_duration_days") for r in stalled[:ACTION_ITEM_LIST_LIMIT]],
+        "stalled_total": len(stalled),
+        "notebook_stale": [_action_item_row(r, "notebook_days_since_touch") for r in notebook_stale[:ACTION_ITEM_LIST_LIMIT]],
+        "notebook_stale_total": len(notebook_stale),
+        "tasks_pending": pending_tasks[:ACTION_ITEM_LIST_LIMIT],
+        "tasks_pending_total": len(pending_tasks),
+        "monthly_pace": monthly_pace,
+    }
+
+
 def build_dashboard(
     items: list[dict],
     notebook_last_touch: dict[int, dict],
     tasks: list[dict],
     roster_scope: set[str] | None = None,
+    include_action_items: bool = False,
 ) -> dict:
     now = datetime.now(timezone.utc)
     total = len(items)
@@ -1002,6 +1097,10 @@ def build_dashboard(
         "crm_updated_numerator": crm_updated_numerator,
         "crm_updated_denominator": crm_updated_denominator,
         "crm_updated_by_owner": crm_updated_by_owner,
+        "action_items": (
+            _build_action_items(_build_opportunity_rows(items, notebook_last_touch), tasks, roster_scope)
+            if include_action_items else None
+        ),
     }
 
 
@@ -1076,7 +1175,13 @@ async def get_pipeline(
     filtered_items = _apply_filters(_cache["items"], effective_owners, managers, product_lines, service_levels)
     filtered_tasks = _apply_task_filters(_cache["tasks"], effective_owners, managers)
     roster_scope = _scoped_roster_names(effective_owners, managers)
-    result = build_dashboard(filtered_items, _cache["notebook_last_touch"], filtered_tasks, roster_scope)
+    # Action Items is personalized, so it only appears for an identity-scoped
+    # viewer or when an admin/unmapped viewer has deliberately filtered down
+    # to a Salesperson/Manager — never on an unfiltered, unrestricted view.
+    show_action_items = allowed_owners is not None or bool(owners) or bool(managers)
+    result = build_dashboard(
+        filtered_items, _cache["notebook_last_touch"], filtered_tasks, roster_scope, show_action_items
+    )
     result["snapshot_at"] = _cache["snapshot_at"]
     result["filter_options"] = _filter_options(_cache["items"], allowed_owners)
     result["viewer_name"] = viewer_name

@@ -342,7 +342,86 @@
                       }
                     },
                     "viewer_name": { "type": "string", "nullable": true, "description": "The requester's team-roster name, resolved from the platform's X-Forwarded-Email header via a TEAM_EMAIL_MAP env var. Null if unmapped or SSO isn't the access method." },
-                    "viewer_scoped": { "type": "boolean", "description": "True if viewer_name was resolved and the response was restricted to their own pipeline (or their team's, if they're a Manager/Sales Head)." }
+                    "viewer_scoped": { "type": "boolean", "description": "True if viewer_name was resolved and the response was restricted to their own pipeline (or their team's, if they're a Manager/Sales Head)." },
+                    "action_items": {
+                      "type": "object",
+                      "nullable": true,
+                      "description": "Personalized 'needs attention' summary for the Overview tab. Null unless the viewer is identity-scoped OR the request explicitly filtered by Salesperson/Manager (an admin can preview any rep's or manager's view this way) — never present on an unfiltered, unrestricted request.",
+                      "properties": {
+                        "overdue": {
+                          "type": "array",
+                          "description": "Open (non-Future-Opportunity) deals past expected_close_date, worst first. Capped at 8 — see overdue_total for the real count.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "integer" },
+                              "name": { "type": "string", "nullable": true },
+                              "crm_url": { "type": "string" },
+                              "owner_name": { "type": "string", "nullable": true },
+                              "days": { "type": "integer", "nullable": true, "description": "Days in the current stage." }
+                            }
+                          }
+                        },
+                        "overdue_total": { "type": "integer" },
+                        "stalled": {
+                          "type": "array",
+                          "description": "Open (non-Future-Opportunity) deals with no stage movement in 30+ days, worst first. Capped at 8.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "integer" },
+                              "name": { "type": "string", "nullable": true },
+                              "crm_url": { "type": "string" },
+                              "owner_name": { "type": "string", "nullable": true },
+                              "days": { "type": "integer", "nullable": true }
+                            }
+                          }
+                        },
+                        "stalled_total": { "type": "integer" },
+                        "notebook_stale": {
+                          "type": "array",
+                          "description": "Open (non-Future-Opportunity) deals without a Notebook update in 14+ days, worst first. Capped at 8.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "integer" },
+                              "name": { "type": "string", "nullable": true },
+                              "crm_url": { "type": "string" },
+                              "owner_name": { "type": "string", "nullable": true },
+                              "days": { "type": "integer", "nullable": true, "description": "Days since last Notebook touch (or created_at)." }
+                            }
+                          }
+                        },
+                        "notebook_stale_total": { "type": "integer" },
+                        "tasks_pending": {
+                          "type": "array",
+                          "description": "Open Tasks (Not Started / In Progress) that aren't Active by the same rule the Activity panel uses, worst first. Capped at 8.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "integer" },
+                              "subject": { "type": "string" },
+                              "owner_name": { "type": "string", "nullable": true },
+                              "days_since_update": { "type": "integer", "nullable": true },
+                              "crm_url": { "type": "string", "nullable": true, "description": "Null when the Task isn't linked to an Opportunity." }
+                            }
+                          }
+                        },
+                        "tasks_pending_total": { "type": "integer" },
+                        "monthly_pace": {
+                          "type": "array",
+                          "description": "Every rep in scope (even at 0 created), sorted most-behind-target first.",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "created": { "type": "integer" },
+                              "target": { "type": "integer", "description": "Always 10." }
+                            }
+                          }
+                        }
+                      }
+                    }
                   }
                 }
               }
