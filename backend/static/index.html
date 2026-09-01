@@ -1060,23 +1060,12 @@
     <h1>Opportunity List</h1>
     <p class="panel-sub" style="margin:-8px 0 20px;">Every matched opportunity, one row each &mdash; uses the same filters and identity scoping as Overview (set filters there, they apply here too).</p>
 
-    <div class="panel">
-      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
-        <input type="text" id="opplist-search" placeholder="Search name, owner, manager, stage&hellip;" style="flex:1; min-width:220px; max-width:360px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
-        <span id="opplist-count" style="font-size:12.5px; color:var(--text-muted);"></span>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="simple-table opplist-table" id="opplist-table">
-          <thead><tr id="opplist-thead-row"></tr></thead>
-          <tbody id="opplist-tbody"></tbody>
-        </table>
-      </div>
-      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px;">
-        <button type="button" class="filter-btn" id="opplist-prev">&larr; Prev</button>
-        <span id="opplist-page-info" style="font-size:12.5px; color:var(--text-muted);"></span>
-        <button type="button" class="filter-btn" id="opplist-next">Next &rarr;</button>
-      </div>
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <input type="text" id="opplist-search" placeholder="Search name, owner, manager, stage&hellip;" style="flex:1; min-width:220px; max-width:360px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
+      <span id="opplist-count" style="font-size:12.5px; color:var(--text-muted);"></span>
     </div>
+
+    <div id="opplist-sections"></div>
   </div>
 </div>
 
@@ -1091,6 +1080,7 @@
       <div class="notes">
         <ul>
           <li>One row per matched Opportunity (same population as "Total" on Overview: open all&#8209;time + closed in the last 12 months), not aggregated &mdash; it uses the same filters and identity scoping as the Overview tab (set filters there; this list respects them without its own copy of the filter bar).</li>
+          <li>Split into four independently sorted, paginated sections by stage: <strong>Open</strong> (every non&#8209;closed stage except Future Opportunity), <strong>Future Opportunity</strong>, <strong>Closed&ndash;Won</strong>, and <strong>Closed&ndash;Lost</strong> &mdash; the search box above filters all four at once.</li>
           <li><strong>Product</strong> combines NV Product Line and Service Level into one column, separated by &bull; (e.g. "Restock &bull; Standard").</li>
           <li><strong>Aging</strong> = days since <code>created_at</code> (same definition as Deal Aging). <strong>Last Stage Duration</strong> = days since <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) &mdash; same definition as Stage Bottlenecks.</li>
           <li><strong>Overdue</strong>: the deal is still open and <code>expected_close_date</code> has already passed.</li>
@@ -1753,13 +1743,18 @@
     { key: "notebook_last_touch", label: "Notebook Last Touch", num: true },
     { key: "notebook_content", label: "Notebook Content", sortable: false },
   ];
-  const OPP_PAGE_SIZE = 50;
+  const OPP_PAGE_SIZE = 25;
+  const OPP_SECTIONS = [
+    { id: "open", title: "Open (excl. Future Opportunity)" },
+    { id: "future", title: "Future Opportunity" },
+    { id: "closed_won", title: "Closed–Won" },
+    { id: "closed_lost", title: "Closed–Lost" },
+  ];
   let oppAllRows = [];
-  let oppSortKey = "aging_days";
-  let oppSortDir = "desc";
   let oppSearch = "";
-  let oppPage = 1;
   let oppLoaded = false;
+  const oppSectionState = {};
+  OPP_SECTIONS.forEach(s => { oppSectionState[s.id] = { sortKey: "aging_days", sortDir: "desc", page: 1 }; });
 
   function oppProductLabel(row) {
     const parts = [row.nv_product_line, ...(row.service_level || [])].filter(Boolean);
@@ -1842,13 +1837,13 @@
       .then(data => {
         oppAllRows = data.rows || [];
         oppLoaded = true;
-        oppPage = 1;
+        OPP_SECTIONS.forEach(s => { oppSectionState[s.id].page = 1; });
         renderOpportunityList();
       })
       .catch(err => {
         document.getElementById("opplist-count").textContent = "";
-        document.getElementById("opplist-tbody").innerHTML =
-          `<tr><td colspan="${OPP_COLUMNS.length}" style="color:var(--status-critical); padding:12px 0;">Could not load opportunities: ${err.message}</td></tr>`;
+        document.getElementById("opplist-sections").innerHTML =
+          `<p style="color:var(--status-critical);">Could not load opportunities: ${err.message}</p>`;
       });
   }
 
@@ -1856,44 +1851,38 @@
     if (oppLoaded && document.getElementById("view-opplist").style.display !== "none") loadOpportunities();
   }
 
-  function renderOpportunityList() {
-    const q = oppSearch.trim().toLowerCase();
-    let rows = !q
-      ? oppAllRows
-      : oppAllRows.filter(r =>
-          ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q))
-        );
-
-    rows = rows.slice().sort((a, b) => {
-      const av = oppCellValue(a, oppSortKey);
-      const bv = oppCellValue(b, oppSortKey);
+  function renderOppSection(sectionId, rows) {
+    const state = oppSectionState[sectionId];
+    const sorted = rows.slice().sort((a, b) => {
+      const av = oppCellValue(a, state.sortKey);
+      const bv = oppCellValue(b, state.sortKey);
       if (av == null && bv == null) return 0;
       if (av == null) return 1;
       if (bv == null) return -1;
       const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
-      return oppSortDir === "asc" ? cmp : -cmp;
+      return state.sortDir === "asc" ? cmp : -cmp;
     });
 
-    const totalPages = Math.max(1, Math.ceil(rows.length / OPP_PAGE_SIZE));
-    oppPage = Math.min(oppPage, totalPages);
-    const start = (oppPage - 1) * OPP_PAGE_SIZE;
-    const pageRows = rows.slice(start, start + OPP_PAGE_SIZE);
+    const totalPages = Math.max(1, Math.ceil(sorted.length / OPP_PAGE_SIZE));
+    state.page = Math.min(state.page, totalPages);
+    const start = (state.page - 1) * OPP_PAGE_SIZE;
+    const pageRows = sorted.slice(start, start + OPP_PAGE_SIZE);
 
-    document.getElementById("opplist-count").textContent = `${rows.length} of ${oppAllRows.length} opportunit${oppAllRows.length === 1 ? "y" : "ies"}`;
-    document.getElementById("opplist-page-info").textContent = rows.length
-      ? `Page ${oppPage} of ${totalPages} (${start + 1}–${Math.min(start + OPP_PAGE_SIZE, rows.length)})`
+    document.getElementById(`opplist-section-count-${sectionId}`).textContent = `(${sorted.length})`;
+    document.getElementById(`opplist-page-info-${sectionId}`).textContent = sorted.length
+      ? `Page ${state.page} of ${totalPages} (${start + 1}–${Math.min(start + OPP_PAGE_SIZE, sorted.length)})`
       : "No results";
-    document.getElementById("opplist-prev").disabled = oppPage <= 1;
-    document.getElementById("opplist-next").disabled = oppPage >= totalPages;
+    document.getElementById(`opplist-prev-${sectionId}`).disabled = state.page <= 1;
+    document.getElementById(`opplist-next-${sectionId}`).disabled = state.page >= totalPages;
 
-    document.getElementById("opplist-thead-row").innerHTML = OPP_COLUMNS.map(col => {
+    document.getElementById(`opplist-thead-${sectionId}`).innerHTML = OPP_COLUMNS.map(col => {
       const sortable = col.sortable !== false;
-      const arrow = sortable && oppSortKey === col.key ? `<span class="sort-arrow">${oppSortDir === "asc" ? "▲" : "▼"}</span>` : "";
+      const arrow = sortable && state.sortKey === col.key ? `<span class="sort-arrow">${state.sortDir === "asc" ? "▲" : "▼"}</span>` : "";
       const cls = col.num ? "num" : (col.key === "notebook_content" ? "notebook-content" : "");
       return `<th class="${cls}" data-key="${col.key}" data-sortable="${sortable}">${col.label}${arrow}</th>`;
     }).join("");
 
-    document.getElementById("opplist-tbody").innerHTML = pageRows.length
+    document.getElementById(`opplist-tbody-${sectionId}`).innerHTML = pageRows.length
       ? pageRows.map(row => `
           <tr>
             ${OPP_COLUMNS.map(col => {
@@ -1903,33 +1892,64 @@
           </tr>`).join("")
       : `<tr><td colspan="${OPP_COLUMNS.length}" style="color:var(--text-muted); padding:12px 0;">No matching opportunities.</td></tr>`;
 
-    document.querySelectorAll("#opplist-thead-row th[data-sortable=true]").forEach(th => {
+    document.querySelectorAll(`#opplist-thead-${sectionId} th[data-sortable=true]`).forEach(th => {
       th.addEventListener("click", () => {
         const key = th.dataset.key;
-        if (oppSortKey === key) oppSortDir = oppSortDir === "asc" ? "desc" : "asc";
-        else { oppSortKey = key; oppSortDir = "asc"; }
+        if (state.sortKey === key) state.sortDir = state.sortDir === "asc" ? "desc" : "asc";
+        else { state.sortKey = key; state.sortDir = "asc"; }
         renderOpportunityList();
       });
     });
+    document.getElementById(`opplist-prev-${sectionId}`).addEventListener("click", () => { state.page -= 1; renderOpportunityList(); });
+    document.getElementById(`opplist-next-${sectionId}`).addEventListener("click", () => { state.page += 1; renderOpportunityList(); });
+  }
 
-    document.querySelectorAll(".opp-toggle-note").forEach(a => {
-      a.addEventListener("click", e => {
-        e.preventDefault();
-        const id = Number(a.dataset.id);
-        if (oppNotebookExpanded.has(id)) oppNotebookExpanded.delete(id);
-        else oppNotebookExpanded.add(id);
-        renderOpportunityList();
-      });
+  function renderOpportunityList() {
+    const q = oppSearch.trim().toLowerCase();
+    const filtered = !q
+      ? oppAllRows
+      : oppAllRows.filter(r =>
+          ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q))
+        );
+
+    document.getElementById("opplist-count").textContent = `${filtered.length} of ${oppAllRows.length} opportunit${oppAllRows.length === 1 ? "y" : "ies"}`;
+
+    document.getElementById("opplist-sections").innerHTML = OPP_SECTIONS.map(sec => `
+      <div class="panel" style="margin-bottom:16px;">
+        <h2>${sec.title} <span id="opplist-section-count-${sec.id}" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+        <div style="overflow-x:auto;">
+          <table class="simple-table opplist-table" id="opplist-table-${sec.id}">
+            <thead><tr id="opplist-thead-${sec.id}"></tr></thead>
+            <tbody id="opplist-tbody-${sec.id}"></tbody>
+          </table>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px;">
+          <button type="button" class="filter-btn" id="opplist-prev-${sec.id}">&larr; Prev</button>
+          <span id="opplist-page-info-${sec.id}" style="font-size:12.5px; color:var(--text-muted);"></span>
+          <button type="button" class="filter-btn" id="opplist-next-${sec.id}">Next &rarr;</button>
+        </div>
+      </div>`).join("");
+
+    OPP_SECTIONS.forEach(sec => {
+      renderOppSection(sec.id, filtered.filter(r => r.stage_group === sec.id));
     });
   }
 
   document.getElementById("opplist-search").addEventListener("input", e => {
     oppSearch = e.target.value;
-    oppPage = 1;
+    OPP_SECTIONS.forEach(s => { oppSectionState[s.id].page = 1; });
     renderOpportunityList();
   });
-  document.getElementById("opplist-prev").addEventListener("click", () => { oppPage -= 1; renderOpportunityList(); });
-  document.getElementById("opplist-next").addEventListener("click", () => { oppPage += 1; renderOpportunityList(); });
+
+  document.getElementById("opplist-sections").addEventListener("click", e => {
+    const a = e.target.closest(".opp-toggle-note");
+    if (!a) return;
+    e.preventDefault();
+    const id = Number(a.dataset.id);
+    if (oppNotebookExpanded.has(id)) oppNotebookExpanded.delete(id);
+    else oppNotebookExpanded.add(id);
+    renderOpportunityList();
+  });
 
   function load() {
     fetch(`/api/pipeline${filterQueryString()}`)

@@ -432,12 +432,24 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
     detail view alongside the aggregated numbers build_dashboard() produces."""
     now = datetime.now(timezone.utc)
     today = now.date()
-    closed_stage_names = {_normalize_stage("Closed–Won"), _normalize_stage("Closed–Lost")}
+    won_norm = _normalize_stage("Closed–Won")
+    lost_norm = _normalize_stage("Closed–Lost")
+    future_norm = _normalize_stage("Future Opportunity")
+    closed_stage_names = {won_norm, lost_norm}
     rows = []
     for r in items:
         rid = r.get("id")
         stage = r.get("stage") or ""
-        is_open = _normalize_stage(stage) not in closed_stage_names
+        stage_norm = _normalize_stage(stage)
+        is_open = stage_norm not in closed_stage_names
+        if stage_norm == won_norm:
+            stage_group = "closed_won"
+        elif stage_norm == lost_norm:
+            stage_group = "closed_lost"
+        elif stage_norm == future_norm:
+            stage_group = "future"
+        else:
+            stage_group = "open"
         owner = r.get("owner_name") or ""
         manager = (TEAM_ROSTER.get(owner) or {}).get("manager")
         created = _parse_dt(r.get("created_at"))
@@ -455,6 +467,7 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
             "owner_name": owner or None,
             "manager": manager,
             "stage": r.get("stage"),
+            "stage_group": stage_group,
             "type": r.get("type"),
             "nv_product_line": r.get("nv_product_line"),
             "service_level": r.get("service_level") or [],

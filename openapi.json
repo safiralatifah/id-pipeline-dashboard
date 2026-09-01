@@ -380,6 +380,7 @@
                           "owner_name": { "type": "string", "nullable": true },
                           "manager": { "type": "string", "nullable": true, "description": "From the team roster; null if the owner isn't an Active rep on file." },
                           "stage": { "type": "string" },
+                          "stage_group": { "type": "string", "description": "open | future | closed_won | closed_lost — which of the four Opportunity List sections this row belongs to." },
                           "type": { "type": "string", "nullable": true, "description": "Acquisition | Cross-Selling | Pricing | Up-Selling | Regain | Others." },
                           "nv_product_line": { "type": "string", "nullable": true },
                           "service_level": { "type": "array", "items": { "type": "string" } },
