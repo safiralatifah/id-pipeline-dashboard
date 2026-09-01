@@ -229,6 +229,16 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
             and r.get("owner_name") != "Raden Roro Inggil Pratiwi"
         )
     ]
+    # service_level is a multi-select field, but the CRM returns a bare
+    # string instead of a 1-item list for some records — spreading/joining
+    # that string elsewhere would silently iterate its characters instead of
+    # treating it as one value, so normalize to a list once, here.
+    for r in items:
+        sl = r.get("service_level")
+        if isinstance(sl, str):
+            r["service_level"] = [sl] if sl else []
+        elif not sl:
+            r["service_level"] = []
     return items
 
 

@@ -790,6 +790,9 @@
   }
   .opplist-table a.opp-link { color: var(--accent); text-decoration: none; font-weight: 600; }
   .opplist-table a.opp-link:hover { text-decoration: underline; }
+  .opplist-table a.opp-toggle-note { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .opplist-table a.opp-toggle-note:hover { text-decoration: underline; }
+  .opplist-table tbody tr:hover { background: var(--surface-2); }
   .opplist-badge {
     display: inline-flex;
     align-items: center;
@@ -1769,6 +1772,24 @@
     return row[key];
   }
 
+  function ageBandColor(days) {
+    if (days == null) return "inherit";
+    if (days <= 7) return AGE_COLORS[0];
+    if (days <= 15) return AGE_COLORS[1];
+    if (days <= 30) return AGE_COLORS[2];
+    return AGE_COLORS[3];
+  }
+
+  function notebookTouchColor(days) {
+    if (days == null) return "inherit";
+    if (days <= 6) return ACTIVITY_COLOR_VAR.good;
+    if (days <= 14) return ACTIVITY_COLOR_VAR.warning;
+    if (days <= 30) return ACTIVITY_COLOR_VAR.orange;
+    return ACTIVITY_COLOR_VAR.critical;
+  }
+
+  let oppNotebookExpanded = new Set();
+
   function oppCellHtml(row, key) {
     const v = row[key];
     switch (key) {
@@ -1782,16 +1803,27 @@
         return fmtDate(v);
       case "aging_days":
       case "last_stage_duration_days":
-        return v == null ? "&ndash;" : `${v}d`;
-      case "notebook_last_touch":
-        return row.notebook_days_since_touch == null ? "&ndash;" : `${row.notebook_days_since_touch}d`;
+        return v == null ? "&ndash;" : `<span style="color:${ageBandColor(v)}; font-weight:600;">${v}d</span>`;
+      case "notebook_last_touch": {
+        const d = row.notebook_days_since_touch;
+        return d == null ? "&ndash;" : `<span style="color:${notebookTouchColor(d)}; font-weight:600;">${d}d</span>`;
+      }
       case "overdue":
         return v ? '<span class="opplist-badge">Overdue</span>' : "&ndash;";
       case "total_potential_revenue_mth":
       case "committed_revenue_mth":
         return fmtRupiah(v || 0);
-      case "notebook_content":
-        return v || "&ndash;";
+      case "notebook_content": {
+        if (!v) return "&ndash;";
+        const expanded = oppNotebookExpanded.has(row.id);
+        if (expanded) {
+          return `${v} <a href="#" class="opp-toggle-note" data-id="${row.id}">Show less</a>`;
+        }
+        const preview = v.length > 60 ? `${v.slice(0, 60)}&hellip;` : v;
+        return v.length > 60
+          ? `${preview} <a href="#" class="opp-toggle-note" data-id="${row.id}">Read more</a>`
+          : v;
+      }
       default:
         return v == null || v === "" ? "&ndash;" : v;
     }
@@ -1876,6 +1908,16 @@
         const key = th.dataset.key;
         if (oppSortKey === key) oppSortDir = oppSortDir === "asc" ? "desc" : "asc";
         else { oppSortKey = key; oppSortDir = "asc"; }
+        renderOpportunityList();
+      });
+    });
+
+    document.querySelectorAll(".opp-toggle-note").forEach(a => {
+      a.addEventListener("click", e => {
+        e.preventDefault();
+        const id = Number(a.dataset.id);
+        if (oppNotebookExpanded.has(id)) oppNotebookExpanded.delete(id);
+        else oppNotebookExpanded.add(id);
         renderOpportunityList();
       });
     });
