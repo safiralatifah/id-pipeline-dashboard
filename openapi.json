@@ -338,7 +338,9 @@
                         "product_lines": { "type": "array", "items": { "type": "string" } },
                         "service_levels": { "type": "array", "items": { "type": "string" } }
                       }
-                    }
+                    },
+                    "viewer_name": { "type": "string", "nullable": true, "description": "The requester's team-roster name, resolved from the platform's X-Forwarded-Email header via a TEAM_EMAIL_MAP env var. Null if unmapped or SSO isn't the access method." },
+                    "viewer_scoped": { "type": "boolean", "description": "True if viewer_name was resolved and the response was restricted to their own pipeline (or their team's, if they're a Manager/Sales Head)." }
                   }
                 }
               }

@@ -278,6 +278,17 @@
   .info-row + .info-row { border-top: 1px solid var(--gridline); }
   .info-row b { color: var(--text-primary); font-weight: 600; }
   .info-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
+  .viewer-chip {
+    display: inline-flex;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 999px;
+    padding: 4px 12px;
+    white-space: nowrap;
+  }
 
   .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 20px; }
   .filter-dropdown { position: relative; }
@@ -796,6 +807,7 @@
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
     <div class="title-row">
       <h1>ID &ndash; Pipeline Health &amp; Efficiency</h1>
+      <span class="viewer-chip" id="viewer-scope-chip" style="display:none;"></span>
       <div class="info-wrap">
         <button type="button" class="info-btn" id="meta-info-btn" aria-label="About this data" aria-expanded="false">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
@@ -1031,6 +1043,7 @@
           <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count as a non&#8209;pipeline test artifact.</li>
           <li><strong>Open</strong> (used throughout as "open deals" / "open + future") means every stage except Closed&ndash;Won and Closed&ndash;Lost &mdash; this includes Future Opportunity.</li>
           <li><strong>Filter bar</strong> (Salesperson / Manager / NV Product Line / Service Level, top of the Overview tab): multi&#8209;select, applies to the <strong>entire dashboard</strong> &mdash; every stat card, chart, and table on this page recomputes against the filtered population, not just the panels that already broke deals down by that field. Selections within one filter are OR'd (any match), across different filters they're AND'd (must match all). Manager filters by each deal's owner's Manager in the team roster; a deal whose owner isn't in the roster won't match any Manager filter. Service Level is a multi&#8209;select field on the deal itself, so it matches if the deal has <em>any</em> of the selected levels. Task Activity respects the Salesperson/Manager filters but ignores Product Line/Service Level (Tasks aren't tagged with either).</li>
+          <li><strong>Identity&#8209;scoped viewing</strong>: if the person who's logged in (via the platform's Google SSO, identified by an unspoofable <code>X-Forwarded-Email</code> header) is mapped to a name in the team roster, the whole dashboard is pre&#8209;restricted to what they're allowed to see &mdash; a Salesperson sees only their own pipeline; a Manager or Sales Head sees their full downstream team (Sales Head covers every rep under every manager reporting to them, not just direct reports). This is a real boundary, not just a default: the filter bar can only narrow further within that scope, never escape it. A <strong>"Viewing as &hellip;"</strong> chip next to the title shows when this is active. Anyone not in the email&#8209;to&#8209;roster mapping (or if SSO isn't the access method) sees the full unrestricted dashboard.</li>
         </ul>
       </div>
     </div>
@@ -1545,6 +1558,14 @@
 
     window.__filterOptions = d.filter_options || {};
     renderFilterOptions(window.__filterOptions);
+
+    const viewerChip = document.getElementById("viewer-scope-chip");
+    if (d.viewer_scoped && d.viewer_name) {
+      viewerChip.textContent = `Viewing as ${d.viewer_name}`;
+      viewerChip.style.display = "";
+    } else {
+      viewerChip.style.display = "none";
+    }
 
     setText("meta-snapshot", new Date(d.snapshot_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }));
     setText("meta-total", d.total);

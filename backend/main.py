@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 
 app = FastAPI()
@@ -19,6 +19,18 @@ STATIC_DIR = BASE_DIR / "static"
 
 with open(BASE_DIR / "team_roster.json", encoding="utf-8") as f:
     TEAM_ROSTER: dict[str, dict] = json.load(f)
+
+# Maps the viewer's SSO email (from the platform's unspoofable
+# X-Forwarded-Email header) to their name in TEAM_ROSTER, so the dashboard
+# can scope itself to "my own pipeline" / "my team's pipeline" automatically.
+# Kept out of the (public) repo entirely — set as a Substrait env var, a
+# JSON object of {"email": "Roster Name"}.
+try:
+    TEAM_EMAIL_MAP: dict[str, str] = {
+        k.strip().lower(): v for k, v in json.loads(os.environ.get("TEAM_EMAIL_MAP") or "{}").items()
+    }
+except (json.JSONDecodeError, AttributeError):
+    TEAM_EMAIL_MAP = {}
 
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 RECORD_TYPE_INDONESIA = "12"
@@ -257,13 +269,25 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
     )
 
 
-def _filter_options(items: list[dict]) -> dict:
-    """Dropdown choices for the top filter bar — always computed from the
-    full unfiltered population so selecting a filter doesn't shrink the
-    other dropdowns' own options."""
+def _filter_options(items: list[dict], allowed_owners: set[str] | None = None) -> dict:
+    """Dropdown choices for the top filter bar — computed from the full
+    population (not the request's own filter selections) so picking one
+    filter doesn't shrink the other dropdowns' own options. When the viewer
+    is identity-scoped (allowed_owners), the lists are narrowed to their
+    permitted names/managers so the UI never offers a name they can't
+    actually select."""
+    owners_pool = {r.get("owner_name") for r in items if r.get("owner_name")}
+    managers_pool = {v["manager"] for v in TEAM_ROSTER.values() if v.get("manager")}
+    if allowed_owners is not None:
+        owners_pool &= allowed_owners
+        managers_pool = {
+            TEAM_ROSTER[name]["manager"]
+            for name in allowed_owners
+            if TEAM_ROSTER.get(name) and TEAM_ROSTER[name].get("manager")
+        }
     return {
-        "owners": sorted({r.get("owner_name") for r in items if r.get("owner_name")}),
-        "managers": sorted({v["manager"] for v in TEAM_ROSTER.values() if v.get("manager")}),
+        "owners": sorted(owners_pool),
+        "managers": sorted(managers_pool),
         "product_lines": list(PRODUCT_LINE_ORDER),
         "service_levels": list(SERVICE_LEVEL_VALUES),
     }
@@ -317,6 +341,35 @@ def _apply_task_filters(
         return True
 
     return [t for t in tasks if keep(t)]
+
+
+def _viewer_scope_names(viewer_name: str) -> set[str]:
+    """Everyone the viewer is allowed to see: themself (if they're a rep in
+    the roster), plus every rep reporting to them as Manager, plus every rep
+    under them as Sales Head — the sales_head field is already flat across
+    the whole chain, so this covers a Sales Head's full downstream team in
+    one pass, not just their direct reports."""
+    scope = {viewer_name} if viewer_name in TEAM_ROSTER else set()
+    for name, v in TEAM_ROSTER.items():
+        if v.get("manager") == viewer_name or v.get("sales_head") == viewer_name:
+            scope.add(name)
+    return scope
+
+
+def _resolve_viewer(request: Request) -> tuple[str | None, set[str] | None]:
+    """(viewer_name, allowed_owner_names) for this request's authenticated
+    viewer, or (None, None) if unrestricted (unmapped viewer, or SSO not
+    enabled — X-Forwarded-Email is unspoofable when the platform's Google
+    SSO gate is on, and simply absent otherwise, which this treats as "no
+    restriction" rather than an error)."""
+    email = (request.headers.get("x-forwarded-email") or "").strip().lower()
+    if not email:
+        return None, None
+    viewer_name = TEAM_EMAIL_MAP.get(email)
+    if not viewer_name:
+        return None, None
+    scope = _viewer_scope_names(viewer_name)
+    return viewer_name, (scope or None)
 
 
 def _scoped_roster_names(owners: list[str] | None, managers: list[str] | None) -> set[str]:
@@ -863,6 +916,7 @@ async def _start_background_refresh() -> None:
 
 @app.get("/api/pipeline")
 async def get_pipeline(
+    request: Request,
     owners: list[str] | None = Query(None),
     managers: list[str] | None = Query(None),
     product_lines: list[str] | None = Query(None),
@@ -878,12 +932,24 @@ async def get_pipeline(
             status_code=503,
             detail="Initial data load in progress (fetching ~73k records in the background) — retry shortly",
         )
-    filtered_items = _apply_filters(_cache["items"], owners, managers, product_lines, service_levels)
-    filtered_tasks = _apply_task_filters(_cache["tasks"], owners, managers)
-    roster_scope = _scoped_roster_names(owners, managers)
+
+    # Identity-scoped viewing: a mapped Salesperson only ever sees their own
+    # pipeline, a Manager/Sales Head their team's — this is the real
+    # boundary (clamps whatever the client asked for), not just a UI
+    # default, since X-Forwarded-Email can't be spoofed once SSO is on.
+    viewer_name, allowed_owners = _resolve_viewer(request)
+    effective_owners = owners
+    if allowed_owners is not None:
+        effective_owners = list(set(owners) & allowed_owners) if owners else list(allowed_owners)
+
+    filtered_items = _apply_filters(_cache["items"], effective_owners, managers, product_lines, service_levels)
+    filtered_tasks = _apply_task_filters(_cache["tasks"], effective_owners, managers)
+    roster_scope = _scoped_roster_names(effective_owners, managers)
     result = build_dashboard(filtered_items, _cache["notebook_last_touch"], filtered_tasks, roster_scope)
     result["snapshot_at"] = _cache["snapshot_at"]
-    result["filter_options"] = _filter_options(_cache["items"])
+    result["filter_options"] = _filter_options(_cache["items"], allowed_owners)
+    result["viewer_name"] = viewer_name
+    result["viewer_scoped"] = allowed_owners is not None
     return result
 
 
