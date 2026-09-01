@@ -808,6 +808,20 @@
   [title], [data-tip] { cursor: default; }
   .bar-fill, .stage-age-seg, .owner-age-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
   .bar-fill:hover, .stage-age-seg:hover, .owner-age-seg:hover { filter: brightness(1.12); }
+  .stage-age-seg, .owner-age-seg { cursor: pointer; }
+  .bar-name[data-owner-row], .stage-age-name[data-stage-row] { cursor: pointer; }
+  .bar-name[data-owner-row]:hover, .stage-age-name[data-stage-row]:hover { text-decoration: underline; }
+  .opp-filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
   .owner-age-fill { display: flex; height: 100%; border-radius: 4px; overflow: hidden; }
 
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
@@ -1179,9 +1193,14 @@
     <h1>Opportunity List</h1>
     <p class="panel-sub" style="margin:-8px 0 20px;">Every matched opportunity, one row each &mdash; uses the same filters and identity scoping as Overview (set filters there, they apply here too).</p>
 
-    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
       <input type="text" id="opplist-search" placeholder="Search name, owner, manager, stage&hellip;" style="flex:1; min-width:220px; max-width:360px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
       <span id="opplist-count" style="font-size:12.5px; color:var(--text-muted);"></span>
+    </div>
+
+    <div id="opplist-chart-filter-row" style="display:none; align-items:center; gap:8px; margin-bottom:16px;">
+      <span class="opp-filter-chip" id="opplist-chart-filter-label"></span>
+      <button type="button" class="filter-btn" id="opplist-chart-filter-clear">Clear filter</button>
     </div>
 
     <div id="opplist-sections"></div>
@@ -1460,11 +1479,11 @@
       const segs = (r.buckets || []).map((b, bi) => {
         if (!b.count) return "";
         const segPct = r.count ? (b.count / r.count) * 100 : 0;
-        return `<div class="owner-age-seg" style="width:${segPct}%; height:100%; background:${AGE_COLORS[bi]};" data-tip="${r.name} &middot; ${b.label}: ${b.count} deal(s)"></div>`;
+        return `<div class="owner-age-seg" data-owner="${r.name}" data-bucket="${b.label}" style="width:${segPct}%; height:100%; background:${AGE_COLORS[bi]};" data-tip="${r.name} &middot; ${b.label}: ${b.count} deal(s) &mdash; click to filter Opportunity List"></div>`;
       }).join("");
       return `
         <div class="bar-row wide-name" title="${r.name}: ${r.count} deals (${pct}% of total)">
-          <span class="bar-name"><span class="rank-num">${i + 1}</span> ${r.name}</span>
+          <span class="bar-name" data-owner-row="${r.name}"><span class="rank-num">${i + 1}</span> ${r.name}</span>
           <div class="bar-track">
             <div class="owner-age-fill" style="width:${widthPct}%;">${segs}</div>
           </div>
@@ -1825,12 +1844,12 @@
         const widthPct = ageMode === "share" ? pctOfStage : pctOfStage * (row.total / maxTotal);
         const label = ageMode === "share" ? `${pctOfStage.toFixed(0)}%` : `${b.count}`;
         const showLabel = widthPct > 8;
-        return `<div class="stage-age-seg" style="width:${widthPct}%; background:${AGE_COLORS[i]};" title="${row.stage} · ${b.label}: ${b.count} deal(s)">${showLabel ? label : ""}</div>`;
+        return `<div class="stage-age-seg" data-stage="${row.stage}" data-bucket="${b.label}" style="width:${widthPct}%; background:${AGE_COLORS[i]};" title="${row.stage} · ${b.label}: ${b.count} deal(s) — click to filter Opportunity List">${showLabel ? label : ""}</div>`;
       }).join("");
       const trackWidth = ageMode === "share" ? "100%" : `${(row.total / maxTotal) * 100}%`;
       return `
         <div class="stage-age-row">
-          <span class="stage-age-name">${row.stage}</span>
+          <span class="stage-age-name" data-stage-row="${row.stage}">${row.stage}</span>
           <div class="stage-age-track" style="width:${trackWidth};">${segs}</div>
           <span class="stage-age-n">${row.total}</span>
         </div>`;
@@ -1971,6 +1990,8 @@
   let oppAllRows = [];
   let oppSearch = "";
   let oppLoaded = false;
+  let oppStructFilter = null;
+  let oppStructFilterLabel = "";
   const oppSectionState = {};
   OPP_SECTIONS.forEach(s => { oppSectionState[s.id] = { sortKey: "aging_days", sortDir: "desc", page: 1 }; });
 
@@ -2132,13 +2153,55 @@
     document.getElementById(`opplist-next-${sectionId}`).addEventListener("click", () => { state.page += 1; renderOpportunityList(); });
   }
 
+  const AGE_BUCKET_RANGES = { "0-7d": [0, 7], "7-15d": [8, 15], "15-30d": [16, 30], "30d+": [31, null] };
+
+  function oppRowMatchesStructFilter(r, f) {
+    if (!f) return true;
+    if (f.ownerName && r.owner_name !== f.ownerName) return false;
+    if (f.stage && r.stage !== f.stage) return false;
+    if (f.ageField) {
+      const days = r[f.ageField];
+      if (days == null) return false;
+      if (f.ageMin != null && days < f.ageMin) return false;
+      if (f.ageMax != null && days > f.ageMax) return false;
+    }
+    return true;
+  }
+
+  function switchToOpplist() {
+    document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === "opplist"));
+    document.getElementById("view-overview").style.display = "none";
+    document.getElementById("view-opplist").style.display = "";
+    document.getElementById("view-dictionary").style.display = "none";
+  }
+
+  function applyOppChartFilter(filter, label) {
+    oppStructFilter = filter;
+    oppStructFilterLabel = label;
+    switchToOpplist();
+    loadOpportunities();
+  }
+
+  document.getElementById("opplist-chart-filter-clear").addEventListener("click", () => {
+    oppStructFilter = null;
+    oppStructFilterLabel = "";
+    renderOpportunityList();
+  });
+
   function renderOpportunityList() {
     const q = oppSearch.trim().toLowerCase();
-    const filtered = !q
-      ? oppAllRows
-      : oppAllRows.filter(r =>
-          ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q))
-        );
+    const filtered = oppAllRows.filter(r =>
+      oppRowMatchesStructFilter(r, oppStructFilter) &&
+      (!q || ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q)))
+    );
+
+    const filterRow = document.getElementById("opplist-chart-filter-row");
+    if (oppStructFilter) {
+      filterRow.style.display = "flex";
+      document.getElementById("opplist-chart-filter-label").textContent = `Filtered by: ${oppStructFilterLabel}`;
+    } else {
+      filterRow.style.display = "none";
+    }
 
     document.getElementById("opplist-count").textContent = `${filtered.length} of ${oppAllRows.length} opportunit${oppAllRows.length === 1 ? "y" : "ies"}`;
 
@@ -2293,6 +2356,36 @@
     const track = seg.parentElement;
     if (!(e.relatedTarget && track.contains(e.relatedTarget))) {
       Array.from(track.children).forEach(sib => { sib.style.opacity = "1"; });
+    }
+  });
+
+  document.addEventListener("click", e => {
+    const ownerSeg = e.target.closest(".owner-age-seg");
+    if (ownerSeg) {
+      const range = AGE_BUCKET_RANGES[ownerSeg.dataset.bucket] || [null, null];
+      applyOppChartFilter(
+        { ownerName: ownerSeg.dataset.owner, ageField: "aging_days", ageMin: range[0], ageMax: range[1] },
+        `${ownerSeg.dataset.owner} — ${ownerSeg.dataset.bucket} aging`
+      );
+      return;
+    }
+    const stageSeg = e.target.closest(".stage-age-seg");
+    if (stageSeg) {
+      const range = AGE_BUCKET_RANGES[stageSeg.dataset.bucket] || [null, null];
+      applyOppChartFilter(
+        { stage: stageSeg.dataset.stage, ageField: "last_stage_duration_days", ageMin: range[0], ageMax: range[1] },
+        `${stageSeg.dataset.stage} — ${stageSeg.dataset.bucket} in current stage`
+      );
+      return;
+    }
+    const ownerRow = e.target.closest("[data-owner-row]");
+    if (ownerRow) {
+      applyOppChartFilter({ ownerName: ownerRow.dataset.ownerRow }, ownerRow.dataset.ownerRow);
+      return;
+    }
+    const stageRow = e.target.closest("[data-stage-row]");
+    if (stageRow) {
+      applyOppChartFilter({ stage: stageRow.dataset.stageRow }, stageRow.dataset.stageRow);
     }
   });
 })();
