@@ -60,6 +60,11 @@ TASK_OWNER_IDS = sorted({v["owner_id"] for v in TEAM_ROSTER.values() if v.get("o
 TASK_UNMAPPED_REPS = sorted(name for name, v in TEAM_ROSTER.items() if not v.get("owner_id"))
 TASK_OPEN_STATUSES = ["Not Started", "In Progress"]
 
+# Opportunity.type values that count as new business for "Created" metrics —
+# excludes Pricing/Up-Selling/Regain/Others, which are opportunities raised
+# against an existing account rather than new pipeline.
+CREATED_OPPORTUNITY_TYPES = {"Acquisition", "Cross-Selling"}
+
 # Each Active rep is expected to create 10 new opportunities a month; a
 # manager's target is just that number times their headcount. "Unmapped"
 # isn't a real manager, so it has no target (MANAGER_TARGETS.get returns
@@ -401,13 +406,16 @@ def build_dashboard(
     if roster_scope is None:
         roster_scope = set(TEAM_ROSTER)
 
-    # Opportunities created this calendar month vs last, for the headline stat.
+    # Opportunities created this calendar month vs last, for the headline
+    # stat — "Created" only counts new-business Types (Acquisition,
+    # Cross-Selling), not Pricing/Up-Selling/Regain/Others on existing deals.
     this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_end = this_month_start - timedelta(seconds=1)
     last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    new_business_items = [r for r in items if r.get("type") in CREATED_OPPORTUNITY_TYPES]
     created_this_month = 0
     created_last_month = 0
-    for r in items:
+    for r in new_business_items:
         created = _parse_dt(r.get("created_at"))
         if not created:
             continue
@@ -663,7 +671,7 @@ def build_dashboard(
     # window still shows a row (0/10 is exactly the signal a target is for).
     owner_created_totals: dict[str, dict[str, int]] = {name: {} for name in roster_scope}
     unmapped_owners = set()
-    for r in items:
+    for r in new_business_items:
         created = _parse_dt(r.get("created_at"))
         if not created:
             continue
@@ -818,6 +826,19 @@ def build_dashboard(
         key=lambda row: -row["pct"],
     )
 
+    # Pipeline Conversion: of everything "in play" this month — newly
+    # created, still open, or resolved (won or lost) this month — what share
+    # actually became Closed-Won this month. A rough activity-volume
+    # denominator, not a clean partition (a deal created and closed within
+    # the same month counts in more than one bucket), by design.
+    pipeline_conversion_denominator = (
+        created_this_month + (open_active + future) + closed_won_this_month + closed_lost_this_month
+    )
+    pipeline_conversion_pct = (
+        round(closed_won_this_month / pipeline_conversion_denominator * 100, 1)
+        if pipeline_conversion_denominator else 0.0
+    )
+
     return {
         "total": total,
         "created_this_month": created_this_month,
@@ -832,7 +853,9 @@ def build_dashboard(
         "closed_won_last_month": closed_won_last_month,
         "closed_lost_last_month": closed_lost_last_month,
         "closed_total": closed_total,
-        "win_rate": round(won / closed_total * 100, 1) if closed_total else 0,
+        "pipeline_conversion_pct": pipeline_conversion_pct,
+        "pipeline_conversion_numerator": closed_won_this_month,
+        "pipeline_conversion_denominator": pipeline_conversion_denominator,
         "lead_time_to_won_avg_days": lead_time_to_won_avg_days,
         "lead_time_to_won_count": lead_time_to_won_count,
         "revenue_potential_mth": revenue,

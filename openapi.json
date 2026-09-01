@@ -47,15 +47,17 @@
                   "type": "object",
                   "properties": {
                     "total": { "type": "integer", "description": "Every open Indonesia Opportunity (any age) plus any Opportunity created in the last 12 months (open or closed) — not the true all-time count of 72,721, which is too large to fetch per refresh." },
-                    "created_this_month": { "type": "integer" },
-                    "created_last_month": { "type": "integer" },
+                    "created_this_month": { "type": "integer", "description": "New-business Opportunities (type Acquisition or Cross-Selling) created this calendar month." },
+                    "created_last_month": { "type": "integer", "description": "Same Type filter as created_this_month, previous calendar month." },
                     "open_pipeline": { "type": "integer" },
                     "open_active": { "type": "integer" },
                     "open_future": { "type": "integer" },
                     "closed_won": { "type": "integer" },
                     "closed_lost": { "type": "integer" },
                     "closed_total": { "type": "integer" },
-                    "win_rate": { "type": "number" },
+                    "pipeline_conversion_pct": { "type": "number", "description": "Closed-Won this month / (Created this month + Open Pipeline + Closed-Won this month + Closed-Lost this month) — not a clean partition by design." },
+                    "pipeline_conversion_numerator": { "type": "integer" },
+                    "pipeline_conversion_denominator": { "type": "integer" },
                     "lead_time_to_won_avg_days": { "type": "number", "nullable": true, "description": "Average days from created_at to the stage change that closed each Closed-Won deal (created_at stands in for a missing 'entered New stage' timestamp). Null if there are no Closed-Won deals in range." },
                     "lead_time_to_won_count": { "type": "integer", "description": "Number of Closed-Won deals included in the lead-time average." },
                     "revenue_potential_mth": { "type": "number" },
@@ -227,7 +229,7 @@
                     },
                     "created_by_month": {
                       "type": "object",
-                      "description": "Opportunities created per month, rolled up by Manager and by individual owner (Active-rep team roster). Each rep has a 10-per-month target; a manager's target is 10 x their headcount.",
+                      "description": "New-business Opportunities (type Acquisition or Cross-Selling) created per month, rolled up by Manager and by individual owner (Active-rep team roster). Each rep has a 10-per-month target; a manager's target is 10 x their headcount.",
                       "properties": {
                         "months": { "type": "array", "items": { "type": "string" }, "description": "Sorted ascending — the last element is the current month." },
                         "by_manager": {

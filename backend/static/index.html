@@ -878,11 +878,6 @@
         <span class="sub" id="stat-lost-sub">&nbsp;</span>
       </div>
       <div class="stat">
-        <span class="label">Win Rate</span>
-        <span class="value" id="stat-winrate">&ndash;</span>
-        <span class="sub" id="stat-winrate-sub">&nbsp;</span>
-      </div>
-      <div class="stat">
         <span class="label">Pipeline Conversion</span>
         <span class="value" id="stat-conversion">&ndash;</span>
         <span class="sub" id="stat-conversion-sub">&nbsp;</span>
@@ -1052,12 +1047,11 @@
       <h2>Top summary cards</h2>
       <div class="notes">
         <ul>
-          <li><strong>Created This Month / vs last month</strong>: count of opportunities (any stage) whose <code>created_at</code> falls in the current / previous calendar month.</li>
-          <li><strong>Open Pipeline</strong>: count of all OPEN deals (open_active + Future Opportunity).</li>
+          <li><strong>Created This Month / vs last month</strong>: count of opportunities whose <code>created_at</code> falls in the current / previous calendar month <strong>and</strong> whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> &mdash; new business only, excluding Pricing/Up&#8209;Selling/Regain/Others opportunities raised against an existing account. The <strong>Created Opportunities by Manager &amp; Salesperson</strong> table below uses the same Type filter.</li>
+          <li><strong>Open Pipeline</strong>: count of all OPEN deals (open_active + Future Opportunity). Not Type&#8209;filtered.</li>
           <li><strong>CRM Updated %</strong>: the final combined Activity KPI &mdash; see "Activity" below for the full definition.</li>
-          <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of deals whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. deals that actually closed this month, not deals merely created this month.</li>
-          <li><strong>Win Rate</strong>: <code>closed_won &divide; (closed_won + closed_lost)</code> over the full population (12mo + all&#8209;time open). Answers "of deals that reached a final outcome, how many did we win?" &mdash; still&#8209;open deals are excluded from both sides of the ratio.</li>
-          <li><strong>Pipeline Conversion</strong>: <code>closed_won &divide; total</code> &mdash; total includes still&#8209;open deals, so this answers "of every opportunity ever in this population, what share ended up won?" (necessarily lower than Win Rate, since it also counts deals that haven't concluded yet).</li>
+          <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of deals whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. deals that actually closed this month, not deals merely created this month. Not Type&#8209;filtered.</li>
+          <li><strong>Pipeline Conversion</strong>: <code>Closed&ndash;Won this month &divide; (Created this month + Open Pipeline + Closed&ndash;Won this month + Closed&ndash;Lost this month)</code>. The denominator is everything "in play" this month &mdash; newly created, still open, or resolved either way &mdash; not a clean partition (a deal created and closed in the same month is counted more than once by design).</li>
           <li><strong>Potential Rev / Mth</strong>: sum of <code>total_potential_revenue_mth</code> (and, for the sub&#8209;label, <code>committed_revenue_mth</code>) across the full population.</li>
         </ul>
       </div>
@@ -1127,7 +1121,7 @@
       <h2>Created Opportunities by Manager &amp; Salesperson</h2>
       <div class="notes">
         <ul>
-          <li>Population: the full dataset (open + closed), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
+          <li>Population: opportunities (open + closed) whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> (same new&#8209;business filter as the "Created This Month" card), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
           <li><strong>By Manager</strong>: each opportunity's <code>owner_name</code> is looked up in a curated team roster (Active reps only &mdash; see <code>backend/team_roster.json</code>) to find that rep's Manager; owners not found in the roster are grouped as "Unmapped" (named in the panel's caption).</li>
           <li><strong>By Salesperson</strong>: one row per Active rep in scope, including reps who created nothing in this window (shown as 0) &mdash; unlike the other tables on this dashboard, this one isn't built only from matched deals, so a quiet rep is still visible. "In scope" respects the top filter bar: no Salesperson/Manager filter shows every Active rep; filtering to a Manager narrows this to just their reports; filtering to specific Salesperson(s) narrows it to just them.</li>
           <li><strong>Target</strong>: each rep is expected to create 10 opportunities a month; a manager's target is 10 &times; their headcount (reps reporting to them, per the roster).</li>
@@ -1579,10 +1573,8 @@
     setText("stat-won-sub", vsLastMonth(d.closed_won_this_month, d.closed_won_last_month));
     setText("stat-lost", d.closed_lost_this_month);
     setText("stat-lost-sub", vsLastMonth(d.closed_lost_this_month, d.closed_lost_last_month));
-    setText("stat-winrate", `${d.win_rate}%`);
-    setText("stat-winrate-sub", `of ${d.closed_total} closed deals`);
-    setText("stat-conversion", `${d.total ? ((d.closed_won / d.total) * 100).toFixed(1) : "0.0"}%`);
-    setText("stat-conversion-sub", `${d.closed_won} won of ${d.total} total`);
+    setText("stat-conversion", `${d.pipeline_conversion_pct}%`);
+    setText("stat-conversion-sub", `${d.pipeline_conversion_numerator} of ${d.pipeline_conversion_denominator} this month`);
     setText("stat-revenue", fmtRupiah(d.revenue_potential_mth));
     setText("stat-revenue-sub", `${fmtRupiah(d.revenue_committed_mth)} committed`);
     setText("donut-total", d.total);
