@@ -392,6 +392,8 @@
     color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    line-height: 1.35;
+    min-height: 32px;
   }
   .stat .value {
     font-family: "Sora", sans-serif;
@@ -773,6 +775,8 @@
   .simple-table tr:last-child td { border-bottom: none; }
   .simple-table td.num, .simple-table th.num { text-align: right; }
   .simple-table td.name { color: var(--text-primary); font-weight: 500; }
+  .roster-table { table-layout: fixed; }
+  .roster-table td.name, .roster-table th { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   @media (max-width: 900px) {
     .panels { grid-template-columns: 1fr; }
@@ -1034,7 +1038,7 @@
           <li><strong>Population</strong>: every <strong>OPEN</strong> Indonesia opportunity regardless of age (so no old stale lead is missed), plus any opportunity &mdash; open or closed &mdash; created in the last 12 months. Indonesia has 72,721 Opportunity records all&#8209;time; fetching every one blew both the platform's request timeout and its memory limit, so closed/won history beyond 12 months isn't included. This population is what "Total" / "opportunities matched" refers to everywhere below unless a metric says otherwise.</li>
           <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per&#8209;field filters proved unreliable for the Service Level field.</li>
           <li>"Last Mile &ndash; Parcel" and "Last Mile &ndash; Document" are excluded except for Raden Roro Inggil Pratiwi's opportunities (a data&#8209;quality rule, not a CRM limitation).</li>
-          <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>
+          <li><strong>Prospecting</strong> is a legacy stage value no longer offered in the CRM's own stage filter dropdown. A deal actually sitting in it still counts toward Open Pipeline and every other stage&#8209;grouped panel &mdash; it just isn't given its own bar on the <strong>Deals by Stage</strong> chart specifically.</li>
           <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count as a non&#8209;pipeline test artifact.</li>
           <li><strong>Open</strong> (used throughout as "open deals" / "open + future") means every stage except Closed&ndash;Won and Closed&ndash;Lost &mdash; this includes Future Opportunity.</li>
           <li><strong>Filter bar</strong> (Salesperson / Manager / NV Product Line / Service Level, top of the Overview tab): multi&#8209;select, applies to the <strong>entire dashboard</strong> &mdash; every stat card, chart, and table on this page recomputes against the filtered population, not just the panels that already broke deals down by that field. Selections within one filter are OR'd (any match), across different filters they're AND'd (must match all). Manager filters by each deal's owner's Manager in the team roster; a deal whose owner isn't in the roster won't match any Manager filter. Service Level is a multi&#8209;select field on the deal itself, so it matches if the deal has <em>any</em> of the selected levels. Task Activity respects the Salesperson/Manager filters but ignores Product Line/Service Level (Tasks aren't tagged with either).</li>
@@ -1416,13 +1420,20 @@
     return `<td class="num">${count}${pct}${trend}</td>`;
   }
 
+  const ROSTER_TABLE_NAME_COL_WIDTH = "200px";
+
   function renderTeamTable(containerId, rows) {
     const container = document.getElementById(containerId);
     if (!rows || !rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
     const months = window.__createdByMonthMonths || [];
     const currentMonth = months[months.length - 1];
+    const monthColWidth = `calc((100% - ${ROSTER_TABLE_NAME_COL_WIDTH}) / ${months.length})`;
     container.innerHTML = `
-      <table class="simple-table">
+      <table class="simple-table roster-table">
+        <colgroup>
+          <col style="width:${ROSTER_TABLE_NAME_COL_WIDTH};">
+          ${months.map(() => `<col style="width:${monthColWidth};">`).join("")}
+        </colgroup>
         <thead><tr>
           <th>Name</th>
           ${months.map(m => `<th class="num">${monthLabel(m)}${m === currentMonth ? " (target)" : ""}</th>`).join("")}

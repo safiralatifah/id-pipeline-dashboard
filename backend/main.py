@@ -42,6 +42,11 @@ OPEN_STAGE_ORDER = [
     "EKYC Approval", "Contract Sent", "Agreed to Ship", "Onboarding",
     "Ready to Ship",
 ]
+# "Deals by Stage" hides Prospecting (a legacy stage no longer offered in
+# the CRM's own filter dropdown) — but OPEN_STAGE_ORDER above stays
+# untouched so a stray Prospecting deal is still counted in Open Pipeline
+# and every other stage-grouped panel, just not given its own bar here.
+DISPLAY_STAGE_ORDER = [s for s in OPEN_STAGE_ORDER if s != "Prospecting"]
 PRODUCT_LINE_ORDER = [
     "Restock", "LTL", "Cold Chain", "Cross-border", "Fulfillment",
     "Last Mile – Parcel", "Complex Logistics", "Last Mile – Cargo",
@@ -486,9 +491,9 @@ def build_dashboard(
     lead_time_to_won_count = len(lead_time_days)
 
     open_stages = [
-        {"name": s, "count": stage_counts.get(_normalize_stage(s), 0)} for s in OPEN_STAGE_ORDER
+        {"name": s, "count": stage_counts.get(_normalize_stage(s), 0)} for s in DISPLAY_STAGE_ORDER
     ]
-    open_active = sum(s["count"] for s in open_stages)
+    open_active = sum(stage_counts.get(_normalize_stage(s), 0) for s in OPEN_STAGE_ORDER)
     closed_total = won + lost
     closed_stage_names = {_normalize_stage("Closed–Won"), _normalize_stage("Closed–Lost")}
     open_items = [r for r in items if _normalize_stage(r.get("stage") or "") not in closed_stage_names]
