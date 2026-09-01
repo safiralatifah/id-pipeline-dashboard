@@ -30,8 +30,14 @@
     },
     "/api/pipeline": {
       "get": {
-        "summary": "Returns aggregated Indonesia opportunity pipeline metrics from the last completed background refresh (roughly every 15 minutes).",
+        "summary": "Returns aggregated Indonesia opportunity pipeline metrics from the last completed background refresh (roughly every 15 minutes), optionally filtered. Every metric in the response is recomputed against the filtered population — this isn't a separate filtered view of a fixed payload.",
         "operationId": "get_pipeline",
+        "parameters": [
+          { "name": "owners", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and Tasks) owned by one of these owner_names. OR within this filter." },
+          { "name": "managers", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and Tasks) whose owner's Manager (per team_roster.json) is one of these. Deals owned by someone not in the roster never match." },
+          { "name": "product_lines", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose nv_product_line is one of these. Does not filter Tasks." },
+          { "name": "service_levels", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose service_level (multi-select) includes at least one of these. Does not filter Tasks." }
+        ],
         "responses": {
           "200": {
             "description": "Aggregated pipeline metrics.",
@@ -322,7 +328,17 @@
                         }
                       }
                     },
-                    "snapshot_at": { "type": "string", "format": "date-time" }
+                    "snapshot_at": { "type": "string", "format": "date-time" },
+                    "filter_options": {
+                      "type": "object",
+                      "description": "Dropdown choices for the filter bar, always computed from the full unfiltered population regardless of the filters applied to this request.",
+                      "properties": {
+                        "owners": { "type": "array", "items": { "type": "string" } },
+                        "managers": { "type": "array", "items": { "type": "string" } },
+                        "product_lines": { "type": "array", "items": { "type": "string" } },
+                        "service_levels": { "type": "array", "items": { "type": "string" } }
+                      }
+                    }
                   }
                 }
               }

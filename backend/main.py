@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 
 app = FastAPI()
@@ -57,7 +57,10 @@ MANAGER_REP_COUNTS = Counter(v.get("manager") for v in TEAM_ROSTER.values() if v
 MANAGER_TARGETS = {name: count * INDIVIDUAL_MONTHLY_TARGET for name, count in MANAGER_REP_COUNTS.items()}
 OWNER_TARGETS = {name: INDIVIDUAL_MONTHLY_TARGET for name in TEAM_ROSTER}
 
-_cache: dict[str, Any] = {"data": None, "fetched_at": 0.0, "error": None, "refreshing": False}
+_cache: dict[str, Any] = {
+    "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
+    "fetched_at": 0.0, "error": None, "refreshing": False,
+}
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
 # this background timer, never on-demand from get_pipeline().
@@ -252,6 +255,68 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
         {"X-API-Key": api_key},
         {"filters": json.dumps(filters)},
     )
+
+
+def _filter_options(items: list[dict]) -> dict:
+    """Dropdown choices for the top filter bar — always computed from the
+    full unfiltered population so selecting a filter doesn't shrink the
+    other dropdowns' own options."""
+    return {
+        "owners": sorted({r.get("owner_name") for r in items if r.get("owner_name")}),
+        "managers": sorted({v["manager"] for v in TEAM_ROSTER.values() if v.get("manager")}),
+        "product_lines": list(PRODUCT_LINE_ORDER),
+        "service_levels": list(SERVICE_LEVEL_VALUES),
+    }
+
+
+def _apply_filters(
+    items: list[dict],
+    owners: list[str] | None,
+    managers: list[str] | None,
+    product_lines: list[str] | None,
+    service_levels: list[str] | None,
+) -> list[dict]:
+    owners_set = set(owners) if owners else None
+    managers_set = set(managers) if managers else None
+    product_lines_set = set(product_lines) if product_lines else None
+    service_levels_set = set(service_levels) if service_levels else None
+    if not any([owners_set, managers_set, product_lines_set, service_levels_set]):
+        return items
+
+    def keep(r: dict) -> bool:
+        owner = r.get("owner_name") or ""
+        if owners_set is not None and owner not in owners_set:
+            return False
+        if managers_set is not None and (TEAM_ROSTER.get(owner) or {}).get("manager") not in managers_set:
+            return False
+        if product_lines_set is not None and r.get("nv_product_line") not in product_lines_set:
+            return False
+        if service_levels_set is not None and not (set(r.get("service_level") or []) & service_levels_set):
+            return False
+        return True
+
+    return [r for r in items if keep(r)]
+
+
+def _apply_task_filters(
+    tasks: list[dict], owners: list[str] | None, managers: list[str] | None
+) -> list[dict]:
+    # Tasks aren't tagged with product line / service level, so those two
+    # filters don't apply to the Task population — only owner and manager do.
+    owners_set = set(owners) if owners else None
+    managers_set = set(managers) if managers else None
+    if owners_set is None and managers_set is None:
+        return tasks
+
+    def keep(t: dict) -> bool:
+        owner = t.get("owner_name") or ""
+        if owners_set is not None and owner not in owners_set:
+            return False
+        if managers_set is not None and (TEAM_ROSTER.get(owner) or {}).get("manager") not in managers_set:
+            return False
+        return True
+
+    return [t for t in tasks if keep(t)]
 
 
 def build_dashboard(
@@ -746,9 +811,14 @@ async def _refresh_dashboard_cache() -> None:
                 fetch_notebook_last_touch(client),
                 fetch_open_tasks(client),
             )
-        result = build_dashboard(items, notebook_last_touch, tasks)
-        result["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        _cache["data"] = result
+        # Only the raw fetch is cached — build_dashboard() re-runs per
+        # request (cheap, pure in-memory aggregation) so the filter bar can
+        # slice owners/managers/product lines/service levels without
+        # waiting for the next 15-minute refresh.
+        _cache["items"] = items
+        _cache["notebook_last_touch"] = notebook_last_touch
+        _cache["tasks"] = tasks
+        _cache["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         _cache["fetched_at"] = time.time()
         _cache["error"] = None
     except Exception as e:
@@ -769,8 +839,13 @@ async def _start_background_refresh() -> None:
 
 
 @app.get("/api/pipeline")
-async def get_pipeline():
-    if _cache["data"] is None:
+async def get_pipeline(
+    owners: list[str] | None = Query(None),
+    managers: list[str] | None = Query(None),
+    product_lines: list[str] | None = Query(None),
+    service_levels: list[str] | None = Query(None),
+):
+    if _cache["items"] is None:
         if _cache["error"]:
             raise HTTPException(
                 status_code=502,
@@ -780,7 +855,12 @@ async def get_pipeline():
             status_code=503,
             detail="Initial data load in progress (fetching ~73k records in the background) — retry shortly",
         )
-    return _cache["data"]
+    filtered_items = _apply_filters(_cache["items"], owners, managers, product_lines, service_levels)
+    filtered_tasks = _apply_task_filters(_cache["tasks"], owners, managers)
+    result = build_dashboard(filtered_items, _cache["notebook_last_touch"], filtered_tasks)
+    result["snapshot_at"] = _cache["snapshot_at"]
+    result["filter_options"] = _filter_options(_cache["items"])
+    return result
 
 
 @app.get("/{full_path:path}")

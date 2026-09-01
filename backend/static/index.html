@@ -250,6 +250,85 @@
   .chip b { color: var(--text-primary); font-weight: 600; }
   .chip .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: none; }
 
+  .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 20px; }
+  .filter-dropdown { position: relative; }
+  .filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .filter-btn:hover { border-color: var(--border-strong, var(--border)); color: var(--text-primary); }
+  .filter-btn svg { width: 13px; height: 13px; flex: none; }
+  .filter-dropdown.open .filter-btn { color: var(--accent); border-color: var(--accent); }
+  .filter-dropdown.has-selection .filter-btn { color: var(--accent); }
+  .filter-count {
+    background: var(--accent); color: var(--accent-ink);
+    font-family: "IBM Plex Mono", monospace; font-size: 10.5px; font-weight: 600;
+    border-radius: 999px; padding: 1px 6px; line-height: 1.4;
+  }
+  .filter-panel {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 20;
+    width: 240px;
+    max-height: 320px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 8px;
+    box-sizing: border-box;
+    flex-direction: column;
+  }
+  .filter-dropdown.open .filter-panel { display: flex; }
+  .filter-search {
+    width: 100%;
+    font-family: inherit;
+    font-size: 12.5px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    box-sizing: border-box;
+    margin-bottom: 6px;
+  }
+  .filter-options { overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+  .filter-options label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    padding: 5px 6px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .filter-options label:hover { background: var(--surface-2); }
+  .filter-options input[type="checkbox"] { flex: none; accent-color: var(--accent); }
+  .filter-options .filter-empty { font-size: 12.5px; color: var(--text-muted); padding: 5px 6px; }
+  #filter-clear-all {
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--accent);
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 6px 4px;
+  }
+
   .stat-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -694,6 +773,36 @@
       <span class="chip"><b id="meta-total">&hellip;</b> opportunities matched</span>
     </div>
 
+    <div class="filter-bar" id="filter-bar">
+      <div class="filter-dropdown" data-key="owners">
+        <button type="button" class="filter-btn">Salesperson<span class="filter-count" id="filter-count-owners" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="filter-panel" id="filter-panel-owners">
+          <input type="text" class="filter-search" placeholder="Search salesperson…">
+          <div class="filter-options" id="filter-options-owners"></div>
+        </div>
+      </div>
+      <div class="filter-dropdown" data-key="managers">
+        <button type="button" class="filter-btn">Manager<span class="filter-count" id="filter-count-managers" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="filter-panel" id="filter-panel-managers">
+          <input type="text" class="filter-search" placeholder="Search manager…">
+          <div class="filter-options" id="filter-options-managers"></div>
+        </div>
+      </div>
+      <div class="filter-dropdown" data-key="product_lines">
+        <button type="button" class="filter-btn">NV Product Line<span class="filter-count" id="filter-count-product_lines" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="filter-panel" id="filter-panel-product_lines">
+          <div class="filter-options" id="filter-options-product_lines"></div>
+        </div>
+      </div>
+      <div class="filter-dropdown" data-key="service_levels">
+        <button type="button" class="filter-btn">Service Level<span class="filter-count" id="filter-count-service_levels" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="filter-panel" id="filter-panel-service_levels">
+          <div class="filter-options" id="filter-options-service_levels"></div>
+        </div>
+      </div>
+      <button type="button" id="filter-clear-all" style="display:none;">Clear filters</button>
+    </div>
+
     <div class="stat-grid">
       <div class="stat accent">
         <span class="label">Created This Month</span>
@@ -887,6 +996,7 @@
           <li>Stage includes <strong>Prospecting</strong> &mdash; a legacy value no longer offered in the CRM's own stage filter dropdown.</li>
           <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count as a non&#8209;pipeline test artifact.</li>
           <li><strong>Open</strong> (used throughout as "open deals" / "open + future") means every stage except Closed&ndash;Won and Closed&ndash;Lost &mdash; this includes Future Opportunity.</li>
+          <li><strong>Filter bar</strong> (Salesperson / Manager / NV Product Line / Service Level, top of the Overview tab): multi&#8209;select, applies to the <strong>entire dashboard</strong> &mdash; every stat card, chart, and table on this page recomputes against the filtered population, not just the panels that already broke deals down by that field. Selections within one filter are OR'd (any match), across different filters they're AND'd (must match all). Manager filters by each deal's owner's Manager in the team roster; a deal whose owner isn't in the roster won't match any Manager filter. Service Level is a multi&#8209;select field on the deal itself, so it matches if the deal has <em>any</em> of the selected levels. Task Activity respects the Salesperson/Manager filters but ignores Product Line/Service Level (Tasks aren't tagged with either).</li>
         </ul>
       </div>
     </div>
@@ -986,6 +1096,89 @@
 <script>
 (function() {
   let TOTAL = 0;
+
+  const FILTER_KEYS = ["owners", "managers", "product_lines", "service_levels"];
+  const FILTER_LABELS = { owners: "Salesperson", managers: "Manager", product_lines: "NV Product Line", service_levels: "Service Level" };
+  const activeFilters = { owners: [], managers: [], product_lines: [], service_levels: [] };
+
+  function filterQueryString() {
+    const params = new URLSearchParams();
+    FILTER_KEYS.forEach(key => activeFilters[key].forEach(v => params.append(key, v)));
+    const s = params.toString();
+    return s ? `?${s}` : "";
+  }
+
+  function renderFilterOptions(options) {
+    FILTER_KEYS.forEach(key => {
+      const container = document.getElementById(`filter-options-${key}`);
+      const values = options[key] || [];
+      if (!values.length) {
+        container.innerHTML = '<p class="filter-empty">No options.</p>';
+        return;
+      }
+      container.innerHTML = values.map(v => `
+        <label data-value="${v.replace(/"/g, "&quot;")}">
+          <input type="checkbox" ${activeFilters[key].includes(v) ? "checked" : ""}>
+          <span>${v}</span>
+        </label>`).join("");
+      container.querySelectorAll("input[type=checkbox]").forEach(cb => {
+        cb.addEventListener("change", () => {
+          const value = cb.closest("label").dataset.value;
+          const list = activeFilters[key];
+          const i = list.indexOf(value);
+          if (cb.checked && i === -1) list.push(value);
+          if (!cb.checked && i !== -1) list.splice(i, 1);
+          updateFilterUi();
+          load();
+        });
+      });
+    });
+  }
+
+  function updateFilterUi() {
+    let anyActive = false;
+    FILTER_KEYS.forEach(key => {
+      const n = activeFilters[key].length;
+      const dropdown = document.querySelector(`.filter-dropdown[data-key="${key}"]`);
+      const countEl = document.getElementById(`filter-count-${key}`);
+      dropdown.classList.toggle("has-selection", n > 0);
+      countEl.style.display = n > 0 ? "" : "none";
+      countEl.textContent = n;
+      if (n > 0) anyActive = true;
+    });
+    document.getElementById("filter-clear-all").style.display = anyActive ? "" : "none";
+  }
+
+  function initFilterBar() {
+    document.querySelectorAll(".filter-dropdown").forEach(dropdown => {
+      const btn = dropdown.querySelector(".filter-btn");
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        const wasOpen = dropdown.classList.contains("open");
+        document.querySelectorAll(".filter-dropdown.open").forEach(d => d.classList.remove("open"));
+        if (!wasOpen) dropdown.classList.add("open");
+      });
+      const search = dropdown.querySelector(".filter-search");
+      if (search) {
+        search.addEventListener("input", () => {
+          const q = search.value.trim().toLowerCase();
+          dropdown.querySelectorAll(".filter-options label").forEach(label => {
+            label.style.display = label.dataset.value.toLowerCase().includes(q) ? "" : "none";
+          });
+        });
+      }
+    });
+    document.addEventListener("click", e => {
+      if (e.target.closest(".filter-dropdown")) return;
+      document.querySelectorAll(".filter-dropdown.open").forEach(d => d.classList.remove("open"));
+    });
+    document.getElementById("filter-clear-all").addEventListener("click", () => {
+      FILTER_KEYS.forEach(key => { activeFilters[key] = []; });
+      updateFilterUi();
+      renderFilterOptions(window.__filterOptions || {});
+      load();
+    });
+  }
 
   function renderBars(container, rows, colorFn, totalOverride) {
     if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
@@ -1300,6 +1493,9 @@
   function render(d) {
     TOTAL = d.total;
 
+    window.__filterOptions = d.filter_options || {};
+    renderFilterOptions(window.__filterOptions);
+
     setText("meta-snapshot", new Date(d.snapshot_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }));
     setText("meta-total", d.total);
     setText("stat-total", d.created_this_month);
@@ -1389,7 +1585,7 @@
   }
 
   function load() {
-    fetch("/api/pipeline")
+    fetch(`/api/pipeline${filterQueryString()}`)
       .then(res => {
         if (res.status === 503) {
           return res.json().then(body => {
@@ -1435,6 +1631,7 @@
     });
   })();
 
+  initFilterBar();
   load();
   setInterval(load, 5 * 60 * 1000);
 
