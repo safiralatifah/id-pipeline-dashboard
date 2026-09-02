@@ -880,6 +880,16 @@
     white-space: nowrap;
   }
   .opp-pill-neutral { background: var(--surface-2); color: var(--text-secondary); }
+  .won-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+    flex: none;
+  }
   .opplist-badge {
     display: inline-flex;
     align-items: center;
@@ -1653,26 +1663,33 @@
     return "var(--status-good)";
   }
 
-  function wonSublineHtml(wonCount, wonTarget) {
+  function wonPillHtml(wonCount, wonTarget) {
     if (wonCount == null) return "";
-    if (wonTarget == null) return `<div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">${wonCount} won</div>`;
+    if (wonTarget == null) {
+      return `<span class="won-pill" style="background:var(--surface-2); color:var(--text-muted);">${wonCount} won</span>`;
+    }
     const pct = Math.min((wonCount / wonTarget) * 100, 100);
     const color = targetProgressColor(pct);
-    return `<div style="font-size:10.5px; font-weight:600; color:${color}; margin-top:3px;">${wonCount}/${wonTarget} won</div>`;
+    return `<span class="won-pill" style="background:color-mix(in srgb, ${color} 16%, var(--surface-1)); color:${color};">${wonCount}/${wonTarget} won</span>`;
   }
 
   function targetCellHtml(count, target, wonCount, wonTarget) {
-    if (target == null) return `<td class="num">${count}${wonSublineHtml(wonCount, wonTarget)}</td>`;
+    const wonHtml = wonPillHtml(wonCount, wonTarget);
+    if (target == null) {
+      return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">${count}${wonHtml}</div></td>`;
+    }
     const pct = Math.min((count / target) * 100, 100);
     const color = targetProgressColor(pct);
     return `<td class="num">
-        <div style="display:flex; align-items:center; gap:6px; justify-content:flex-end;">
-          <span style="font-weight:600; color:${color}; white-space:nowrap;">${count}/${target}</span>
-          <div style="width:40px; height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; flex:none;">
-            <div style="width:${pct}%; height:100%; background:${color};"></div>
+        <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="font-weight:600; color:${color}; white-space:nowrap;">${count}/${target}</span>
+            <div style="width:40px; height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; flex:none;">
+              <div style="width:${pct}%; height:100%; background:${color};"></div>
+            </div>
           </div>
+          ${wonHtml}
         </div>
-        ${wonSublineHtml(wonCount, wonTarget)}
       </td>`;
   }
 
@@ -1769,7 +1786,8 @@
       if (count > prevCount) trend = `<span style="color:var(--status-good); margin-left:4px;">&#9650;</span>`;
       else if (count < prevCount) trend = `<span style="color:var(--status-critical); margin-left:4px;">&#9660;</span>`;
     }
-    return `<td class="num">${count}${pct}${trend}${wonSublineHtml(wonCount, wonTarget)}</td>`;
+    const wonHtml = wonPillHtml(wonCount, wonTarget);
+    return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;"><span>${count}${pct}${trend}</span>${wonHtml}</div></td>`;
   }
 
   const ROSTER_TABLE_NAME_COL_WIDTH = "200px";
