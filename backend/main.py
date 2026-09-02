@@ -305,15 +305,17 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
         "conditions": [
             {"field": "owner_id", "operator": "in", "value": TASK_OWNER_IDS},
             {"field": "status", "operator": "in", "value": TASK_OPEN_STATUSES},
-            {"field": "related_object_type", "operator": "eq", "value": "Opportunity"},
         ],
     }
-    return await _fetch_paginated(
+    tasks = await _fetch_paginated(
         client,
         f"{CRM_BASE}/objects/Task/records",
         {"X-API-Key": api_key},
         {"filters": json.dumps(filters)},
     )
+    # Filtered client-side rather than as a server-side condition above —
+    # related_object_type's filter support on this endpoint isn't confirmed.
+    return [t for t in tasks if t.get("related_object_type") == "Opportunity"]
 
 
 UNMAPPED_MANAGER_LABEL = "Unmapped"
