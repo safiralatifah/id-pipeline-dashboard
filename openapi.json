@@ -103,27 +103,6 @@
                       }
                     },
                     "service_blank": { "type": "integer" },
-                    "owners": {
-                      "type": "array",
-                      "description": "Owners ranked by open deal count, each with a days-since-creation bucket breakdown of their own open deals.",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name": { "type": "string" },
-                          "count": { "type": "integer" },
-                          "buckets": {
-                            "type": "array",
-                            "items": {
-                              "type": "object",
-                              "properties": {
-                                "label": { "type": "string" },
-                                "count": { "type": "integer" }
-                              }
-                            }
-                          }
-                        }
-                      }
-                    },
                     "aging_buckets": {
                       "type": "array",
                       "description": "Open deals bucketed by days since creation.",

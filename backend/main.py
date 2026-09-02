@@ -526,6 +526,7 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
             "overdue": bool(is_open and close_date and close_date.date() < today),
             "total_potential_revenue_mth": float(r.get("total_potential_revenue_mth") or 0),
             "committed_revenue_mth": float(r.get("committed_revenue_mth") or 0),
+            "revenue_blank": r.get("total_potential_revenue_mth") in (None, "") or r.get("committed_revenue_mth") in (None, ""),
             "notebook_last_touch": nb_touch.strftime("%Y-%m-%dT%H:%M:%SZ") if nb_touch else None,
             "notebook_days_since_touch": nb_days,
             "notebook_freshness": nb_label,
@@ -774,8 +775,6 @@ def build_dashboard(
     ]
     service_blank = sum(1 for r in open_items if not r.get("service_level"))
 
-    owner_counts = Counter(r.get("owner_name") or "(blank)" for r in open_items)
-
     revenue = sum(float(r.get("total_potential_revenue_mth") or 0) for r in items)
     committed = sum(float(r.get("committed_revenue_mth") or 0) for r in items)
 
@@ -783,17 +782,14 @@ def build_dashboard(
     # it's currently sitting in — surfaces "old since creation, stuck at X".
     aging_bucket_counts = Counter()
     aging_stage_matrix: dict[str, Counter] = {}
-    owner_aging_matrix: dict[str, Counter] = {}
     for r in open_items:
         created = _parse_dt(r.get("created_at"))
         if not created:
             continue
         bucket = _bucket_for((now - created).days)
         stage_name = r.get("stage") or "(blank)"
-        owner_name = r.get("owner_name") or "(blank)"
         aging_bucket_counts[bucket] += 1
         aging_stage_matrix.setdefault(bucket, Counter())[stage_name] += 1
-        owner_aging_matrix.setdefault(owner_name, Counter())[bucket] += 1
     aging_buckets = [
         {"label": label, "count": aging_bucket_counts.get(label, 0)}
         for label, _, _ in AGING_BUCKETS
@@ -809,21 +805,6 @@ def build_dashboard(
             "total": sum(counts.values()),
             "stages": [{"name": s, "count": counts[s]} for s in ordered],
         })
-
-    # Top Salesperson bars are broken down by the same ageing buckets, so a
-    # rep's bar shows at a glance how much of their pipeline is fresh vs. old.
-    aging_bucket_labels = [label for label, _, _ in AGING_BUCKETS]
-    owners = [
-        {
-            "name": k,
-            "count": v,
-            "buckets": [
-                {"label": lbl, "count": owner_aging_matrix.get(k, Counter()).get(lbl, 0)}
-                for lbl in aging_bucket_labels
-            ],
-        }
-        for k, v in owner_counts.most_common()
-    ]
 
     # Stage duration: how long each OPEN deal has sat in its CURRENT stage,
     # and the per-stage age-bucket breakdown that surfaces bottlenecks: for
@@ -1135,7 +1116,6 @@ def build_dashboard(
         "product_lines": product_lines,
         "service_levels": service_levels,
         "service_blank": service_blank,
-        "owners": owners,
         "aging_buckets": aging_buckets,
         "aging_grid": aging_grid,
         "stage_duration": stage_duration,

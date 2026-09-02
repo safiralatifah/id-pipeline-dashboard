@@ -473,7 +473,6 @@
     padding: 6px 0;
   }
   .bar-row + .bar-row { border-top: 1px solid var(--gridline); }
-  .bar-row.wide-name { grid-template-columns: 176px 1fr 60px; }
   .bar-name {
     font-size: 12.5px;
     font-weight: 500;
@@ -655,40 +654,6 @@
     padding: 3px 7px;
   }
 
-  /* Salesperson leaderboard */
-  .rank-num {
-    font-family: "IBM Plex Mono", monospace;
-    font-size: 11px;
-    color: var(--text-muted);
-    width: 16px;
-    text-align: right;
-    flex: none;
-  }
-  .rest-list {
-    margin-top: 16px;
-    padding-top: 14px;
-    border-top: 1px solid var(--gridline);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 7px;
-  }
-  .rest-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    color: var(--text-secondary);
-    background: var(--surface-2);
-    border-radius: 999px;
-    padding: 4px 10px 4px 8px;
-  }
-  .rest-chip b {
-    color: var(--text-primary);
-    font-family: "IBM Plex Mono", monospace;
-    font-weight: 600;
-    font-variant-numeric: tabular-nums;
-  }
-
   .notes { font-size: 12.5px; color: var(--text-secondary); line-height: 1.6; }
   .notes ul { margin: 6px 0 0; padding-left: 18px; }
   .notes li { margin-bottom: 5px; }
@@ -832,11 +797,11 @@
   }
   .hover-tip.visible { opacity: 1; transform: translate(-50%, -100%) translateY(-10px) scale(1); }
   [title], [data-tip] { cursor: default; }
-  .bar-fill, .stage-age-seg, .owner-age-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
-  .bar-fill:hover, .stage-age-seg:hover, .owner-age-seg:hover { filter: brightness(1.12); }
-  .stage-age-seg, .owner-age-seg { cursor: pointer; }
-  .bar-name[data-owner-row], .stage-age-name[data-stage-row] { cursor: pointer; }
-  .bar-name[data-owner-row]:hover, .stage-age-name[data-stage-row]:hover { text-decoration: underline; }
+  .bar-fill, .stage-age-seg { transition: filter 0.15s ease, opacity 0.15s ease; }
+  .bar-fill:hover, .stage-age-seg:hover { filter: brightness(1.12); }
+  .stage-age-seg { cursor: pointer; }
+  .stage-age-name[data-stage-row] { cursor: pointer; }
+  .stage-age-name[data-stage-row]:hover { text-decoration: underline; }
   .bar-row-clickable { cursor: pointer; transition: opacity 0.15s ease; }
   .bar-row-clickable:hover { opacity: 0.8; }
   td.name[data-filter-key] { cursor: pointer; }
@@ -855,8 +820,6 @@
     font-size: 12.5px;
     font-weight: 600;
   }
-  .owner-age-fill { display: flex; height: 100%; border-radius: 4px; overflow: hidden; }
-
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .simple-table th {
     text-align: left;
@@ -931,7 +894,6 @@
   @media (max-width: 900px) {
     .panels { grid-template-columns: 1fr; }
     .bar-row { grid-template-columns: 104px 1fr 46px; }
-    .bar-row.wide-name { grid-template-columns: 118px 1fr 46px; }
     .panels2 { grid-template-columns: 1fr; }
   }
 </style>
@@ -1124,12 +1086,29 @@
       </div>
     </div>
 
-    <div class="panel" style="margin-top:16px;">
-      <h2>Top Salesperson</h2>
-      <p class="panel-sub">Opportunity Owner, ranked by OPEN deal count &mdash; each bar broken down by days since creation.</p>
-      <div id="owner-age-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
-      <div id="bars-owner"></div>
-      <div id="rest-owner" class="rest-list"></div>
+    <div class="panels2" style="margin-top:16px;">
+      <div class="panel">
+        <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+          <div>
+            <h2>Stage &times; Ageing</h2>
+            <p class="panel-sub" style="margin-bottom:14px;">Share of each stage's open deals by days since last stage change.</p>
+          </div>
+          <div class="age-mode-toggle">
+            <button type="button" class="age-mode-btn active" data-mode="share">Share (100%)</button>
+            <button type="button" class="age-mode-btn" data-mode="count">Count</button>
+          </div>
+        </div>
+        <div id="age-grid-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
+        <div id="stage-age-grid"></div>
+      </div>
+
+      <div class="panel">
+        <h2>Stage Bottlenecks</h2>
+        <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
+        <div id="table-stage-duration"></div>
+        <div class="divider"></div>
+        <div class="notes"><strong style="color:var(--text-primary); font-weight:600;">Avg lead time to Closed&ndash;Won:</strong> <span id="lead-time-line">&ndash;</span></div>
+      </div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
@@ -1161,31 +1140,6 @@
       <div class="section-label">By salesperson (best first)</div>
       <div id="table-activity-owner"></div>
       <p class="panel-sub" id="task-unmapped-note" style="margin-top:12px;"></p>
-    </div>
-
-    <div class="panels2" style="margin-top:16px;">
-      <div class="panel">
-        <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-          <div>
-            <h2>Stage &times; Ageing</h2>
-            <p class="panel-sub" style="margin-bottom:14px;">Share of each stage's open deals by days since last stage change.</p>
-          </div>
-          <div class="age-mode-toggle">
-            <button type="button" class="age-mode-btn active" data-mode="share">Share (100%)</button>
-            <button type="button" class="age-mode-btn" data-mode="count">Count</button>
-          </div>
-        </div>
-        <div id="age-grid-legend" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
-        <div id="stage-age-grid"></div>
-      </div>
-
-      <div class="panel">
-        <h2>Stage Bottlenecks</h2>
-        <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
-        <div id="table-stage-duration"></div>
-        <div class="divider"></div>
-        <div class="notes"><strong style="color:var(--text-primary); font-weight:600;">Avg lead time to Closed&ndash;Won:</strong> <span id="lead-time-line">&ndash;</span></div>
-      </div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
@@ -1351,13 +1305,12 @@
     </div>
 
     <div class="panel" style="margin-top:16px;">
-      <h2>Product Line, Service Level, Top Salesperson &amp; Ageing</h2>
+      <h2>Product Line &amp; Service Level</h2>
       <div class="notes">
         <ul>
-          <li>All four consider <strong>OPEN deals only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Deals by Stage above.</li>
+          <li>Both consider <strong>OPEN deals only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Deals by Stage above.</li>
           <li><strong>Deals by NV Product Line</strong>: count of open deals per <code>nv_product_line</code> value.</li>
           <li><strong>Deals by Service Level</strong>: <code>service_level</code> is a multi&#8209;select field, so one deal can add to more than one bar &mdash; percentages are share&#8209;of&#8209;open&#8209;pipeline per tag, not a partition. "Blank" counts deals with no Service Level tag at all.</li>
-          <li><strong>Top Salesperson</strong>: open deal count per <code>owner_name</code>, ranked descending. Each rep's bar is itself split into ageing segments &mdash; for every OPEN deal, <code>days = today &minus; created_at</code> (purely creation age, no Notebook fallback), bucketed into <strong>0&#8209;7d, 7&#8209;15d, 15&#8209;30d, 30d+</strong> (see the color legend above the chart) &mdash; so a rep with a long bar mostly in the 30d+ color has a lot of ageing pipeline, not just a lot of pipeline.</li>
         </ul>
       </div>
     </div>
@@ -1567,37 +1520,6 @@
           <span class="bar-pct">${totalPct}%</span>
         </div>`;
     }).join("");
-  }
-
-  function renderOwners(rows, totalOverride) {
-    const denom = totalOverride ?? TOTAL;
-    const top = rows.slice(0, 12);
-    const rest = rows.slice(12);
-    const container = document.getElementById("bars-owner");
-    if (!top.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>'; return; }
-    const maxOwnerCount = Math.max(...top.map(r => r.count));
-    container.innerHTML = top.map((r, i) => {
-      const widthPct = Math.max((r.count / maxOwnerCount) * 100, 4);
-      const pct = denom ? ((r.count / denom) * 100).toFixed(1) : "0.0";
-      const segs = (r.buckets || []).map((b, bi) => {
-        if (!b.count) return "";
-        const segPct = r.count ? (b.count / r.count) * 100 : 0;
-        return `<div class="owner-age-seg" data-owner="${r.name}" data-bucket="${b.label}" style="width:${segPct}%; height:100%; background:${AGE_COLORS[bi]};" data-tip="${r.name} &middot; ${b.label}: ${b.count} deal(s)"></div>`;
-      }).join("");
-      return `
-        <div class="bar-row wide-name" title="${r.name}: ${r.count} deals (${pct}% of total)">
-          <span class="bar-name" data-owner-row="${r.name}"><span class="rank-num">${i + 1}</span> ${r.name}</span>
-          <div class="bar-track">
-            <div class="owner-age-fill" style="width:${widthPct}%;">${segs}</div>
-          </div>
-          <span class="bar-pct">${r.count} &middot; ${pct}%</span>
-        </div>`;
-    }).join("");
-
-    document.getElementById("rest-owner").innerHTML = rest.length
-      ? `<span class="rest-list-label" style="width:100%; font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; color:var(--text-muted); margin-bottom:2px;">+ ${rest.length} more</span>` +
-        rest.map(r => `<span class="rest-chip">${r.name} <b>${r.count}</b></span>`).join("")
-      : "";
   }
 
   function getComputedVar(v) {
@@ -2005,8 +1927,6 @@
       undefined, r => ({ key: "stage_group", value: CLOSED_STAGE_GROUP[r.name] }));
     renderBars(document.getElementById("bars-product"), d.product_lines, () => "var(--stage-open)", d.open_pipeline, r => ({ key: "product_line", value: r.name }));
     renderBars(document.getElementById("bars-service"), d.service_levels, () => "var(--stage-open)", d.open_pipeline, r => ({ key: "service_level", value: r.name }));
-    renderAgeLegend(d.aging_buckets.map(b => b.label), "owner-age-legend");
-    renderOwners(d.owners, d.open_pipeline);
 
     renderDonut([
       { name: "Active pipeline", count: d.open_active, color: "var(--stage-open)", stageGroup: "open" },
@@ -2056,7 +1976,7 @@
     setText("meta-snapshot", "error");
     setText("meta-total", "–");
     document.querySelectorAll(".stat .value").forEach(el => el.textContent = "–");
-    ["bars-open", "bars-closed", "bars-product", "bars-service", "bars-owner"].forEach(id => {
+    ["bars-open", "bars-closed", "bars-product", "bars-service"].forEach(id => {
       document.getElementById(id).innerHTML = `<p style="font-size:12.5px;color:var(--status-critical);">${message}</p>`;
     });
   }
@@ -2065,7 +1985,7 @@
     setText("meta-snapshot", "loading…");
     setText("meta-total", "…");
     document.querySelectorAll(".stat .value").forEach(el => el.textContent = "…");
-    ["bars-open", "bars-closed", "bars-product", "bars-service", "bars-owner"].forEach(id => {
+    ["bars-open", "bars-closed", "bars-product", "bars-service"].forEach(id => {
       document.getElementById(id).innerHTML = `<p style="font-size:12.5px;color:var(--text-muted);">${message}</p>`;
     });
   }
@@ -2493,14 +2413,14 @@
   });
 
   document.addEventListener("mouseover", e => {
-    const seg = e.target.closest(".stage-age-seg, .owner-age-seg");
+    const seg = e.target.closest(".stage-age-seg");
     if (!seg) return;
     Array.from(seg.parentElement.children).forEach(sib => {
       sib.style.opacity = sib === seg ? "1" : "0.25";
     });
   });
   document.addEventListener("mouseout", e => {
-    const seg = e.target.closest(".stage-age-seg, .owner-age-seg");
+    const seg = e.target.closest(".stage-age-seg");
     if (!seg) return;
     const track = seg.parentElement;
     if (!(e.relatedTarget && track.contains(e.relatedTarget))) {
@@ -2509,15 +2429,6 @@
   });
 
   document.addEventListener("click", e => {
-    const ownerSeg = e.target.closest(".owner-age-seg");
-    if (ownerSeg) {
-      const range = AGE_BUCKET_RANGES[ownerSeg.dataset.bucket] || [null, null];
-      applyOppChartFilter(
-        { ownerName: ownerSeg.dataset.owner, ageField: "aging_days", ageMin: range[0], ageMax: range[1] },
-        `${ownerSeg.dataset.owner} — ${ownerSeg.dataset.bucket} aging`
-      );
-      return;
-    }
     const stageSeg = e.target.closest(".stage-age-seg");
     if (stageSeg) {
       const range = AGE_BUCKET_RANGES[stageSeg.dataset.bucket] || [null, null];
@@ -2525,11 +2436,6 @@
         { stage: stageSeg.dataset.stage, ageField: "last_stage_duration_days", ageMin: range[0], ageMax: range[1] },
         `${stageSeg.dataset.stage} — ${stageSeg.dataset.bucket} in current stage`
       );
-      return;
-    }
-    const ownerRow = e.target.closest("[data-owner-row]");
-    if (ownerRow) {
-      applyOppChartFilter({ ownerName: ownerRow.dataset.ownerRow }, ownerRow.dataset.ownerRow);
       return;
     }
     const stageRow = e.target.closest("[data-stage-row]");
