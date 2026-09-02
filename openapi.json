@@ -208,7 +208,7 @@
                     },
                     "created_by_month": {
                       "type": "object",
-                      "description": "New-business Opportunities (type Acquisition or Cross-Selling) created per month, rolled up by Manager and by individual owner (Active-rep team roster). Each rep has a 10-per-month target; a manager's target is 10 x their headcount.",
+                      "description": "New-business Opportunities (type Acquisition or Cross-Selling) created per month, rolled up by Manager and by individual owner (Active-rep team roster). Each rep has a 10-per-month target; a manager's target is 10 x their headcount. Each row also carries Closed-Won counts for the same months (3-per-month target per rep, not Type-filtered) shown alongside Created.",
                       "properties": {
                         "months": { "type": "array", "items": { "type": "string" }, "description": "Sorted ascending — the last element is the current month." },
                         "by_manager": {
@@ -219,7 +219,10 @@
                               "name": { "type": "string" },
                               "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
                               "total": { "type": "integer" },
-                              "target": { "type": "integer", "nullable": true, "description": "10 x headcount reporting to this manager. Null for the 'Unmapped' bucket." }
+                              "target": { "type": "integer", "nullable": true, "description": "10 x headcount reporting to this manager. Null for the 'Unmapped' bucket." },
+                              "won_counts": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Closed-Won opportunities per month, keyed by when the opportunity actually closed (stage_last_changed_at, falling back to updated_at) — not by created_at, and not Type-filtered (matches the Closed-Won This Month summary card, unlike counts above which is new-business only)." },
+                              "won_total": { "type": "integer" },
+                              "won_target": { "type": "integer", "nullable": true, "description": "3 x headcount reporting to this manager. Null for the 'Unmapped' bucket." }
                             }
                           }
                         },
@@ -232,7 +235,10 @@
                               "name": { "type": "string" },
                               "counts": { "type": "object", "additionalProperties": { "type": "integer" } },
                               "total": { "type": "integer" },
-                              "target": { "type": "integer", "description": "Always 10." }
+                              "target": { "type": "integer", "description": "Always 10." },
+                              "won_counts": { "type": "object", "additionalProperties": { "type": "integer" }, "description": "Closed-Won opportunities per month, keyed by when the opportunity actually closed (stage_last_changed_at, falling back to updated_at) — not by created_at, and not Type-filtered." },
+                              "won_total": { "type": "integer" },
+                              "won_target": { "type": "integer", "description": "Always 3." }
                             }
                           }
                         },

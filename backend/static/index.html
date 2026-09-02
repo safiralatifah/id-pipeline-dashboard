@@ -1031,7 +1031,7 @@
 
     <div class="panel" style="margin-top:16px;">
       <h2>Created Opportunities by Manager &amp; Salesperson</h2>
-      <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only). Current month shows progress toward each rep's monthly target of 10.</p>
+      <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only), with Closed-Won for the same months shown alongside. Current month shows progress toward each rep's monthly target of 10 created / 3 won.</p>
       <div class="section-label">By Manager</div>
       <div id="table-by-manager"></div>
       <div class="section-label" style="margin-top:18px;">By Salesperson</div>
@@ -1371,6 +1371,7 @@
           <li><strong>Target</strong>: each rep is expected to create 10 opportunities a month; a manager's target is 10 &times; their headcount (reps reporting to them, per the roster).</li>
           <li><strong>Current month column</strong>: shows <code>count/target</code> plus a bar filled to <code>min(count &divide; target, 100%)</code>, colored red (&lt;50%), orange (50&#8209;74%), yellow (75&#8209;99%), or green (&ge;100%) &mdash; since the month is still in progress, this reads as "progress so far", not a final score.</li>
           <li><strong>Earlier months</strong>: show the count plus <code>(count &divide; target)</code> as a percentage &mdash; a finished month's actual achievement against the same target. A &#9650; green triangle means that month's count is higher than the month before it; &#9660; red means lower (the very first month shown has no prior month to compare against, so no triangle).</li>
+          <li><strong>"X won" sub&#8209;line</strong>: every month cell also shows Closed&ndash;Won opportunities for that same rep/manager and month &mdash; but keyed by when the opportunity actually closed (<code>stage_last_changed_at</code>, falling back to <code>updated_at</code>), not <code>created_at</code>, and <strong>not</strong> Type&#8209;filtered (matching the "Closed&ndash;Won This Month" summary card, unlike the Created count above it which is new&#8209;business only). Each rep's Closed&ndash;Won target is 3/month; a manager's is 3 &times; their headcount. Colored the same way as the Created target bar.</li>
         </ul>
       </div>
     </div>
@@ -1652,8 +1653,16 @@
     return "var(--status-good)";
   }
 
-  function targetCellHtml(count, target) {
-    if (target == null) return `<td class="num">${count}</td>`;
+  function wonSublineHtml(wonCount, wonTarget) {
+    if (wonCount == null) return "";
+    if (wonTarget == null) return `<div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">${wonCount} won</div>`;
+    const pct = Math.min((wonCount / wonTarget) * 100, 100);
+    const color = targetProgressColor(pct);
+    return `<div style="font-size:10.5px; font-weight:600; color:${color}; margin-top:3px;">${wonCount}/${wonTarget} won</div>`;
+  }
+
+  function targetCellHtml(count, target, wonCount, wonTarget) {
+    if (target == null) return `<td class="num">${count}${wonSublineHtml(wonCount, wonTarget)}</td>`;
     const pct = Math.min((count / target) * 100, 100);
     const color = targetProgressColor(pct);
     return `<td class="num">
@@ -1663,6 +1672,7 @@
             <div style="width:${pct}%; height:100%; background:${color};"></div>
           </div>
         </div>
+        ${wonSublineHtml(wonCount, wonTarget)}
       </td>`;
   }
 
@@ -1752,14 +1762,14 @@
     }).join("") || '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>';
   }
 
-  function pastMonthCellHtml(count, target, prevCount) {
+  function pastMonthCellHtml(count, target, prevCount, wonCount, wonTarget) {
     const pct = target ? `<span style="color:var(--text-muted); font-size:11.5px;"> (${Math.round((count / target) * 100)}%)</span>` : "";
     let trend = "";
     if (prevCount != null) {
       if (count > prevCount) trend = `<span style="color:var(--status-good); margin-left:4px;">&#9650;</span>`;
       else if (count < prevCount) trend = `<span style="color:var(--status-critical); margin-left:4px;">&#9660;</span>`;
     }
-    return `<td class="num">${count}${pct}${trend}</td>`;
+    return `<td class="num">${count}${pct}${trend}${wonSublineHtml(wonCount, wonTarget)}</td>`;
   }
 
   const ROSTER_TABLE_NAME_COL_WIDTH = "200px";
@@ -1785,9 +1795,10 @@
             <tr>
               <td class="name"${filterKey ? ` data-filter-key="${filterKey}" data-filter-value="${r.name}"` : ""}>${r.name}</td>
               ${months.map((m, i) => {
-                if (m === currentMonth) return targetCellHtml(r.counts[m] ?? 0, r.target);
+                const wonCount = r.won_counts ? (r.won_counts[m] ?? 0) : null;
+                if (m === currentMonth) return targetCellHtml(r.counts[m] ?? 0, r.target, wonCount, r.won_target);
                 const prevCount = i > 0 ? (r.counts[months[i - 1]] ?? 0) : null;
-                return pastMonthCellHtml(r.counts[m] ?? 0, r.target, prevCount);
+                return pastMonthCellHtml(r.counts[m] ?? 0, r.target, prevCount, wonCount, r.won_target);
               }).join("")}
             </tr>`).join("")}
         </tbody>
@@ -1981,7 +1992,7 @@
     renderTeamTable("table-by-manager", d.created_by_month.by_manager, "manager");
     renderTeamTable("table-by-owner", d.created_by_month.by_owner, "owner_name");
     const unmapped = d.created_by_month.unmapped_owners || [];
-    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only). Current month shows progress toward each rep's monthly target of 10${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
+    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only), with Closed-Won for the same months shown alongside. Current month shows progress toward each rep's monthly target of 10 created / 3 won${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
   }
 
   function renderError(message) {

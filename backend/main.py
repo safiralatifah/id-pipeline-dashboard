@@ -88,6 +88,11 @@ MANAGER_REP_COUNTS = Counter(v.get("manager") for v in TEAM_ROSTER.values() if v
 MANAGER_TARGETS = {name: count * INDIVIDUAL_MONTHLY_TARGET for name, count in MANAGER_REP_COUNTS.items()}
 OWNER_TARGETS = {name: INDIVIDUAL_MONTHLY_TARGET for name in TEAM_ROSTER}
 
+# Same idea for Closed-Won, at a lower monthly bar per rep.
+CLOSED_WON_MONTHLY_TARGET = 3
+CLOSED_WON_MANAGER_TARGETS = {name: count * CLOSED_WON_MONTHLY_TARGET for name, count in MANAGER_REP_COUNTS.items()}
+CLOSED_WON_OWNER_TARGETS = {name: CLOSED_WON_MONTHLY_TARGET for name in TEAM_ROSTER}
+
 _cache: dict[str, Any] = {
     "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False,
@@ -939,22 +944,54 @@ def build_dashboard(
         if roster_entry and owner in owner_created_totals:
             owner_created_totals[owner][month_key] = owner_created_totals[owner].get(month_key, 0) + 1
 
-    def _rollup(totals: dict[str, dict[str, int]], targets: dict[str, int]) -> list[dict]:
+    # Closed-Won by the same 3-month window, keyed by when the deal actually
+    # closed (stage_last_changed_at, falling back to updated_at) — not Type
+    # filtered, matching the "Closed-Won This Month" summary card. Shown
+    # side-by-side with Created in the same table, not just its own rows.
+    manager_won_totals: dict[str, dict[str, int]] = {}
+    owner_won_totals: dict[str, dict[str, int]] = {}
+    for r in items:
+        if _normalize_stage(r.get("stage") or "") != won_norm:
+            continue
+        changed = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("updated_at"))
+        if not changed:
+            continue
+        month_key = changed.strftime("%Y-%m")
+        if month_key not in created_month_keys:
+            continue
+        owner = r.get("owner_name") or ""
+        manager = _owner_manager(owner)
+        manager_won_totals.setdefault(manager, {}).setdefault(month_key, 0)
+        manager_won_totals[manager][month_key] += 1
+        owner_won_totals.setdefault(owner, {}).setdefault(month_key, 0)
+        owner_won_totals[owner][month_key] += 1
+
+    def _rollup(
+        totals: dict[str, dict[str, int]],
+        targets: dict[str, int],
+        won_totals: dict[str, dict[str, int]],
+        won_targets: dict[str, int],
+    ) -> list[dict]:
         rows = []
         for name, by_month in totals.items():
             counts = {mk: by_month.get(mk, 0) for mk in created_month_keys}
+            won_by_month = won_totals.get(name, {})
+            won_counts = {mk: won_by_month.get(mk, 0) for mk in created_month_keys}
             rows.append({
                 "name": name,
                 "counts": counts,
                 "total": sum(counts.values()),
                 "target": targets.get(name),
+                "won_counts": won_counts,
+                "won_total": sum(won_counts.values()),
+                "won_target": won_targets.get(name),
             })
         return sorted(rows, key=lambda x: -x["total"])
 
     created_by_month = {
         "months": created_month_keys,
-        "by_manager": _rollup(manager_totals, MANAGER_TARGETS),
-        "by_owner": _rollup(owner_created_totals, OWNER_TARGETS),
+        "by_manager": _rollup(manager_totals, MANAGER_TARGETS, manager_won_totals, CLOSED_WON_MANAGER_TARGETS),
+        "by_owner": _rollup(owner_created_totals, OWNER_TARGETS, owner_won_totals, CLOSED_WON_OWNER_TARGETS),
         "unmapped_owner_count": len(unmapped_owners),
         "unmapped_owners": sorted(o for o in unmapped_owners if o),
     }
