@@ -841,6 +841,8 @@
   .bar-row-clickable:hover { opacity: 0.8; }
   td.name[data-filter-key] { cursor: pointer; }
   td.name[data-filter-key]:hover { text-decoration: underline; }
+  td.num[data-filter-key], td.activity-bucket-cell { cursor: pointer; }
+  td.num[data-filter-key]:hover, td.activity-bucket-cell:hover { background: var(--surface-2); }
   .forecast-seg, .forecast-col { cursor: pointer; }
   .opp-filter-chip {
     display: inline-flex;
@@ -1156,7 +1158,7 @@
 
       <div class="divider"></div>
 
-      <div class="section-label">By salesperson (worst first)</div>
+      <div class="section-label">By salesperson (best first)</div>
       <div id="table-activity-owner"></div>
       <p class="panel-sub" id="task-unmapped-note" style="margin-top:12px;"></p>
     </div>
@@ -1368,7 +1370,7 @@
           <li><strong>Notebook</strong>: entries are fetched separately from Opportunities (<code>GET /notebook/entries?object_type=Opportunity</code>, paginated) and reduced to the most recent entry's <code>created_at</code> per opportunity id. For every OPEN deal, <code>last_touch</code> = that Notebook date, or <code>created_at</code> if the deal has no Notebook entry at all (never touched &ne; recently touched); <code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched). "Notebook touched in last 7 days" = count in the &lt;7d tier &divide; total open deals.</li>
           <li><strong>Tasks</strong>: population is CRM <strong>Task</strong> records (not Opportunities) with <code>status</code> in Not Started or In Progress &mdash; Completed and Deferred are excluded entirely. Task is a global object with no country field, so it's fetched pre&#8209;filtered server&#8209;side to just the <code>owner_id</code>s in the Indonesia team roster (a rep only owns their own country's work), not a full global pull. A task counts as <strong>Active</strong> when both hold: (1) <code>last_touch</code> (=<code>updated_at</code>, falling back to <code>created_at</code> if never edited since logged) is within the last 7 days, AND (2) it is <strong>not overdue</strong> (<code>due_date</code> is blank, or today or later). "Tasks active in last 7 days" = Active task count &divide; total open task count.</li>
           <li><strong>CRM Updated %</strong> (the final KPI, also shown as a top summary card): Notebook and Task counts are <em>summed</em>, not averaged &mdash; <code>(Notebook &lt;7d count + Task Active count) &divide; (total open deals + total open Tasks)</code>. Summing means a rep with many open deals but few Tasks isn't equally weighted between the two signals; it's one pooled ratio, not an average of two percentages.</li>
-          <li><strong>By salesperson table</strong>: one row per rep. <strong>CRM Updated (%)</strong> is that rep's own version of the final KPI (their Notebook &lt;7d + Task Active, over their own open deals + open Tasks), followed by the Notebook detail (Updated % plus its 7&#8209;14d/14&#8209;30d/30d+ counts and Total &mdash; the &lt;7d count is omitted since the % column already shows it) and the Task detail (Updated %, Updated Task count, Open Tasks). Sorted worst&#8209;first on CRM Updated (%); a rep with no open deals but open Tasks (or vice versa) still gets a row, with "&ndash;" on the side that doesn't apply. Reps with no <code>owner_id</code> on file in the team roster can't be queried for Tasks at all &mdash; their Task columns show "&ndash;" and their CRM Updated (%) falls back to Notebook&#8209;only (not directly comparable to reps with both signals); they're named in the caption below the table.</li>
+          <li><strong>By salesperson table</strong>: one row per rep. <strong>CRM Updated (%)</strong> is that rep's own version of the final KPI (their Notebook &lt;7d + Task Active, over their own open deals + open Tasks), followed by the Notebook detail (Updated % plus its 7&#8209;14d/14&#8209;30d/30d+ counts and Total &mdash; the &lt;7d count is omitted since the % column already shows it) and the Task detail (Updated %, Updated Task count, Open Tasks). Sorted best&#8209;first on CRM Updated (%); a rep with no open deals but open Tasks (or vice versa) still gets a row, with "&ndash;" on the side that doesn't apply. Reps with no <code>owner_id</code> on file in the team roster can't be queried for Tasks at all &mdash; their Task columns show "&ndash;" and their CRM Updated (%) falls back to Notebook&#8209;only (not directly comparable to reps with both signals); they're named in the caption below the table.</li>
         </ul>
       </div>
     </div>
@@ -1906,15 +1908,15 @@
             const crmCell = `<td class="num" style="color:${activityPctColor(crm.pct)}; font-weight:700;">${crm.pct}%</td>`;
             const activityCells = activity
               ? `<td class="num" style="color:${activityPctColor(activity.touched_pct)}; font-weight:600;">${activity.touched_pct}%</td>
-                 ${shownBuckets.map(l => `<td class="num">${activity.counts[l] ?? 0}</td>`).join("")}
-                 <td class="num"><b>${activity.total}</b></td>`
+                 ${shownBuckets.map(l => `<td class="num activity-bucket-cell" data-owner="${name}" data-bucket="${l}" data-tip="${name} · Notebook stale ${l} — click to filter Opportunity List">${activity.counts[l] ?? 0}</td>`).join("")}
+                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}" data-tip="${name} — click to filter Opportunity List"><b>${activity.total}</b></td>`
               : `<td class="num" style="color:var(--text-muted);">&ndash;</td>
                  ${shownBuckets.map(() => `<td class="num">&ndash;</td>`).join("")}
                  <td class="num">&ndash;</td>`;
             const taskCells = t
               ? `<td class="num" style="color:${activityPctColor(t.active_pct)}; font-weight:600;">${t.active_pct}%</td>
-                 <td class="num">${t.active}</td>
-                 <td class="num"><b>${t.total}</b></td>`
+                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}" data-tip="${name} — click to filter Opportunity List">${t.active}</td>
+                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}" data-tip="${name} — click to filter Opportunity List"><b>${t.total}</b></td>`
               : `<td class="num" style="color:var(--text-muted);">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td>`;
             return `<tr><td class="name" data-filter-key="owner_name" data-filter-value="${name}">${name}</td>${crmCell}${activityCells}${taskCells}</tr>`;
           }).join("")}
@@ -2550,6 +2552,17 @@
       const range = forecastBucketRange(bucketKey);
       const bucketLabel = bucketKey === "overdue" ? "Overdue" : monthLabel(bucketKey);
       applyOppChartFilter(range, bucketLabel);
+      return;
+    }
+    const bucketCell = e.target.closest(".activity-bucket-cell");
+    if (bucketCell) {
+      const owner = bucketCell.dataset.owner;
+      const bucket = bucketCell.dataset.bucket;
+      const range = ACTIVITY_BUCKET_RANGES[bucket] || [null, null];
+      applyOppChartFilter(
+        { ownerName: owner, ageField: "notebook_days_since_touch", ageMin: range[0], ageMax: range[1] },
+        `${owner} — Notebook stale ${bucket}`
+      );
       return;
     }
     const genEl = e.target.closest("[data-filter-key]");
