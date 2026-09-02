@@ -922,6 +922,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="6" y1="20" x2="6" y2="14"></line><line x1="12" y1="20" x2="12" y2="8"></line><line x1="18" y1="20" x2="18" y2="4"></line></svg>
     <span>Overview</span>
   </button>
+  <button type="button" class="nav-item" data-view="action-items">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path></svg>
+    <span>Action Items</span>
+  </button>
   <button type="button" class="nav-item" data-view="opplist">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="20" y2="6"></line><line x1="8" y1="12" x2="20" y2="12"></line><line x1="8" y1="18" x2="20" y2="18"></line><line x1="4" y1="6" x2="4.01" y2="6"></line><line x1="4" y1="12" x2="4.01" y2="12"></line><line x1="4" y1="18" x2="4.01" y2="18"></line></svg>
     <span>Opportunity List</span>
@@ -1016,48 +1020,6 @@
         <span class="label">Potential Rev / Mth</span>
         <span class="value" id="stat-revenue">&ndash;</span>
         <span class="sub" id="stat-revenue-sub">&nbsp;</span>
-      </div>
-    </div>
-
-    <div class="panel" id="action-items-panel" style="margin-top:16px; display:none; border-color:var(--accent);">
-      <h2>Action Items</h2>
-      <p class="panel-sub" id="action-items-sub" style="margin-bottom:16px;">Deals and tasks that need attention, based on your current pipeline.</p>
-
-      <div id="ai-overdue-section" style="display:none;">
-        <div class="section-label-row">
-          <span class="section-label">Overdue</span>
-        </div>
-        <p class="ai-sentence" id="ai-overdue-sentence"></p>
-        <div id="ai-overdue-list" class="ai-list"></div>
-      </div>
-
-      <div id="ai-stalled-section" style="display:none; margin-top:18px;">
-        <div class="section-label-row">
-          <span class="section-label">Stalled in Stage</span>
-        </div>
-        <p class="ai-sentence" id="ai-stalled-sentence"></p>
-        <div id="ai-stalled-list" class="ai-list"></div>
-      </div>
-
-      <div id="ai-notebook-section" style="display:none; margin-top:18px;">
-        <div class="section-label-row">
-          <span class="section-label">Notebook Needs Updating</span>
-        </div>
-        <p class="ai-sentence" id="ai-notebook-sentence"></p>
-        <div id="ai-notebook-list" class="ai-list"></div>
-      </div>
-
-      <div id="ai-tasks-section" style="display:none; margin-top:18px;">
-        <div class="section-label-row">
-          <span class="section-label">Tasks Awaiting Action</span>
-        </div>
-        <p class="ai-sentence" id="ai-tasks-sentence"></p>
-        <div id="ai-tasks-list" class="ai-list"></div>
-      </div>
-
-      <div id="ai-pace-section" style="margin-top:18px;">
-        <div class="section-label">Monthly Pace</div>
-        <div id="ai-pace-content"></div>
       </div>
     </div>
 
@@ -1192,6 +1154,57 @@
   </div>
 </div>
 
+<div class="viz-root" id="view-action-items" style="display:none;">
+  <div class="wrap">
+    <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
+    <h1>Action Items</h1>
+    <p class="panel-sub" style="margin:-8px 0 20px;">Deals and tasks that need attention, based on your current pipeline. Uses the same filters and identity scoping as Overview (set filters there, they apply here too).</p>
+
+    <div class="panel" id="action-items-empty" style="display:none;">
+      <p style="color:var(--text-muted); font-size:13px;">No personalized view to show yet &mdash; filter Overview down to a specific Salesperson or Manager to see action items for them (or for you, if you're mapped to the roster).</p>
+    </div>
+
+    <div class="panel" id="action-items-panel" style="display:none; border-color:var(--accent);">
+      <div id="ai-overdue-section" style="display:none;">
+        <div class="section-label-row">
+          <span class="section-label">Overdue</span>
+        </div>
+        <p class="ai-sentence" id="ai-overdue-sentence"></p>
+        <div id="ai-overdue-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-stalled-section" style="display:none; margin-top:18px;">
+        <div class="section-label-row">
+          <span class="section-label">Stalled in Stage</span>
+        </div>
+        <p class="ai-sentence" id="ai-stalled-sentence"></p>
+        <div id="ai-stalled-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-notebook-section" style="display:none; margin-top:18px;">
+        <div class="section-label-row">
+          <span class="section-label">Notebook Needs Updating</span>
+        </div>
+        <p class="ai-sentence" id="ai-notebook-sentence"></p>
+        <div id="ai-notebook-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-tasks-section" style="display:none; margin-top:18px;">
+        <div class="section-label-row">
+          <span class="section-label">Tasks Awaiting Action</span>
+        </div>
+        <p class="ai-sentence" id="ai-tasks-sentence"></p>
+        <div id="ai-tasks-list" class="ai-list"></div>
+      </div>
+
+      <div id="ai-pace-section" style="margin-top:18px;">
+        <div class="section-label">Monthly Pace</div>
+        <div id="ai-pace-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="viz-root" id="view-opplist" style="display:none;">
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
@@ -1255,13 +1268,14 @@
       <h2>Action Items</h2>
       <div class="notes">
         <ul>
-          <li><strong>Who sees it</strong>: only an identity&#8209;scoped viewer (a mapped Salesperson or Manager/Sales Head), or an unmapped/admin viewer who has deliberately filtered the dashboard down to a specific Salesperson or Manager. An unmapped viewer with no such filter never sees this panel &mdash; it's personalized, not a general summary.</li>
+          <li>Lives on its own <strong>Action Items</strong> sidebar tab, not Overview &mdash; it uses whatever filters are set on Overview (Salesperson/Manager/etc.), so set those first.</li>
+          <li><strong>Who sees it</strong>: only an identity&#8209;scoped viewer (a mapped Salesperson or Manager/Sales Head), or an unmapped/admin viewer who has deliberately filtered the dashboard down to a specific Salesperson or Manager. An unmapped viewer with no such filter sees a placeholder instead &mdash; it's personalized, not a general summary.</li>
           <li>Every category below only considers <strong>OPEN, non&#8209;Future&#8209;Opportunity</strong> deals (Future Opportunity is deliberately parked, not actively worked) within whatever scope applies (your own pipeline, or your team's).</li>
           <li><strong>Overdue</strong>: <code>expected_close_date</code> has passed and the deal is still open. Sorted by days in the current stage, worst first.</li>
           <li><strong>Stalled in Stage</strong>: <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) is 30+ days old &mdash; the same threshold Stage Bottlenecks/Stage &times; Ageing use for their "30d+" tier.</li>
           <li><strong>Notebook Needs Updating</strong>: last Notebook touch (or <code>created_at</code> if none) is 14+ days old &mdash; the same threshold the Activity panel's "14&#8209;30d" tier starts at.</li>
           <li><strong>Tasks Awaiting Action</strong>: open Tasks (Not Started / In Progress) that aren't "Active" by the exact same rule the Activity panel's Task side uses (touched within 7 days AND not overdue).</li>
-          <li>Each of the four lists above is capped at 8 items (worst first); the count shown next to the section header is the real total, not just how many are listed.</li>
+          <li>Viewing a single person's own pipeline shows up to 8 example deals per category (worst first), with the true total in the summary sentence. Viewing a Manager/Sales Head's team instead shows a per&#8209;rep breakdown &mdash; each rep's name with their own matching deals/tasks listed underneath, hyperlinked to CRM.</li>
           <li><strong>Monthly Pace</strong>: every rep in scope against the same 10&#8209;opportunity monthly target as Created Opportunities by Manager &amp; Salesperson, sorted most&#8209;behind&#8209;target first &mdash; includes reps with 0 created this month.</li>
         </ul>
       </div>
@@ -1689,8 +1703,10 @@
 
   function renderActionItems(ai) {
     const panel = document.getElementById("action-items-panel");
-    if (!ai) { panel.style.display = "none"; return; }
+    const empty = document.getElementById("action-items-empty");
+    if (!ai) { panel.style.display = "none"; empty.style.display = ""; return; }
     panel.style.display = "";
+    empty.style.display = "none";
 
     const scopeSize = ai.scope_size || 1;
 
@@ -2218,6 +2234,7 @@
   function switchToOpplist() {
     document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b.dataset.view === "opplist"));
     document.getElementById("view-overview").style.display = "none";
+    document.getElementById("view-action-items").style.display = "none";
     document.getElementById("view-opplist").style.display = "";
     document.getElementById("view-dictionary").style.display = "none";
     window.scrollTo(0, 0);
@@ -2318,6 +2335,7 @@
     btn.addEventListener("click", () => {
       document.querySelectorAll(".nav-item").forEach(b => b.classList.toggle("active", b === btn));
       document.getElementById("view-overview").style.display = btn.dataset.view === "overview" ? "" : "none";
+      document.getElementById("view-action-items").style.display = btn.dataset.view === "action-items" ? "" : "none";
       document.getElementById("view-opplist").style.display = btn.dataset.view === "opplist" ? "" : "none";
       document.getElementById("view-dictionary").style.display = btn.dataset.view === "dictionary" ? "" : "none";
       if (btn.dataset.view === "opplist") loadOpportunities();
