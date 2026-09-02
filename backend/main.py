@@ -225,10 +225,18 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
         {"filters": json.dumps(filters)},
     )
     items = [r for r in items if EXCLUDE_NAME_SUBSTR not in (r.get("name") or "")]
-    # "Last Mile – Parcel" and "Last Mile – Document" are excluded entirely,
-    # for every owner — not a valid NV Product Line for this dashboard.
-    EXCLUDED_PRODUCT_LINES = {"Last Mile – Parcel", "Last Mile – Document"}
-    items = [r for r in items if r.get("nv_product_line") not in EXCLUDED_PRODUCT_LINES]
+    # Data-quality filter: "Last Mile – Parcel" and "Last Mile – Document"
+    # are only valid for Raden Roro Inggil Pratiwi's opportunities; exclude
+    # both from everyone else.
+    RESTRICTED_PRODUCT_LINES = {"Last Mile – Parcel", "Last Mile – Document"}
+    items = [
+        r
+        for r in items
+        if not (
+            r.get("nv_product_line") in RESTRICTED_PRODUCT_LINES
+            and r.get("owner_name") != "Raden Roro Inggil Pratiwi"
+        )
+    ]
     # service_level is a multi-select field, but the CRM returns a bare
     # string instead of a 1-item list for some records — spreading/joining
     # that string elsewhere would silently iterate its characters instead of
