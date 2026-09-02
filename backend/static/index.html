@@ -777,8 +777,8 @@
     flex: 1 0 60px;
     min-width: 60px;
   }
-  .forecast-count { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; color: var(--text-primary); }
-  .forecast-revenue { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--text-muted); margin-bottom: 6px; white-space: nowrap; }
+  .forecast-count { font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600; color: var(--text-primary); margin-top: 6px; }
+  .forecast-revenue { font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--text-muted); white-space: nowrap; }
   .forecast-track {
     height: 160px;
     display: flex;
@@ -1699,12 +1699,12 @@
       }).join("");
       return `
         <div class="forecast-col" data-bucket-key="${b.key}">
-          <span class="forecast-count">${b.count}</span>
-          <span class="forecast-revenue">${fmtRupiah(b.revenue)}</span>
           <div class="forecast-track">
             <div class="forecast-bar" style="height:${barHeight}px;">${segs}</div>
           </div>
           <span class="forecast-label${b.key === 'overdue' ? ' overdue' : ''}">${label}</span>
+          <span class="forecast-count">${b.count}</span>
+          <span class="forecast-revenue">${fmtRupiah(b.revenue)}</span>
         </div>`;
     }).join("");
 
