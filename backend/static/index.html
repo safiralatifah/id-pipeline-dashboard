@@ -1040,7 +1040,7 @@
 
     <div class="panels2">
       <div class="panel">
-        <h2>Deals by Stage</h2>
+        <h2>Opportunities by Stage</h2>
         <p class="panel-sub">Share of all matched opportunities by outcome bucket, broken down by pipeline stage.</p>
 
         <div class="donut-wrap">
@@ -1067,7 +1067,7 @@
 
       <div class="stack-col">
         <div class="panel">
-          <h2>Deals by NV Product Line</h2>
+          <h2>Opportunities by NV Product Line</h2>
           <p class="panel-sub">Which logistics product each OPEN Indonesia opportunity is tagged under.</p>
           <div id="bars-product"></div>
           <div class="divider"></div>
@@ -1075,12 +1075,12 @@
         </div>
 
         <div class="panel">
-          <h2>Deals by Service Level</h2>
-          <p class="panel-sub">Open deals only &mdash; a multi-select field, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
+          <h2>Opportunities by Service Level</h2>
+          <p class="panel-sub">Open opportunities only &mdash; a multi-select field, so bars can sum to more than the total. <span id="service-blank-note"></span></p>
           <div id="bars-service"></div>
           <div class="divider"></div>
           <div class="notes">
-            <strong style="color:var(--text-primary); font-weight:600;">Read as tag counts, not a partition.</strong> Because a deal can hold multiple Service Levels (e.g. "LTL" + "FTL"), percentages are share&#8209;of&#8209;total per tag, not mutually exclusive slices.
+            <strong style="color:var(--text-primary); font-weight:600;">Read as tag counts, not a partition.</strong> Because an opportunity can hold multiple Service Levels (e.g. "LTL" + "FTL"), percentages are share&#8209;of&#8209;total per tag, not mutually exclusive slices.
           </div>
         </div>
       </div>
@@ -1091,7 +1091,7 @@
         <div style="display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px;">
           <div>
             <h2>Stage &times; Ageing</h2>
-            <p class="panel-sub" style="margin-bottom:14px;">Share of each stage's open deals by days since last stage change.</p>
+            <p class="panel-sub" style="margin-bottom:14px;">Share of each stage's open opportunities by days since last stage change.</p>
           </div>
           <div class="age-mode-toggle">
             <button type="button" class="age-mode-btn active" data-mode="share">Share (100%)</button>
@@ -1104,7 +1104,7 @@
 
       <div class="panel">
         <h2>Stage Bottlenecks</h2>
-        <p class="panel-sub">Average days open deals have sat in each stage &mdash; longest first.</p>
+        <p class="panel-sub">Average days open opportunities have sat in each stage &mdash; longest first.</p>
         <div id="table-stage-duration"></div>
         <div class="divider"></div>
         <div class="notes"><strong style="color:var(--text-primary); font-weight:600;">Avg lead time to Closed&ndash;Won:</strong> <span id="lead-time-line">&ndash;</span></div>
@@ -1144,7 +1144,7 @@
 
     <div class="panel" style="margin-top:16px;">
       <h2>Pipeline Strength</h2>
-      <p class="panel-sub" id="forecast-sub">Open deals by expected close date, broken down by stage. Ideally, deals due soon sit in a late stage (Agreed to Ship / Ready to Ship).</p>
+      <p class="panel-sub" id="forecast-sub">Open opportunities by expected close date, broken down by stage. Ideally, opportunities due soon sit in a late stage (Agreed to Ship / Ready to Ship).</p>
       <div id="age-stage-legend-2" class="legend" style="flex-direction:row; flex-wrap:wrap; gap:14px; margin-bottom:14px;"></div>
       <div id="bars-forecast" class="forecast-chart"></div>
     </div>
@@ -1156,7 +1156,7 @@
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
     <h1>Action Items</h1>
-    <p class="panel-sub" style="margin:-8px 0 20px;">Deals and tasks that need attention, based on your current pipeline. Uses the same filters and identity scoping as Overview (set filters there, they apply here too).</p>
+    <p class="panel-sub" style="margin:-8px 0 20px;">Opportunities and tasks that need attention, based on your current pipeline. Uses the same filters and identity scoping as Overview (set filters there, they apply here too).</p>
 
     <div class="panel" id="action-items-empty" style="display:none;">
       <p style="color:var(--text-muted); font-size:13px;">No personalized view to show yet &mdash; filter Overview down to a specific Salesperson or Manager to see action items for them (or for you, if you're mapped to the roster).</p>
@@ -1244,9 +1244,9 @@
           <li>One row per matched Opportunity (same population as "Total" on Overview: open all&#8209;time + closed in the last 12 months), not aggregated &mdash; it uses the same filters and identity scoping as the Overview tab (set filters there; this list respects them without its own copy of the filter bar).</li>
           <li>Split into four independently sorted, paginated sections by stage: <strong>Open</strong> (every non&#8209;closed stage except Future Opportunity), <strong>Future Opportunity</strong>, <strong>Closed&ndash;Won</strong>, and <strong>Closed&ndash;Lost</strong> &mdash; the search box above filters all four at once.</li>
           <li><strong>Product</strong> combines NV Product Line and Service Level into one column, separated by &bull; (e.g. "Restock &bull; Standard").</li>
-          <li><strong>Aging</strong> = days since <code>created_at</code> (same definition as Deal Aging). <strong>Last Stage Duration</strong> = days since <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) &mdash; same definition as Stage Bottlenecks.</li>
-          <li><strong>Overdue</strong>: the deal is still open and <code>expected_close_date</code> has already passed.</li>
-          <li><strong>Notebook Last Touch</strong>: days since the most recent Notebook entry (falling back to <code>created_at</code> if the deal has no Notebook entry at all) &mdash; same last&#8209;entry lookup as the Activity panel, computed here for every row (not just open deals).</li>
+          <li><strong>Aging</strong> = days since <code>created_at</code> (same definition as Opportunity Aging). <strong>Last Stage Duration</strong> = days since <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) &mdash; same definition as Stage Bottlenecks.</li>
+          <li><strong>Overdue</strong>: the opportunity is still open and <code>expected_close_date</code> has already passed.</li>
+          <li><strong>Notebook Last Touch</strong>: days since the most recent Notebook entry (falling back to <code>created_at</code> if the opportunity has no Notebook entry at all) &mdash; same last&#8209;entry lookup as the Activity panel, computed here for every row (not just open opportunities).</li>
           <li><strong>Notebook Content</strong>: the AI&#8209;generated summary of the most recent Notebook entry. The CRM only returns this text to the entry's own creator or an admin &mdash; for any other entry it comes back blank even though a note exists, because the API key this app runs under isn't that entry's creator.</li>
           <li>Click a column header to sort by it (click again to reverse); click an Opportunity Name to open that record directly in the CRM.</li>
         </ul>
@@ -1261,10 +1261,10 @@
           <li><strong>Population</strong>: every <strong>OPEN</strong> Indonesia opportunity regardless of age (so no old stale lead is missed), plus any opportunity &mdash; open or closed &mdash; created in the last 12 months. Indonesia has 72,721 Opportunity records all&#8209;time; fetching every one blew both the platform's request timeout and its memory limit, so closed/won history beyond 12 months isn't included. This population is what "Total" / "opportunities matched" refers to everywhere below unless a metric says otherwise.</li>
           <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per&#8209;field filters proved unreliable for the Service Level field.</li>
           <li>"Last Mile &ndash; Parcel" and "Last Mile &ndash; Document" are excluded except for Raden Roro Inggil Pratiwi's opportunities (a data&#8209;quality rule, not a CRM limitation).</li>
-          <li><strong>Prospecting</strong> is a legacy stage value no longer offered in the CRM's own stage filter dropdown. A deal actually sitting in it still counts toward Open Pipeline and every other stage&#8209;grouped panel &mdash; it just isn't given its own bar on the <strong>Deals by Stage</strong> chart specifically.</li>
+          <li><strong>Prospecting</strong> is a legacy stage value no longer offered in the CRM's own stage filter dropdown. An opportunity actually sitting in it still counts toward Open Pipeline and every other stage&#8209;grouped panel &mdash; it just isn't given its own bar on the <strong>Opportunities by Stage</strong> chart specifically.</li>
           <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count as a non&#8209;pipeline test artifact.</li>
-          <li><strong>Open</strong> (used throughout as "open deals" / "open + future") means every stage except Closed&ndash;Won and Closed&ndash;Lost &mdash; this includes Future Opportunity.</li>
-          <li><strong>Filter bar</strong> (Salesperson / Manager / NV Product Line / Service Level, top of the Overview tab): multi&#8209;select, applies to the <strong>entire dashboard</strong> &mdash; every stat card, chart, and table on this page recomputes against the filtered population, not just the panels that already broke deals down by that field. Selections within one filter are OR'd (any match), across different filters they're AND'd (must match all). Manager filters by each deal's owner's Manager in the team roster; a deal whose owner isn't in the roster won't match any Manager filter. Service Level is a multi&#8209;select field on the deal itself, so it matches if the deal has <em>any</em> of the selected levels. Task Activity respects the Salesperson/Manager filters but ignores Product Line/Service Level (Tasks aren't tagged with either).</li>
+          <li><strong>Open</strong> (used throughout as "open opportunities" / "open + future") means every stage except Closed&ndash;Won and Closed&ndash;Lost &mdash; this includes Future Opportunity.</li>
+          <li><strong>Filter bar</strong> (Salesperson / Manager / NV Product Line / Service Level, top of the Overview tab): multi&#8209;select, applies to the <strong>entire dashboard</strong> &mdash; every stat card, chart, and table on this page recomputes against the filtered population, not just the panels that already broke opportunities down by that field. Selections within one filter are OR'd (any match), across different filters they're AND'd (must match all). Manager filters by each opportunity's owner's Manager in the team roster; an opportunity whose owner isn't in the roster won't match any Manager filter. Service Level is a multi&#8209;select field on the opportunity itself, so it matches if the opportunity has <em>any</em> of the selected levels. Task Activity respects the Salesperson/Manager filters but ignores Product Line/Service Level (Tasks aren't tagged with either).</li>
           <li><strong>Identity&#8209;scoped viewing</strong>: if the person who's logged in (via the platform's Google SSO, identified by an unspoofable <code>X-Forwarded-Email</code> header) is mapped to a name in the team roster, the whole dashboard is pre&#8209;restricted to what they're allowed to see &mdash; a Salesperson sees only their own pipeline; a Manager or Sales Head sees their full downstream team (Sales Head covers every rep under every manager reporting to them, not just direct reports). This is a real boundary, not just a default: the filter bar can only narrow further within that scope, never escape it. A <strong>"Viewing as &hellip;"</strong> chip next to the title shows when this is active. Anyone not in the email&#8209;to&#8209;roster mapping (or if SSO isn't the access method) sees the full unrestricted dashboard.</li>
         </ul>
       </div>
@@ -1276,13 +1276,13 @@
         <ul>
           <li>Lives on its own <strong>Action Items</strong> sidebar tab, not Overview &mdash; it uses whatever filters are set on Overview (Salesperson/Manager/etc.), so set those first.</li>
           <li><strong>Who sees it</strong>: only an identity&#8209;scoped viewer (a mapped Salesperson or Manager/Sales Head), or an unmapped/admin viewer who has deliberately filtered the dashboard down to a specific Salesperson or Manager. An unmapped viewer with no such filter sees a placeholder instead &mdash; it's personalized, not a general summary.</li>
-          <li>Every category below only considers <strong>OPEN, non&#8209;Future&#8209;Opportunity</strong> deals (Future Opportunity is deliberately parked, not actively worked) within whatever scope applies (your own pipeline, or your team's).</li>
-          <li><strong>Overdue</strong>: <code>expected_close_date</code> has passed and the deal is still open. Sorted by days in the current stage, worst first.</li>
+          <li>Every category below only considers <strong>OPEN, non&#8209;Future&#8209;Opportunity</strong> opportunities (Future Opportunity is deliberately parked, not actively worked) within whatever scope applies (your own pipeline, or your team's).</li>
+          <li><strong>Overdue</strong>: <code>expected_close_date</code> has passed and the opportunity is still open. Sorted by days in the current stage, worst first.</li>
           <li><strong>Stalled in Stage</strong>: <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) is 30+ days old &mdash; the same threshold Stage Bottlenecks/Stage &times; Ageing use for their "30d+" tier.</li>
           <li><strong>Notebook Needs Updating</strong>: last Notebook touch (or <code>created_at</code> if none) is 14+ days old &mdash; the same threshold the Activity panel's "14&#8209;30d" tier starts at.</li>
           <li><strong>Missing Revenue</strong>: <code>total_potential_revenue_mth</code> or <code>committed_revenue_mth</code> is blank on the CRM record (not filled in at all &mdash; a real, entered 0 doesn't count). Sorted by Aging, oldest first.</li>
           <li><strong>Tasks Awaiting Action</strong>: open Tasks (Not Started / In Progress) that aren't "Active" by the exact same rule the Activity panel's Task side uses (touched within 7 days AND not overdue).</li>
-          <li>Viewing a single person's own pipeline shows up to 8 example deals per category (worst first), with the true total in the summary sentence. Viewing a Manager/Sales Head's team instead shows a per&#8209;rep breakdown &mdash; each rep's name with their own matching deals/tasks listed underneath, hyperlinked to CRM.</li>
+          <li>Viewing a single person's own pipeline shows up to 8 example opportunities per category (worst first), with the true total in the summary sentence. Viewing a Manager/Sales Head's team instead shows a per&#8209;rep breakdown &mdash; each rep's name with their own matching opportunities/tasks listed underneath, hyperlinked to CRM.</li>
           <li><strong>Monthly Pace</strong>: every rep in scope against the same 10&#8209;opportunity monthly target as Created Opportunities by Manager &amp; Salesperson, sorted most&#8209;behind&#8209;target first &mdash; includes reps with 0 created this month.</li>
         </ul>
       </div>
@@ -1293,21 +1293,21 @@
       <div class="notes">
         <ul>
           <li><strong>Created This Month / vs last month</strong>: count of opportunities whose <code>created_at</code> falls in the current / previous calendar month <strong>and</strong> whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> &mdash; new business only, excluding Pricing/Up&#8209;Selling/Regain/Others opportunities raised against an existing account. The <strong>Created Opportunities by Manager &amp; Salesperson</strong> table below uses the same Type filter.</li>
-          <li><strong>Open Pipeline</strong>: count of all OPEN deals (open_active + Future Opportunity). Not Type&#8209;filtered.</li>
+          <li><strong>Open Pipeline</strong>: count of all OPEN opportunities (open_active + Future Opportunity). Not Type&#8209;filtered.</li>
           <li><strong>CRM Updated %</strong>: the final combined Activity KPI &mdash; see "Activity" below for the full definition.</li>
-          <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of deals whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. deals that actually closed this month, not deals merely created this month. Not Type&#8209;filtered.</li>
-          <li><strong>Pipeline Conversion</strong>: <code>Closed&ndash;Won this month &divide; unique deals in (Created this month &cup; Open Pipeline &cup; Closed&ndash;Won this month &cup; Closed&ndash;Lost this month)</code>. The denominator is every <strong>distinct</strong> deal "in play" this month &mdash; newly created, still open, or resolved either way &mdash; deduplicated by id, so a deal created and closed within the same month is only counted once, not once per bucket.</li>
+          <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of opportunities whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. opportunities that actually closed this month, not opportunities merely created this month. Not Type&#8209;filtered.</li>
+          <li><strong>Pipeline Conversion</strong>: <code>Closed&ndash;Won this month &divide; unique opportunities in (Created this month &cup; Open Pipeline &cup; Closed&ndash;Won this month &cup; Closed&ndash;Lost this month)</code>. The denominator is every <strong>distinct</strong> opportunity "in play" this month &mdash; newly created, still open, or resolved either way &mdash; deduplicated by id, so an opportunity created and closed within the same month is only counted once, not once per bucket.</li>
           <li><strong>Potential Rev / Mth</strong>: sum of <code>total_potential_revenue_mth</code> (and, for the sub&#8209;label, <code>committed_revenue_mth</code>) across the full population.</li>
         </ul>
       </div>
     </div>
 
     <div class="panel" style="margin-top:16px;">
-      <h2>Deals by Stage &amp; Pipeline Composition</h2>
+      <h2>Opportunities by Stage &amp; Pipeline Composition</h2>
       <div class="notes">
         <ul>
           <li><strong>Pipeline Composition</strong> (donut): the full population split into four outcome buckets &mdash; Active pipeline, Future opportunity, Closed&ndash;Won, Closed&ndash;Lost &mdash; as a share of the total.</li>
-          <li><strong>Deals by Stage</strong> (bars below the donut): count of deals currently sitting in each stage, ordered by the sales process sequence (Active pipeline), then Closed &amp; parked (Closed&ndash;Won, Closed&ndash;Lost, Future Opportunity).</li>
+          <li><strong>Opportunities by Stage</strong> (bars below the donut): count of opportunities currently sitting in each stage, ordered by the sales process sequence (Active pipeline), then Closed &amp; parked (Closed&ndash;Won, Closed&ndash;Lost, Future Opportunity).</li>
           <li>The percentage next to each section header (<strong>Active pipeline</strong>, <strong>Closed &amp; parked</strong>) is that section's share of the total &mdash; it matches the corresponding donut bucket(s) above (Closed &amp; parked = Future opportunity + Closed&ndash;Won + Closed&ndash;Lost combined).</li>
         </ul>
       </div>
@@ -1317,9 +1317,9 @@
       <h2>Product Line &amp; Service Level</h2>
       <div class="notes">
         <ul>
-          <li>Both consider <strong>OPEN deals only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Deals by Stage above.</li>
-          <li><strong>Deals by NV Product Line</strong>: count of open deals per <code>nv_product_line</code> value.</li>
-          <li><strong>Deals by Service Level</strong>: <code>service_level</code> is a multi&#8209;select field, so one deal can add to more than one bar &mdash; percentages are share&#8209;of&#8209;open&#8209;pipeline per tag, not a partition. "Blank" counts deals with no Service Level tag at all.</li>
+          <li>Both consider <strong>OPEN opportunities only</strong> (open + Future Opportunity) &mdash; closed&ndash;won/lost are excluded, unlike Opportunities by Stage above.</li>
+          <li><strong>Opportunities by NV Product Line</strong>: count of open opportunities per <code>nv_product_line</code> value.</li>
+          <li><strong>Opportunities by Service Level</strong>: <code>service_level</code> is a multi&#8209;select field, so one opportunity can add to more than one bar &mdash; percentages are share&#8209;of&#8209;open&#8209;pipeline per tag, not a partition. "Blank" counts opportunities with no Service Level tag at all.</li>
         </ul>
       </div>
     </div>
@@ -1329,10 +1329,10 @@
       <div class="notes">
         <ul>
           <li>Two independent freshness signals feed one final KPI: <strong>Notebook</strong> (a note logged on the Opportunity) and <strong>Tasks</strong> (CRM Task records) &mdash; a rep can be current on one and stale on the other.</li>
-          <li><strong>Notebook</strong>: entries are fetched separately from Opportunities (<code>GET /notebook/entries?object_type=Opportunity</code>, paginated) and reduced to the most recent entry's <code>created_at</code> per opportunity id. For every OPEN deal, <code>last_touch</code> = that Notebook date, or <code>created_at</code> if the deal has no Notebook entry at all (never touched &ne; recently touched); <code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched). "Notebook touched in last 7 days" = count in the &lt;7d tier &divide; total open deals.</li>
+          <li><strong>Notebook</strong>: entries are fetched separately from Opportunities (<code>GET /notebook/entries?object_type=Opportunity</code>, paginated) and reduced to the most recent entry's <code>created_at</code> per opportunity id. For every OPEN opportunity, <code>last_touch</code> = that Notebook date, or <code>created_at</code> if the opportunity has no Notebook entry at all (never touched &ne; recently touched); <code>days = today &minus; last_touch</code>, bucketed into 4 tiers: <strong style="color:var(--status-good);">&lt; 7d</strong> (green), <strong style="color:var(--age-2);">7&#8209;14d</strong> (yellow), <strong style="color:var(--age-3);">14&#8209;30d</strong> (orange), <strong style="color:var(--status-critical);">30d+</strong> (red / not touched). "Notebook touched in last 7 days" = count in the &lt;7d tier &divide; total open opportunities.</li>
           <li><strong>Tasks</strong>: population is CRM <strong>Task</strong> records (not Opportunities) with <code>status</code> in Not Started or In Progress &mdash; Completed and Deferred are excluded entirely. Task is a global object with no country field, so it's fetched pre&#8209;filtered server&#8209;side to just the <code>owner_id</code>s in the Indonesia team roster (a rep only owns their own country's work), not a full global pull. A task counts as <strong>Active</strong> when both hold: (1) <code>last_touch</code> (=<code>updated_at</code>, falling back to <code>created_at</code> if never edited since logged) is within the last 7 days, AND (2) it is <strong>not overdue</strong> (<code>due_date</code> is blank, or today or later). "Tasks active in last 7 days" = Active task count &divide; total open task count.</li>
-          <li><strong>CRM Updated %</strong> (the final KPI, also shown as a top summary card): Notebook and Task counts are <em>summed</em>, not averaged &mdash; <code>(Notebook &lt;7d count + Task Active count) &divide; (total open deals + total open Tasks)</code>. Summing means a rep with many open deals but few Tasks isn't equally weighted between the two signals; it's one pooled ratio, not an average of two percentages.</li>
-          <li><strong>By salesperson table</strong>: one row per rep. <strong>CRM Updated (%)</strong> is that rep's own version of the final KPI (their Notebook &lt;7d + Task Active, over their own open deals + open Tasks), followed by the Notebook detail (Updated % plus its 7&#8209;14d/14&#8209;30d/30d+ counts and Total &mdash; the &lt;7d count is omitted since the % column already shows it) and the Task detail (Updated %, Updated Task count, Open Tasks). Sorted best&#8209;first on CRM Updated (%); a rep with no open deals but open Tasks (or vice versa) still gets a row, with "&ndash;" on the side that doesn't apply. Reps with no <code>owner_id</code> on file in the team roster can't be queried for Tasks at all &mdash; their Task columns show "&ndash;" and their CRM Updated (%) falls back to Notebook&#8209;only (not directly comparable to reps with both signals); they're named in the caption below the table.</li>
+          <li><strong>CRM Updated %</strong> (the final KPI, also shown as a top summary card): Notebook and Task counts are <em>summed</em>, not averaged &mdash; <code>(Notebook &lt;7d count + Task Active count) &divide; (total open opportunities + total open Tasks)</code>. Summing means a rep with many open opportunities but few Tasks isn't equally weighted between the two signals; it's one pooled ratio, not an average of two percentages.</li>
+          <li><strong>By salesperson table</strong>: one row per rep. <strong>CRM Updated (%)</strong> is that rep's own version of the final KPI (their Notebook &lt;7d + Task Active, over their own open opportunities + open Tasks), followed by the Notebook detail (Updated % plus its 7&#8209;14d/14&#8209;30d/30d+ counts and Total &mdash; the &lt;7d count is omitted since the % column already shows it) and the Task detail (Updated %, Updated Task count, Open Tasks). Sorted best&#8209;first on CRM Updated (%); a rep with no open opportunities but open Tasks (or vice versa) still gets a row, with "&ndash;" on the side that doesn't apply. Reps with no <code>owner_id</code> on file in the team roster can't be queried for Tasks at all &mdash; their Task columns show "&ndash;" and their CRM Updated (%) falls back to Notebook&#8209;only (not directly comparable to reps with both signals); they're named in the caption below the table.</li>
         </ul>
       </div>
     </div>
@@ -1341,10 +1341,10 @@
       <h2>Stage Bottlenecks &amp; Stage &times; Ageing</h2>
       <div class="notes">
         <ul>
-          <li>Both use <code>stage_last_changed_at</code> (falling back to <code>created_at</code>) &mdash; i.e. how long a deal has sat in its <strong>current</strong> stage, not since it was created.</li>
-          <li><strong>Stage Bottlenecks</strong>: average days&#8209;in&#8209;current&#8209;stage per stage, across OPEN deals only, longest first.</li>
-          <li><strong>Stage &times; Ageing</strong>: for each stage, the same day buckets used throughout (0&#8209;7d/7&#8209;15d/15&#8209;30d/30d+), shown as a composition bar &mdash; Share mode normalizes every stage's bar to 100%; Count mode scales bar width by the stage's total deal count so stages can be compared by volume too.</li>
-          <li><strong>Avg lead time to Closed&ndash;Won</strong> (below the Stage Bottlenecks table): for every Closed&ndash;Won deal, <code>days = stage_last_changed_at (or updated_at) &minus; created_at</code>. The CRM has no separate "entered New stage" timestamp, so <code>created_at</code> is used as a proxy for it &mdash; the same approximation the ageing buckets rely on.</li>
+          <li>Both use <code>stage_last_changed_at</code> (falling back to <code>created_at</code>) &mdash; i.e. how long an opportunity has sat in its <strong>current</strong> stage, not since it was created.</li>
+          <li><strong>Stage Bottlenecks</strong>: average days&#8209;in&#8209;current&#8209;stage per stage, across OPEN opportunities only, longest first.</li>
+          <li><strong>Stage &times; Ageing</strong>: for each stage, the same day buckets used throughout (0&#8209;7d/7&#8209;15d/15&#8209;30d/30d+), shown as a composition bar &mdash; Share mode normalizes every stage's bar to 100%; Count mode scales bar width by the stage's total opportunity count so stages can be compared by volume too.</li>
+          <li><strong>Avg lead time to Closed&ndash;Won</strong> (below the Stage Bottlenecks table): for every Closed&ndash;Won opportunity, <code>days = stage_last_changed_at (or updated_at) &minus; created_at</code>. The CRM has no separate "entered New stage" timestamp, so <code>created_at</code> is used as a proxy for it &mdash; the same approximation the ageing buckets rely on.</li>
         </ul>
       </div>
     </div>
@@ -1353,9 +1353,9 @@
       <h2>Pipeline Strength (Forecast)</h2>
       <div class="notes">
         <ul>
-          <li>Population: OPEN deals with an <code>expected_close_date</code> (deals with none are excluded and counted in the panel's caption).</li>
+          <li>Population: OPEN opportunities with an <code>expected_close_date</code> (opportunities with none are excluded and counted in the panel's caption).</li>
           <li><strong>Overdue</strong>: <code>expected_close_date &lt; today</code>. Everything else is bucketed by the month of <code>expected_close_date</code>, starting at the current month and continuing through however far into the future the data goes (no fixed 3&#8209;month cap).</li>
-          <li>Each bar is stacked by <strong>stage</strong> and labeled with count + potential revenue, so it's visible whether deals due to close soon are actually in a late stage (Agreed to Ship / Ready to Ship) or an unrealistically early one.</li>
+          <li>Each bar is stacked by <strong>stage</strong> and labeled with count + potential revenue, so it's visible whether opportunities due to close soon are actually in a late stage (Agreed to Ship / Ready to Ship) or an unrealistically early one.</li>
           <li>Bar height uses a square&#8209;root scale (not linear) so low&#8209;count months next to a high&#8209;count one don't flatten to an invisible sliver &mdash; the printed count above each bar is always the real number.</li>
         </ul>
       </div>
@@ -1367,7 +1367,7 @@
         <ul>
           <li>Population: opportunities (open + closed) whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> (same new&#8209;business filter as the "Created This Month" card), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
           <li><strong>By Manager</strong>: each opportunity's <code>owner_name</code> is looked up in a curated team roster (Active reps only &mdash; see <code>backend/team_roster.json</code>) to find that rep's Manager; owners not found in the roster are grouped as "Unmapped" (named in the panel's caption).</li>
-          <li><strong>By Salesperson</strong>: one row per Active rep in scope, including reps who created nothing in this window (shown as 0) &mdash; unlike the other tables on this dashboard, this one isn't built only from matched deals, so a quiet rep is still visible. "In scope" respects the top filter bar: no Salesperson/Manager filter shows every Active rep; filtering to a Manager narrows this to just their reports; filtering to specific Salesperson(s) narrows it to just them.</li>
+          <li><strong>By Salesperson</strong>: one row per Active rep in scope, including reps who created nothing in this window (shown as 0) &mdash; unlike the other tables on this dashboard, this one isn't built only from matched opportunities, so a quiet rep is still visible. "In scope" respects the top filter bar: no Salesperson/Manager filter shows every Active rep; filtering to a Manager narrows this to just their reports; filtering to specific Salesperson(s) narrows it to just them.</li>
           <li><strong>Target</strong>: each rep is expected to create 10 opportunities a month; a manager's target is 10 &times; their headcount (reps reporting to them, per the roster).</li>
           <li><strong>Current month column</strong>: shows <code>count/target</code> plus a bar filled to <code>min(count &divide; target, 100%)</code>, colored red (&lt;50%), orange (50&#8209;74%), yellow (75&#8209;99%), or green (&ge;100%) &mdash; since the month is still in progress, this reads as "progress so far", not a final score.</li>
           <li><strong>Earlier months</strong>: show the count plus <code>(count &divide; target)</code> as a percentage &mdash; a finished month's actual achievement against the same target. A &#9650; green triangle means that month's count is higher than the month before it; &#9660; red means lower (the very first month shown has no prior month to compare against, so no triangle).</li>
@@ -1519,7 +1519,7 @@
       const f = filterKeyFn ? filterKeyFn(r) : null;
       const filterAttrs = f ? ` data-filter-key="${f.key}" data-filter-value="${f.value}"` : "";
       return `
-        <div class="bar-row${f ? ' bar-row-clickable' : ''}"${filterAttrs} title="${r.name}: ${r.count} deals (${totalPct}% of total)">
+        <div class="bar-row${f ? ' bar-row-clickable' : ''}"${filterAttrs} title="${r.name}: ${r.count} opportunities (${totalPct}% of total)">
           <span class="bar-name">${r.name}</span>
           <div class="bar-track">
             <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:${color};">
@@ -1602,10 +1602,10 @@
 
   function renderStageDurationTable(rows) {
     const container = document.getElementById("table-stage-duration");
-    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open deals.</p>'; return; }
+    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open opportunities.</p>'; return; }
     container.innerHTML = `
       <table class="simple-table">
-        <thead><tr><th>Stage</th><th class="num">Avg days</th><th class="num">Deals</th></tr></thead>
+        <thead><tr><th>Stage</th><th class="num">Avg days</th><th class="num">Opportunities</th></tr></thead>
         <tbody>
           ${rows.map(r => `<tr><td class="name" data-filter-key="stage" data-filter-value="${r.name}">${r.name}</td><td class="num">${r.avg_days}</td><td class="num">${r.count}</td></tr>`).join("")}
         </tbody>
@@ -1628,7 +1628,7 @@
       const barHeight = Math.round((b.count ? Math.sqrt(b.count / maxCount) : 0) * trackHeight);
       const segs = b.stages.map(s => {
         const pct = b.count ? (s.count / b.count) * 100 : 0;
-        return `<div class="forecast-seg" data-stage="${s.name}" style="height:${pct}%; background:${stageColor(s.name)};" data-tip="${label} · ${s.name}: ${s.count} deal(s), ${fmtRupiah(s.revenue)}"></div>`;
+        return `<div class="forecast-seg" data-stage="${s.name}" style="height:${pct}%; background:${stageColor(s.name)};" data-tip="${label} · ${s.name}: ${s.count} opportunity(ies), ${fmtRupiah(s.revenue)}"></div>`;
       }).join("");
       return `
         <div class="forecast-col" data-bucket-key="${b.key}">
@@ -1641,8 +1641,8 @@
         </div>`;
     }).join("");
 
-    const sub = "Open deals by expected close date, broken down by stage. Ideally, deals due soon sit in a late stage (Agreed to Ship / Ready to Ship).";
-    setText("forecast-sub", undatedCount ? `${sub} ${undatedCount} open deal(s) have no expected close date and are excluded.` : sub);
+    const sub = "Open opportunities by expected close date, broken down by stage. Ideally, opportunities due soon sit in a late stage (Agreed to Ship / Ready to Ship).";
+    setText("forecast-sub", undatedCount ? `${sub} ${undatedCount} open opportunity(ies) have no expected close date and are excluded.` : sub);
   }
 
   function targetProgressColor(pct) {
@@ -1725,16 +1725,16 @@
 
     aiSection("ai-overdue-section", "ai-overdue-list", "ai-overdue-sentence", ai.overdue, scopeSize,
       r => aiItemHtml(r, "d"),
-      t => `${t} deal${t === 1 ? "" : "s"} past expected close date and still open.`);
+      t => `${t} opportunit${t === 1 ? "y" : "ies"} past expected close date and still open.`);
     aiSection("ai-stalled-section", "ai-stalled-list", "ai-stalled-sentence", ai.stalled, scopeSize,
       r => aiItemHtml(r, "d"),
-      t => `${t} deal${t === 1 ? "" : "s"} with no stage movement in 30+ days.`);
+      t => `${t} opportunit${t === 1 ? "y" : "ies"} with no stage movement in 30+ days.`);
     aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-sentence", ai.notebook_stale, scopeSize,
       r => aiItemHtml(r, "d"),
-      t => `${t} deal${t === 1 ? "" : "s"} without a Notebook update in 14+ days.`);
+      t => `${t} opportunit${t === 1 ? "y" : "ies"} without a Notebook update in 14+ days.`);
     aiSection("ai-revenue-section", "ai-revenue-list", "ai-revenue-sentence", ai.missing_revenue, scopeSize,
       r => aiItemHtml(r, "d"),
-      t => `${t} deal${t === 1 ? "" : "s"} missing potential or committed revenue.`);
+      t => `${t} opportunit${t === 1 ? "y" : "ies"} missing potential or committed revenue.`);
     aiSection("ai-tasks-section", "ai-tasks-list", "ai-tasks-sentence", ai.tasks_pending, scopeSize,
       aiTaskItemHtml,
       t => `${t} open task${t === 1 ? "" : "s"} awaiting action — overdue or without a recent update.`);
@@ -1880,7 +1880,7 @@
   function renderStageAgeGrid(rows) {
     lastStageGrid = rows;
     const container = document.getElementById("stage-age-grid");
-    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open deals.</p>'; return; }
+    if (!rows.length) { container.innerHTML = '<p style="font-size:12.5px;color:var(--text-muted);">No open opportunities.</p>'; return; }
     const maxTotal = Math.max(...rows.map(r => r.total), 1);
     container.innerHTML = rows.map(row => {
       const segs = row.buckets.map((b, i) => {
@@ -1889,7 +1889,7 @@
         const widthPct = ageMode === "share" ? pctOfStage : pctOfStage * (row.total / maxTotal);
         const label = ageMode === "share" ? `${pctOfStage.toFixed(0)}%` : `${b.count}`;
         const showLabel = widthPct > 8;
-        return `<div class="stage-age-seg" data-stage="${row.stage}" data-bucket="${b.label}" style="width:${widthPct}%; background:${AGE_COLORS[i]};" title="${row.stage} · ${b.label}: ${b.count} deal(s)">${showLabel ? label : ""}</div>`;
+        return `<div class="stage-age-seg" data-stage="${row.stage}" data-bucket="${b.label}" style="width:${widthPct}%; background:${AGE_COLORS[i]};" title="${row.stage} · ${b.label}: ${b.count} opportunity(ies)">${showLabel ? label : ""}</div>`;
       }).join("");
       const trackWidth = ageMode === "share" ? "100%" : `${(row.total / maxTotal) * 100}%`;
       return `
@@ -1950,8 +1950,8 @@
     setText("pct-active", d.total ? `${((d.open_active / d.total) * 100).toFixed(1)}% of total` : "–");
     setText("pct-closed", d.total ? `${((closedParkedCount / d.total) * 100).toFixed(1)}% of total` : "–");
 
-    setText("product-empty-note", `${d.product_lines.length} product line(s) with matching deals.`);
-    setText("service-blank-note", `Blank on ${d.service_blank} deal(s)${d.open_pipeline ? ` (${((d.service_blank / d.open_pipeline) * 100).toFixed(1)}%)` : ""}.`);
+    setText("product-empty-note", `${d.product_lines.length} product line(s) with matching opportunities.`);
+    setText("service-blank-note", `Blank on ${d.service_blank} opportunity(ies)${d.open_pipeline ? ` (${((d.service_blank / d.open_pipeline) * 100).toFixed(1)}%)` : ""}.`);
 
     setText("crm-updated-pct", `${d.crm_updated_pct}%`);
     setText("crm-updated-sub", `${d.crm_updated_numerator} of ${d.crm_updated_denominator} combined`);
@@ -1969,8 +1969,8 @@
 
     renderStageDurationTable(d.stage_duration);
     setText("lead-time-line", d.lead_time_to_won_avg_days != null
-      ? `${d.lead_time_to_won_avg_days} days on average, creation → Closed-Won (${d.lead_time_to_won_count} deal(s)).`
-      : "No Closed-Won deals in range.");
+      ? `${d.lead_time_to_won_avg_days} days on average, creation → Closed-Won (${d.lead_time_to_won_count} opportunity(ies)).`
+      : "No Closed-Won opportunities in range.");
     renderAgeLegend(d.aging_buckets.map(b => b.label));
     renderStageAgeGrid(d.stage_duration_grid);
     renderForecast(d.forecast, d.forecast_undated_count);
