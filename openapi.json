@@ -628,7 +628,31 @@
                           "notebook_last_touch": { "type": "string", "nullable": true },
                           "notebook_days_since_touch": { "type": "integer", "nullable": true },
                           "notebook_freshness": { "type": "string", "nullable": true, "description": "< 7d | 7-14d | 14-30d | 30d+, same buckets as the Activity panel." },
-                          "notebook_content": { "type": "string", "nullable": true, "description": "AI summary of the most recent Notebook entry. Only populated when the CRM API key's user wrote it or is an admin — otherwise null even if a note exists." }
+                          "notebook_content": { "type": "string", "nullable": true, "description": "AI summary of the most recent Notebook entry. Only populated when the CRM API key's user wrote it or is an admin — otherwise null even if a note exists." },
+                          "open_task_count": { "type": "integer", "description": "Open Tasks (Not Started / In Progress) linked to this Opportunity." },
+                          "task_not_updated_count": { "type": "integer", "description": "Of open_task_count, how many aren't Active by the Activity panel's Task rule (touched within 7 days AND not overdue)." }
+                        }
+                      }
+                    },
+                    "task_total": { "type": "integer" },
+                    "tasks": {
+                      "type": "array",
+                      "description": "Every open Task (Not Started / In Progress, related_object_type=Opportunity) whose Opportunity matched the row population above — Task List section of the Opportunity List tab. Worst first: inactive tasks before active, then by days_since_update descending.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer" },
+                          "subject": { "type": "string" },
+                          "status": { "type": "string", "description": "Not Started | In Progress." },
+                          "owner_name": { "type": "string", "nullable": true },
+                          "due_date": { "type": "string", "nullable": true },
+                          "days_since_update": { "type": "integer", "nullable": true, "description": "Days since updated_at, falling back to created_at." },
+                          "active": { "type": "boolean", "description": "Touched within 7 days AND not overdue — same rule as the Activity panel's Task side." },
+                          "opportunity_id": { "type": "integer" },
+                          "opportunity_name": { "type": "string", "nullable": true },
+                          "opportunity_crm_url": { "type": "string" },
+                          "opportunity_stage": { "type": "string" },
+                          "opportunity_owner_name": { "type": "string", "nullable": true }
                         }
                       }
                     }

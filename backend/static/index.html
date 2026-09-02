@@ -530,6 +530,7 @@
     margin: 0 0 4px;
   }
   .section-label-row .section-label { margin: 0; }
+  #action-items-panel .section-label { font-size: 15px; letter-spacing: 0.02em; color: var(--text-primary); }
   .section-pct {
     font-family: "IBM Plex Mono", monospace;
     font-size: 12px;
@@ -1238,6 +1239,22 @@
     </div>
 
     <div id="opplist-sections"></div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Task List <span id="opplist-tasklist-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+      <p class="panel-sub" style="margin-bottom:16px;">Open Tasks linked to the opportunities shown above.</p>
+      <div style="overflow-x:auto;">
+        <table class="simple-table opplist-table" id="opplist-tasklist-table">
+          <thead><tr id="opplist-tasklist-thead"></tr></thead>
+          <tbody id="opplist-tasklist-tbody"></tbody>
+        </table>
+      </div>
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px;">
+        <button type="button" class="filter-btn" id="opplist-tasklist-prev">&larr; Prev</button>
+        <span id="opplist-tasklist-page-info" style="font-size:12.5px; color:var(--text-muted);"></span>
+        <button type="button" class="filter-btn" id="opplist-tasklist-next">Next &rarr;</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1258,7 +1275,9 @@
           <li><strong>Overdue</strong>: the opportunity is still open and <code>expected_close_date</code> has already passed.</li>
           <li><strong>Notebook Last Touch</strong>: days since the most recent Notebook entry (falling back to <code>created_at</code> if the opportunity has no Notebook entry at all) &mdash; same last&#8209;entry lookup as the Activity panel, computed here for every row (not just open opportunities).</li>
           <li><strong>Notebook Content</strong>: the AI&#8209;generated summary of the most recent Notebook entry. The CRM only returns this text to the entry's own creator or an admin &mdash; for any other entry it comes back blank even though a note exists, because the API key this app runs under isn't that entry's creator.</li>
+          <li><strong>#Open Task</strong>: open Tasks (Not Started / In Progress, linked to this Opportunity) &mdash; only Tasks whose <code>related_object_type</code> is Opportunity are fetched at all, so a Task against a Lead/Account/Contact never appears anywhere in this app. <strong>#Task Not Updated</strong>: of those, how many aren't Active by the same rule the Activity panel's Task side uses (touched within 7 days AND not overdue).</li>
           <li>Click a column header to sort by it (click again to reverse); click an Opportunity Name to open that record directly in the CRM.</li>
+          <li><strong>Task List</strong> (bottom of the page): every open Task belonging to whichever Opportunities are currently shown above (search box and any chart&#8209;driven filter both apply, via the Opportunity each Task is linked to &mdash; Tasks aren't re&#8209;filtered on their own fields). Sorted worst&#8209;first: Not Updated tasks before Active ones, then by days since last update. The Opportunity column links straight to the CRM record and shows its current Stage.</li>
         </ul>
       </div>
     </div>
@@ -2052,6 +2071,8 @@
     { key: "committed_revenue_mth", label: "Committed Rev / Mth", num: true },
     { key: "notebook_last_touch", label: "Notebook Last Touch", num: true },
     { key: "notebook_content", label: "Notebook Content", sortable: false },
+    { key: "open_task_count", label: "#Open Task", num: true },
+    { key: "task_not_updated_count", label: "#Task Not Updated", num: true },
   ];
   const OPP_PAGE_SIZE = 25;
   const OPP_SECTIONS = [
@@ -2061,12 +2082,24 @@
     { id: "closed_lost", title: "Closed–Lost" },
   ];
   let oppAllRows = [];
+  let oppAllTasks = [];
   let oppSearch = "";
   let oppLoaded = false;
   let oppStructFilter = null;
   let oppStructFilterLabel = "";
   const oppSectionState = {};
   OPP_SECTIONS.forEach(s => { oppSectionState[s.id] = { sortKey: "aging_days", sortDir: "desc", page: 1 }; });
+
+  const TASK_COLUMNS = [
+    { key: "subject", label: "Task" },
+    { key: "status", label: "Status" },
+    { key: "owner_name", label: "Owner" },
+    { key: "due_date", label: "Due Date" },
+    { key: "days_since_update", label: "Days Since Update", num: true },
+    { key: "active", label: "Active" },
+    { key: "opportunity_name", label: "Opportunity", sortable: false },
+  ];
+  const taskListState = { sortKey: "days_since_update", sortDir: "desc", page: 1 };
 
   function oppProductLabel(row) {
     const parts = [row.nv_product_line, ...(row.service_level || [])].filter(Boolean);
@@ -2131,6 +2164,10 @@
       }
       case "overdue":
         return v ? '<span class="opplist-badge">Overdue</span>' : "&ndash;";
+      case "task_not_updated_count":
+        return v ? `<span style="color:var(--status-critical); font-weight:600;">${v}</span>` : "0";
+      case "open_task_count":
+        return v ?? 0;
       case "total_potential_revenue_mth":
       case "committed_revenue_mth":
         return fmtRupiah(v || 0);
@@ -2160,8 +2197,10 @@
       })
       .then(data => {
         oppAllRows = data.rows || [];
+        oppAllTasks = data.tasks || [];
         oppLoaded = true;
         OPP_SECTIONS.forEach(s => { oppSectionState[s.id].page = 1; });
+        taskListState.page = 1;
         renderOpportunityList();
       })
       .catch(err => {
@@ -2224,6 +2263,82 @@
     });
     document.getElementById(`opplist-prev-${sectionId}`).addEventListener("click", () => { state.page -= 1; renderOpportunityList(); });
     document.getElementById(`opplist-next-${sectionId}`).addEventListener("click", () => { state.page += 1; renderOpportunityList(); });
+  }
+
+  function taskCellHtml(row, key) {
+    const v = row[key];
+    switch (key) {
+      case "subject":
+        return v || "(no subject)";
+      case "due_date":
+        return fmtDate(v);
+      case "days_since_update":
+        return v == null ? "&ndash;" : `${v}d`;
+      case "active":
+        return v
+          ? `<span class="opp-pill" style="background:color-mix(in srgb, var(--status-good) 18%, var(--surface-1)); color:var(--status-good);">Active</span>`
+          : `<span class="opplist-badge">Not Updated</span>`;
+      case "opportunity_name": {
+        const nameHtml = row.opportunity_crm_url
+          ? `<a class="opp-link" href="${row.opportunity_crm_url}" target="_blank" rel="noopener">${v || "(untitled)"}</a>`
+          : (v || "&ndash;");
+        const stage = row.opportunity_stage;
+        const stagePill = stage
+          ? `<span class="opp-pill" style="background:color-mix(in srgb, ${stageColor(stage)} 18%, var(--surface-1)); color:${stageColor(stage)}; margin-left:6px;">${stage}</span>`
+          : "";
+        return `${nameHtml}${stagePill}`;
+      }
+      default:
+        return v == null || v === "" ? "&ndash;" : v;
+    }
+  }
+
+  function renderTaskList() {
+    const filteredOppIds = new Set(getFilteredOppRows().map(r => r.id));
+    const rows = oppAllTasks.filter(t => filteredOppIds.has(t.opportunity_id));
+
+    const sorted = rows.slice().sort((a, b) => {
+      const av = a[taskListState.sortKey];
+      const bv = b[taskListState.sortKey];
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return taskListState.sortDir === "asc" ? cmp : -cmp;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(sorted.length / OPP_PAGE_SIZE));
+    taskListState.page = Math.min(taskListState.page, totalPages);
+    const start = (taskListState.page - 1) * OPP_PAGE_SIZE;
+    const pageRows = sorted.slice(start, start + OPP_PAGE_SIZE);
+
+    document.getElementById("opplist-tasklist-count").textContent = `(${sorted.length})`;
+    document.getElementById("opplist-tasklist-page-info").textContent = sorted.length
+      ? `Page ${taskListState.page} of ${totalPages} (${start + 1}–${Math.min(start + OPP_PAGE_SIZE, sorted.length)})`
+      : "No results";
+    document.getElementById("opplist-tasklist-prev").disabled = taskListState.page <= 1;
+    document.getElementById("opplist-tasklist-next").disabled = taskListState.page >= totalPages;
+
+    document.getElementById("opplist-tasklist-thead").innerHTML = TASK_COLUMNS.map(col => {
+      const sortable = col.sortable !== false;
+      const arrow = sortable && taskListState.sortKey === col.key ? `<span class="sort-arrow">${taskListState.sortDir === "asc" ? "▲" : "▼"}</span>` : "";
+      return `<th data-key="${col.key}" data-sortable="${sortable}">${col.label}${arrow}</th>`;
+    }).join("");
+
+    document.getElementById("opplist-tasklist-tbody").innerHTML = pageRows.length
+      ? pageRows.map(row => `<tr>${TASK_COLUMNS.map(col => `<td>${taskCellHtml(row, col.key)}</td>`).join("")}</tr>`).join("")
+      : `<tr><td colspan="${TASK_COLUMNS.length}" style="color:var(--text-muted); padding:12px 0;">No matching tasks.</td></tr>`;
+
+    document.querySelectorAll("#opplist-tasklist-thead th[data-sortable=true]").forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.key;
+        if (taskListState.sortKey === key) taskListState.sortDir = taskListState.sortDir === "asc" ? "desc" : "asc";
+        else { taskListState.sortKey = key; taskListState.sortDir = "asc"; }
+        renderTaskList();
+      });
+    });
+    document.getElementById("opplist-tasklist-prev").addEventListener("click", () => { taskListState.page -= 1; renderTaskList(); });
+    document.getElementById("opplist-tasklist-next").addEventListener("click", () => { taskListState.page += 1; renderTaskList(); });
   }
 
   const AGE_BUCKET_RANGES = { "0-7d": [0, 7], "7-15d": [8, 15], "15-30d": [16, 30], "30d+": [31, null] };
@@ -2296,12 +2411,16 @@
     renderOpportunityList();
   });
 
-  function renderOpportunityList() {
+  function getFilteredOppRows() {
     const q = oppSearch.trim().toLowerCase();
-    const filtered = oppAllRows.filter(r =>
+    return oppAllRows.filter(r =>
       oppRowMatchesStructFilter(r, oppStructFilter) &&
       (!q || ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q)))
     );
+  }
+
+  function renderOpportunityList() {
+    const filtered = getFilteredOppRows();
 
     const filterRow = document.getElementById("opplist-chart-filter-row");
     if (oppStructFilter) {
@@ -2332,6 +2451,8 @@
     OPP_SECTIONS.forEach(sec => {
       renderOppSection(sec.id, filtered.filter(r => r.stage_group === sec.id));
     });
+
+    renderTaskList();
   }
 
   document.getElementById("opplist-search").addEventListener("input", e => {

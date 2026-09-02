@@ -291,7 +291,9 @@ async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, dict
 
 
 async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
-    """Not Started / In Progress Tasks owned by our Indonesia reps."""
+    """Not Started / In Progress Tasks owned by our Indonesia reps, linked to
+    an Opportunity record (Tasks against a Lead/Account/Contact aren't
+    joinable to the Opportunity List, so they're excluded at the source)."""
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
@@ -303,6 +305,7 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
         "conditions": [
             {"field": "owner_id", "operator": "in", "value": TASK_OWNER_IDS},
             {"field": "status", "operator": "in", "value": TASK_OPEN_STATUSES},
+            {"field": "related_object_type", "operator": "eq", "value": "Opportunity"},
         ],
     }
     return await _fetch_paginated(
@@ -479,7 +482,19 @@ def _scoped_roster_names(owners: list[str] | None, managers: list[str] | None) -
     return scope
 
 
-def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, dict]) -> list[dict]:
+def _task_is_active(t: dict, now: datetime, today) -> bool:
+    """Same rule the Activity panel's Task side and Action Items' Tasks
+    Awaiting Action use: touched within 7 days AND not overdue."""
+    last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
+    due = _parse_dt(t.get("due_date"))
+    recent = bool(last_activity) and (now - last_activity).days <= 7
+    not_overdue = due is None or due.date() >= today
+    return recent and not_overdue
+
+
+def _build_opportunity_rows(
+    items: list[dict], notebook_last_touch: dict[int, dict], tasks: list[dict] | None = None
+) -> list[dict]:
     """One row per matched Opportunity for the Opportunity List tab — a flat
     detail view alongside the aggregated numbers build_dashboard() produces."""
     now = datetime.now(timezone.utc)
@@ -488,6 +503,15 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
     lost_norm = _normalize_stage("Closed–Lost")
     future_norm = _normalize_stage("Future Opportunity")
     closed_stage_names = {won_norm, lost_norm}
+
+    # Tasks are already Opportunity-only (fetch_open_tasks filters at the
+    # source), so related_record_id maps 1:1 to an Opportunity id.
+    tasks_by_opp: dict[int, list[dict]] = {}
+    for t in tasks or []:
+        opp_id = t.get("related_record_id")
+        if opp_id is not None:
+            tasks_by_opp.setdefault(opp_id, []).append(t)
+
     rows = []
     for r in items:
         rid = r.get("id")
@@ -512,6 +536,7 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
         nb_effective = nb_touch or created
         nb_days = (now - nb_effective).days if nb_effective else None
         nb_label = _activity_bucket_for(nb_days)[0] if nb_days is not None else None
+        opp_tasks = tasks_by_opp.get(rid, [])
         rows.append({
             "id": rid,
             "name": r.get("name"),
@@ -536,7 +561,40 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
             "notebook_days_since_touch": nb_days,
             "notebook_freshness": nb_label,
             "notebook_content": nb_entry.get("content") if nb_entry else None,
+            "open_task_count": len(opp_tasks),
+            "task_not_updated_count": sum(1 for t in opp_tasks if not _task_is_active(t, now, today)),
         })
+    return rows
+
+
+def _build_task_rows(tasks: list[dict], opp_by_id: dict[int, dict]) -> list[dict]:
+    """Every open Task joined to the Opportunity row it belongs to, for the
+    Opportunity List's Task List section — tasks whose Opportunity didn't
+    match the current filters are dropped here, not re-filtered on their
+    own fields."""
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    rows = []
+    for t in tasks:
+        opp = opp_by_id.get(t.get("related_record_id"))
+        if not opp:
+            continue
+        last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
+        rows.append({
+            "id": t.get("id"),
+            "subject": t.get("subject") or "(no subject)",
+            "status": t.get("status"),
+            "owner_name": t.get("owner_name"),
+            "due_date": t.get("due_date"),
+            "days_since_update": (now - last_activity).days if last_activity else None,
+            "active": _task_is_active(t, now, today),
+            "opportunity_id": opp["id"],
+            "opportunity_name": opp["name"],
+            "opportunity_crm_url": opp["crm_url"],
+            "opportunity_stage": opp["stage"],
+            "opportunity_owner_name": opp["owner_name"],
+        })
+    rows.sort(key=lambda x: (x["active"], -(x["days_since_update"] or 0)))
     return rows
 
 
@@ -581,12 +639,9 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
     # uses — touched within 7 days AND not overdue.
     pending_tasks = []
     for t in tasks:
-        last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
-        due = _parse_dt(t.get("due_date"))
-        recent = bool(last_activity) and (now - last_activity).days <= 7
-        not_overdue = due is None or due.date() >= today
-        if recent and not_overdue:
+        if _task_is_active(t, now, today):
             continue
+        last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
         related_id = t.get("related_record_id")
         pending_tasks.append({
             "id": t.get("id"),
@@ -1180,7 +1235,7 @@ def build_dashboard(
         "crm_updated_denominator": crm_updated_denominator,
         "crm_updated_by_owner": crm_updated_by_owner,
         "action_items": (
-            _build_action_items(_build_opportunity_rows(items, notebook_last_touch), tasks, roster_scope)
+            _build_action_items(_build_opportunity_rows(items, notebook_last_touch, tasks), tasks, roster_scope)
             if include_action_items else None
         ),
     }
@@ -1295,10 +1350,21 @@ async def get_opportunities(
 
     viewer_name, allowed_owners, effective_owners = _effective_owners(request, owners)
     filtered_items = _apply_filters(_cache["items"], effective_owners, managers, product_lines, service_levels)
-    rows = _build_opportunity_rows(filtered_items, _cache["notebook_last_touch"])
+    all_tasks = _cache["tasks"] or []
+    rows = _build_opportunity_rows(filtered_items, _cache["notebook_last_touch"], all_tasks)
+
+    # Task List: every open Task joined to its Opportunity row — scoped by
+    # which opportunities matched above (Salesperson/Manager/Product
+    # Line/Service Level all apply transitively through the join), not by
+    # re-filtering Tasks on their own.
+    opp_by_id = {row["id"]: row for row in rows}
+    task_rows = _build_task_rows(all_tasks, opp_by_id)
+
     return {
         "rows": rows,
         "total": len(rows),
+        "tasks": task_rows,
+        "task_total": len(task_rows),
         "snapshot_at": _cache["snapshot_at"],
         "viewer_name": viewer_name,
         "viewer_scoped": allowed_owners is not None,
