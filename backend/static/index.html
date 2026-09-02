@@ -2220,6 +2220,7 @@
     document.getElementById("view-overview").style.display = "none";
     document.getElementById("view-opplist").style.display = "";
     document.getElementById("view-dictionary").style.display = "none";
+    window.scrollTo(0, 0);
   }
 
   function applyOppChartFilter(filter, label) {
@@ -2320,6 +2321,7 @@
       document.getElementById("view-opplist").style.display = btn.dataset.view === "opplist" ? "" : "none";
       document.getElementById("view-dictionary").style.display = btn.dataset.view === "dictionary" ? "" : "none";
       if (btn.dataset.view === "opplist") loadOpportunities();
+      window.scrollTo(0, 0);
     });
   });
 
