@@ -1557,7 +1557,7 @@
       const f = filterKeyFn ? filterKeyFn(r) : null;
       const filterAttrs = f ? ` data-filter-key="${f.key}" data-filter-value="${f.value}"` : "";
       return `
-        <div class="bar-row${f ? ' bar-row-clickable' : ''}"${filterAttrs} title="${r.name}: ${r.count} deals (${totalPct}% of total)${f ? ' — click to filter Opportunity List' : ''}">
+        <div class="bar-row${f ? ' bar-row-clickable' : ''}"${filterAttrs} title="${r.name}: ${r.count} deals (${totalPct}% of total)">
           <span class="bar-name">${r.name}</span>
           <div class="bar-track">
             <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:${color};">
@@ -1582,7 +1582,7 @@
       const segs = (r.buckets || []).map((b, bi) => {
         if (!b.count) return "";
         const segPct = r.count ? (b.count / r.count) * 100 : 0;
-        return `<div class="owner-age-seg" data-owner="${r.name}" data-bucket="${b.label}" style="width:${segPct}%; height:100%; background:${AGE_COLORS[bi]};" data-tip="${r.name} &middot; ${b.label}: ${b.count} deal(s) &mdash; click to filter Opportunity List"></div>`;
+        return `<div class="owner-age-seg" data-owner="${r.name}" data-bucket="${b.label}" style="width:${segPct}%; height:100%; background:${AGE_COLORS[bi]};" data-tip="${r.name} &middot; ${b.label}: ${b.count} deal(s)"></div>`;
       }).join("");
       return `
         <div class="bar-row wide-name" title="${r.name}: ${r.count} deals (${pct}% of total)">
@@ -1641,7 +1641,7 @@
         path.style.cursor = "pointer";
       }
       const t = document.createElementNS(ns, "title");
-      t.textContent = `${seg.name}: ${seg.count} (${((seg.count/compTotal)*100).toFixed(1)}%)${seg.stageGroup ? " — click to filter Opportunity List" : ""}`;
+      t.textContent = `${seg.name}: ${seg.count} (${((seg.count/compTotal)*100).toFixed(1)}%)`;
       path.appendChild(t);
       svg.appendChild(path);
       angle += sweep + gapDeg;
@@ -1697,7 +1697,7 @@
       const barHeight = Math.round((b.count ? Math.sqrt(b.count / maxCount) : 0) * trackHeight);
       const segs = b.stages.map(s => {
         const pct = b.count ? (s.count / b.count) * 100 : 0;
-        return `<div class="forecast-seg" data-stage="${s.name}" style="height:${pct}%; background:${stageColor(s.name)};" data-tip="${label} · ${s.name}: ${s.count} deal(s), ${fmtRupiah(s.revenue)} — click to filter Opportunity List"></div>`;
+        return `<div class="forecast-seg" data-stage="${s.name}" style="height:${pct}%; background:${stageColor(s.name)};" data-tip="${label} · ${s.name}: ${s.count} deal(s), ${fmtRupiah(s.revenue)}"></div>`;
       }).join("");
       return `
         <div class="forecast-col" data-bucket-key="${b.key}">
@@ -1908,15 +1908,15 @@
             const crmCell = `<td class="num" style="color:${activityPctColor(crm.pct)}; font-weight:700;">${crm.pct}%</td>`;
             const activityCells = activity
               ? `<td class="num" style="color:${activityPctColor(activity.touched_pct)}; font-weight:600;">${activity.touched_pct}%</td>
-                 ${shownBuckets.map(l => `<td class="num activity-bucket-cell" data-owner="${name}" data-bucket="${l}" data-tip="${name} · Notebook stale ${l} — click to filter Opportunity List">${activity.counts[l] ?? 0}</td>`).join("")}
-                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}" data-tip="${name} — click to filter Opportunity List"><b>${activity.total}</b></td>`
+                 ${shownBuckets.map(l => `<td class="num activity-bucket-cell" data-owner="${name}" data-bucket="${l}" data-tip="${name} · Notebook stale ${l}">${activity.counts[l] ?? 0}</td>`).join("")}
+                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}"><b>${activity.total}</b></td>`
               : `<td class="num" style="color:var(--text-muted);">&ndash;</td>
                  ${shownBuckets.map(() => `<td class="num">&ndash;</td>`).join("")}
                  <td class="num">&ndash;</td>`;
             const taskCells = t
               ? `<td class="num" style="color:${activityPctColor(t.active_pct)}; font-weight:600;">${t.active_pct}%</td>
-                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}" data-tip="${name} — click to filter Opportunity List">${t.active}</td>
-                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}" data-tip="${name} — click to filter Opportunity List"><b>${t.total}</b></td>`
+                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}">${t.active}</td>
+                 <td class="num" data-filter-key="owner_name" data-filter-value="${name}"><b>${t.total}</b></td>`
               : `<td class="num" style="color:var(--text-muted);">&ndash;</td><td class="num">&ndash;</td><td class="num">&ndash;</td>`;
             return `<tr><td class="name" data-filter-key="owner_name" data-filter-value="${name}">${name}</td>${crmCell}${activityCells}${taskCells}</tr>`;
           }).join("")}
@@ -1955,7 +1955,7 @@
         const widthPct = ageMode === "share" ? pctOfStage : pctOfStage * (row.total / maxTotal);
         const label = ageMode === "share" ? `${pctOfStage.toFixed(0)}%` : `${b.count}`;
         const showLabel = widthPct > 8;
-        return `<div class="stage-age-seg" data-stage="${row.stage}" data-bucket="${b.label}" style="width:${widthPct}%; background:${AGE_COLORS[i]};" title="${row.stage} · ${b.label}: ${b.count} deal(s) — click to filter Opportunity List">${showLabel ? label : ""}</div>`;
+        return `<div class="stage-age-seg" data-stage="${row.stage}" data-bucket="${b.label}" style="width:${widthPct}%; background:${AGE_COLORS[i]};" title="${row.stage} · ${b.label}: ${b.count} deal(s)">${showLabel ? label : ""}</div>`;
       }).join("");
       const trackWidth = ageMode === "share" ? "100%" : `${(row.total / maxTotal) * 100}%`;
       return `
