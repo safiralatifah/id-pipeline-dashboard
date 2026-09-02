@@ -130,7 +130,10 @@
     min-height: 100%;
     flex: 1;
     min-width: 0;
+    margin-left: 190px;
+    transition: margin-left 0.15s ease;
   }
+  .sidebar.collapsed ~ .viz-root { margin-left: 56px; }
 
   .sidebar {
     flex: none;
@@ -140,6 +143,12 @@
     padding: 20px 12px;
     box-sizing: border-box;
     transition: width 0.15s ease;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    overflow-y: auto;
+    z-index: 20;
   }
   .sidebar-head {
     display: flex;
@@ -201,11 +210,16 @@
 
   @media (max-width: 700px) {
     .app-shell { flex-direction: column; }
-    .sidebar, .sidebar.collapsed { width: 100%; border-right: none; border-bottom: 1px solid var(--border); display: flex; gap: 6px; padding: 12px; overflow-x: auto; }
+    .sidebar, .sidebar.collapsed {
+      width: 100%; border-right: none; border-bottom: 1px solid var(--border);
+      display: flex; gap: 6px; padding: 12px; overflow-x: auto; overflow-y: visible;
+      position: static; height: auto;
+    }
     .sidebar-head { display: none; }
     .nav-item { width: auto; white-space: nowrap; margin-bottom: 0; }
     .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 9px 10px; }
     .sidebar.collapsed .nav-item span { display: inline; }
+    .viz-root, .sidebar.collapsed ~ .viz-root { margin-left: 0; }
   }
   .viz-root * { box-sizing: border-box; }
   .wrap { max-width: 1180px; margin: 0 auto; }
@@ -344,6 +358,18 @@
     box-sizing: border-box;
     margin-bottom: 6px;
   }
+  .filter-actions { display: flex; gap: 10px; padding: 0 6px 6px; }
+  .filter-action-btn {
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--accent);
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+  }
+  .filter-action-btn:hover { text-decoration: underline; }
   .filter-options { overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
   .filter-options label {
     display: flex;
@@ -960,6 +986,10 @@
         <button type="button" class="filter-btn">Salesperson<span class="filter-count" id="filter-count-owners" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
         <div class="filter-panel" id="filter-panel-owners">
           <input type="text" class="filter-search" placeholder="Search salesperson…">
+          <div class="filter-actions">
+            <button type="button" class="filter-action-btn" data-action="all">Select all</button>
+            <button type="button" class="filter-action-btn" data-action="clear">Clear</button>
+          </div>
           <div class="filter-options" id="filter-options-owners"></div>
         </div>
       </div>
@@ -967,18 +997,30 @@
         <button type="button" class="filter-btn">Manager<span class="filter-count" id="filter-count-managers" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
         <div class="filter-panel" id="filter-panel-managers">
           <input type="text" class="filter-search" placeholder="Search manager…">
+          <div class="filter-actions">
+            <button type="button" class="filter-action-btn" data-action="all">Select all</button>
+            <button type="button" class="filter-action-btn" data-action="clear">Clear</button>
+          </div>
           <div class="filter-options" id="filter-options-managers"></div>
         </div>
       </div>
       <div class="filter-dropdown" data-key="product_lines">
         <button type="button" class="filter-btn">NV Product Line<span class="filter-count" id="filter-count-product_lines" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
         <div class="filter-panel" id="filter-panel-product_lines">
+          <div class="filter-actions">
+            <button type="button" class="filter-action-btn" data-action="all">Select all</button>
+            <button type="button" class="filter-action-btn" data-action="clear">Clear</button>
+          </div>
           <div class="filter-options" id="filter-options-product_lines"></div>
         </div>
       </div>
       <div class="filter-dropdown" data-key="service_levels">
         <button type="button" class="filter-btn">Service Level<span class="filter-count" id="filter-count-service_levels" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
         <div class="filter-panel" id="filter-panel-service_levels">
+          <div class="filter-actions">
+            <button type="button" class="filter-action-btn" data-action="all">Select all</button>
+            <button type="button" class="filter-action-btn" data-action="clear">Clear</button>
+          </div>
           <div class="filter-options" id="filter-options-service_levels"></div>
         </div>
       </div>
@@ -1389,7 +1431,28 @@
     return s ? `?${s}` : "";
   }
 
+  function pruneInvalidSelections(options) {
+    // Salesperson and Manager narrow each other server-side — if a
+    // previously-checked value falls out of the newly-narrowed options
+    // (e.g. Manager changed to someone whose team doesn't include the
+    // Salesperson already selected), drop it rather than leave a silent,
+    // contradictory filter combo in place.
+    let changed = false;
+    ["owners", "managers"].forEach(key => {
+      const valid = new Set(options[key] || []);
+      const before = activeFilters[key].length;
+      activeFilters[key] = activeFilters[key].filter(v => valid.has(v));
+      if (activeFilters[key].length !== before) changed = true;
+    });
+    return changed;
+  }
+
   function renderFilterOptions(options) {
+    if (pruneInvalidSelections(options)) {
+      updateFilterUi();
+      load();
+      refreshOpplistIfActive();
+    }
     FILTER_KEYS.forEach(key => {
       const container = document.getElementById(`filter-options-${key}`);
       const values = options[key] || [];
@@ -1449,6 +1512,23 @@
           });
         });
       }
+      const key = dropdown.dataset.key;
+      dropdown.querySelectorAll(".filter-action-btn").forEach(actionBtn => {
+        actionBtn.addEventListener("click", () => {
+          if (actionBtn.dataset.action === "clear") {
+            activeFilters[key] = [];
+          } else {
+            activeFilters[key] = Array.from(dropdown.querySelectorAll(".filter-options label"))
+              .filter(label => label.style.display !== "none")
+              .map(label => label.dataset.value);
+          }
+          updateFilterUi();
+          renderFilterOptions(window.__filterOptions || {});
+          if (search && search.value) search.dispatchEvent(new Event("input"));
+          load();
+          refreshOpplistIfActive();
+        });
+      });
     });
     document.addEventListener("click", e => {
       if (e.target.closest(".filter-dropdown")) return;

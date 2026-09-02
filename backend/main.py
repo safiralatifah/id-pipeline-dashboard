@@ -308,15 +308,35 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
     )
 
 
-def _filter_options(items: list[dict], allowed_owners: set[str] | None = None) -> dict:
+UNMAPPED_MANAGER_LABEL = "Unmapped"
+
+
+def _owner_manager(owner: str) -> str:
+    """The manager filter value for an owner — their real manager, or the
+    synthetic "Unmapped" bucket for an owner with no team_roster entry (or
+    a roster entry with no manager field, e.g. a Sales Head)."""
+    return (TEAM_ROSTER.get(owner) or {}).get("manager") or UNMAPPED_MANAGER_LABEL
+
+
+def _filter_options(
+    items: list[dict],
+    allowed_owners: set[str] | None = None,
+    selected_owners: list[str] | None = None,
+    selected_managers: list[str] | None = None,
+) -> dict:
     """Dropdown choices for the top filter bar — computed from the full
     population (not the request's own filter selections) so picking one
-    filter doesn't shrink the other dropdowns' own options. When the viewer
-    is identity-scoped (allowed_owners), the lists are narrowed to their
+    filter doesn't shrink the other dropdowns' own options, with one
+    deliberate exception: Salesperson and Manager narrow each other
+    (selecting a Manager narrows which Salespeople are offered, and
+    selecting Salespeople narrows which Managers are offered), since that's
+    the one pairing users expect to be dependent. When the viewer is
+    identity-scoped (allowed_owners), the lists are narrowed to their
     permitted names/managers so the UI never offers a name they can't
     actually select."""
     owners_pool = {r.get("owner_name") for r in items if r.get("owner_name")}
     managers_pool = {v["manager"] for v in TEAM_ROSTER.values() if v.get("manager")}
+    has_unmapped = any(_owner_manager(o) == UNMAPPED_MANAGER_LABEL for o in owners_pool)
     if allowed_owners is not None:
         owners_pool &= allowed_owners
         managers_pool = {
@@ -324,9 +344,23 @@ def _filter_options(items: list[dict], allowed_owners: set[str] | None = None) -
             for name in allowed_owners
             if TEAM_ROSTER.get(name) and TEAM_ROSTER[name].get("manager")
         }
+        has_unmapped = any(_owner_manager(o) == UNMAPPED_MANAGER_LABEL for o in owners_pool)
+    if has_unmapped:
+        managers_pool.add(UNMAPPED_MANAGER_LABEL)
+
+    result_owners = owners_pool
+    if selected_managers:
+        managers_set = set(selected_managers)
+        result_owners = {o for o in owners_pool if _owner_manager(o) in managers_set}
+
+    result_managers = managers_pool
+    if selected_owners:
+        owners_set = set(selected_owners)
+        result_managers = {_owner_manager(o) for o in owners_pool if o in owners_set}
+
     return {
-        "owners": sorted(owners_pool),
-        "managers": sorted(managers_pool),
+        "owners": sorted(result_owners),
+        "managers": sorted(result_managers),
         "product_lines": list(PRODUCT_LINE_ORDER),
         "service_levels": list(SERVICE_LEVEL_VALUES),
     }
@@ -350,7 +384,7 @@ def _apply_filters(
         owner = r.get("owner_name") or ""
         if owners_set is not None and owner not in owners_set:
             return False
-        if managers_set is not None and (TEAM_ROSTER.get(owner) or {}).get("manager") not in managers_set:
+        if managers_set is not None and _owner_manager(owner) not in managers_set:
             return False
         if product_lines_set is not None and r.get("nv_product_line") not in product_lines_set:
             return False
@@ -375,7 +409,7 @@ def _apply_task_filters(
         owner = t.get("owner_name") or ""
         if owners_set is not None and owner not in owners_set:
             return False
-        if managers_set is not None and (TEAM_ROSTER.get(owner) or {}).get("manager") not in managers_set:
+        if managers_set is not None and _owner_manager(owner) not in managers_set:
             return False
         return True
 
@@ -436,7 +470,7 @@ def _scoped_roster_names(owners: list[str] | None, managers: list[str] | None) -
         scope &= set(owners)
     if managers:
         managers_set = set(managers)
-        scope &= {name for name, v in TEAM_ROSTER.items() if v.get("manager") in managers_set}
+        scope &= {name for name in TEAM_ROSTER if _owner_manager(name) in managers_set}
     return scope
 
 
@@ -464,7 +498,7 @@ def _build_opportunity_rows(items: list[dict], notebook_last_touch: dict[int, di
         else:
             stage_group = "open"
         owner = r.get("owner_name") or ""
-        manager = (TEAM_ROSTER.get(owner) or {}).get("manager")
+        manager = _owner_manager(owner) if owner else None
         created = _parse_dt(r.get("created_at"))
         changed = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("updated_at"))
         close_date = _parse_dt(r.get("expected_close_date"))
@@ -911,7 +945,7 @@ def build_dashboard(
         month_key = created.strftime("%Y-%m")
         owner = r.get("owner_name") or ""
         roster_entry = TEAM_ROSTER.get(owner)
-        manager = (roster_entry or {}).get("manager") or "Unmapped"
+        manager = _owner_manager(owner)
         if not roster_entry:
             unmapped_owners.add(owner)
         manager_totals.setdefault(manager, {}).setdefault(month_key, 0)
@@ -1209,7 +1243,7 @@ async def get_pipeline(
         filtered_items, _cache["notebook_last_touch"], filtered_tasks, roster_scope, show_action_items
     )
     result["snapshot_at"] = _cache["snapshot_at"]
-    result["filter_options"] = _filter_options(_cache["items"], allowed_owners)
+    result["filter_options"] = _filter_options(_cache["items"], allowed_owners, effective_owners, managers)
     result["viewer_name"] = viewer_name
     result["viewer_scoped"] = allowed_owners is not None
     return result

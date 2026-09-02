@@ -333,10 +333,10 @@
                     "snapshot_at": { "type": "string", "format": "date-time" },
                     "filter_options": {
                       "type": "object",
-                      "description": "Dropdown choices for the filter bar, always computed from the full unfiltered population regardless of the filters applied to this request.",
+                      "description": "Dropdown choices for the filter bar, computed from the full unfiltered population — with one exception: owners and managers narrow each other (picking a Manager narrows the owners list to that manager's team, and picking Salespeople narrows the managers list to their managers), based on this request's own owners/managers query params. product_lines and service_levels are unaffected by any filter selection.",
                       "properties": {
-                        "owners": { "type": "array", "items": { "type": "string" } },
-                        "managers": { "type": "array", "items": { "type": "string" } },
+                        "owners": { "type": "array", "items": { "type": "string" }, "description": "Narrowed to the selected managers' teams when the managers filter is active." },
+                        "managers": { "type": "array", "items": { "type": "string" }, "description": "Includes the synthetic value \"Unmapped\" when at least one matched Opportunity's owner has no team_roster manager (or isn't in the roster at all). Narrowed to the selected owners' own managers when the owners filter is active." },
                         "product_lines": { "type": "array", "items": { "type": "string" } },
                         "service_levels": { "type": "array", "items": { "type": "string" } }
                       }
@@ -580,7 +580,7 @@
                           "name": { "type": "string", "nullable": true },
                           "crm_url": { "type": "string", "description": "Direct link to the record in the CRM web app." },
                           "owner_name": { "type": "string", "nullable": true },
-                          "manager": { "type": "string", "nullable": true, "description": "From the team roster; null if the owner isn't an Active rep on file." },
+                          "manager": { "type": "string", "nullable": true, "description": "From the team roster; \"Unmapped\" if the owner isn't an Active rep on file or has no manager set. Null only when the opportunity has no owner at all." },
                           "stage": { "type": "string" },
                           "stage_group": { "type": "string", "description": "open | future | closed_won | closed_lost — which of the four Opportunity List sections this row belongs to." },
                           "type": { "type": "string", "nullable": true, "description": "Acquisition | Cross-Selling | Pricing | Up-Selling | Regain | Others." },
