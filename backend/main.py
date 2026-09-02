@@ -238,6 +238,10 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
             and r.get("owner_name") != "Raden Roro Inggil Pratiwi"
         )
     ]
+    # "Cross-border" is excluded entirely, for every owner — not a valid NV
+    # Product Line for this dashboard.
+    EXCLUDED_PRODUCT_LINES = {_normalize_stage("Cross-border")}
+    items = [r for r in items if _normalize_stage(r.get("nv_product_line") or "") not in EXCLUDED_PRODUCT_LINES]
     # service_level is a multi-select field, but the CRM returns a bare
     # string instead of a 1-item list for some records — spreading/joining
     # that string elsewhere would silently iterate its characters instead of
