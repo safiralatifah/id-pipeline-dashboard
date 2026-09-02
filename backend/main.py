@@ -566,6 +566,10 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
         (r for r in active_rows if (r["notebook_days_since_touch"] or 0) >= ACTION_ITEM_STALE_NOTEBOOK_DAYS),
         key=lambda r: -(r["notebook_days_since_touch"] or 0),
     )
+    missing_revenue = sorted(
+        (r for r in active_rows if r["revenue_blank"]),
+        key=lambda r: -(r["aging_days"] or 0),
+    )
 
     # Tasks pending: open Tasks (already Not Started / In Progress only, per
     # fetch_open_tasks) that aren't "Active" by the same rule Task Activity
@@ -633,6 +637,7 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
         "overdue": _category(overdue, "last_stage_duration_days"),
         "stalled": _category(stalled, "last_stage_duration_days"),
         "notebook_stale": _category(notebook_stale, "notebook_days_since_touch"),
+        "missing_revenue": _category(missing_revenue, "aging_days"),
         "tasks_pending": _category(pending_tasks, None),
         "monthly_pace": monthly_pace,
         # Tells the frontend whether to show per-deal examples (one person in

@@ -1187,6 +1187,14 @@
         <div id="ai-notebook-list" class="ai-list"></div>
       </div>
 
+      <div id="ai-revenue-section" style="display:none; margin-top:18px;">
+        <div class="section-label-row">
+          <span class="section-label">Missing Revenue</span>
+        </div>
+        <p class="ai-sentence" id="ai-revenue-sentence"></p>
+        <div id="ai-revenue-list" class="ai-list"></div>
+      </div>
+
       <div id="ai-tasks-section" style="display:none; margin-top:18px;">
         <div class="section-label-row">
           <span class="section-label">Tasks Awaiting Action</span>
@@ -1272,6 +1280,7 @@
           <li><strong>Overdue</strong>: <code>expected_close_date</code> has passed and the deal is still open. Sorted by days in the current stage, worst first.</li>
           <li><strong>Stalled in Stage</strong>: <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) is 30+ days old &mdash; the same threshold Stage Bottlenecks/Stage &times; Ageing use for their "30d+" tier.</li>
           <li><strong>Notebook Needs Updating</strong>: last Notebook touch (or <code>created_at</code> if none) is 14+ days old &mdash; the same threshold the Activity panel's "14&#8209;30d" tier starts at.</li>
+          <li><strong>Missing Revenue</strong>: <code>total_potential_revenue_mth</code> or <code>committed_revenue_mth</code> is blank on the CRM record (not filled in at all &mdash; a real, entered 0 doesn't count). Sorted by Aging, oldest first.</li>
           <li><strong>Tasks Awaiting Action</strong>: open Tasks (Not Started / In Progress) that aren't "Active" by the exact same rule the Activity panel's Task side uses (touched within 7 days AND not overdue).</li>
           <li>Viewing a single person's own pipeline shows up to 8 example deals per category (worst first), with the true total in the summary sentence. Viewing a Manager/Sales Head's team instead shows a per&#8209;rep breakdown &mdash; each rep's name with their own matching deals/tasks listed underneath, hyperlinked to CRM.</li>
           <li><strong>Monthly Pace</strong>: every rep in scope against the same 10&#8209;opportunity monthly target as Created Opportunities by Manager &amp; Salesperson, sorted most&#8209;behind&#8209;target first &mdash; includes reps with 0 created this month.</li>
@@ -1723,6 +1732,9 @@
     aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-sentence", ai.notebook_stale, scopeSize,
       r => aiItemHtml(r, "d"),
       t => `${t} deal${t === 1 ? "" : "s"} without a Notebook update in 14+ days.`);
+    aiSection("ai-revenue-section", "ai-revenue-list", "ai-revenue-sentence", ai.missing_revenue, scopeSize,
+      r => aiItemHtml(r, "d"),
+      t => `${t} deal${t === 1 ? "" : "s"} missing potential or committed revenue.`);
     aiSection("ai-tasks-section", "ai-tasks-list", "ai-tasks-sentence", ai.tasks_pending, scopeSize,
       aiTaskItemHtml,
       t => `${t} open task${t === 1 ? "" : "s"} awaiting action — overdue or without a recent update.`);

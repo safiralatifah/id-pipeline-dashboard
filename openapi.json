@@ -464,6 +464,51 @@
                             }
                           }
                         },
+                        "missing_revenue": {
+                          "type": "object",
+                          "description": "Open (non-Future-Opportunity) deals with total_potential_revenue_mth or committed_revenue_mth blank on the CRM record (not filled in — an entered 0 doesn't count), sorted by aging_days descending. Same {total, items, by_owner} shape as overdue.",
+                          "properties": {
+                            "total": { "type": "integer" },
+                            "items": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "integer" },
+                                  "name": { "type": "string", "nullable": true },
+                                  "crm_url": { "type": "string" },
+                                  "owner_name": { "type": "string", "nullable": true },
+                                  "days": { "type": "integer", "nullable": true, "description": "Aging (days since created_at)." }
+                                }
+                              }
+                            },
+                            "by_owner": {
+                              "type": "array",
+                              "description": "One row per rep with at least one matching deal, sorted worst-first. Rendered instead of items when scope_size is >1.",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "name": { "type": "string" },
+                                  "count": { "type": "integer" },
+                                  "items": {
+                                    "type": "array",
+                                    "description": "This rep's own matching deals (uncapped), same shape as the category's top-level items, worst first.",
+                                    "items": {
+                                      "type": "object",
+                                      "properties": {
+                                        "id": { "type": "integer" },
+                                        "name": { "type": "string", "nullable": true },
+                                        "crm_url": { "type": "string" },
+                                        "owner_name": { "type": "string", "nullable": true },
+                                        "days": { "type": "integer", "nullable": true }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        },
                         "tasks_pending": {
                           "type": "object",
                           "description": "Open Tasks (Not Started / In Progress) that aren't Active by the same rule the Activity panel uses, worst first.",
@@ -573,6 +618,7 @@
                           "overdue": { "type": "boolean", "description": "Open, with an expected_close_date already in the past." },
                           "total_potential_revenue_mth": { "type": "number" },
                           "committed_revenue_mth": { "type": "number" },
+                          "revenue_blank": { "type": "boolean", "description": "True when total_potential_revenue_mth or committed_revenue_mth is blank on the CRM record (not filled in at all — an entered 0 doesn't count)." },
                           "notebook_last_touch": { "type": "string", "nullable": true },
                           "notebook_days_since_touch": { "type": "integer", "nullable": true },
                           "notebook_freshness": { "type": "string", "nullable": true, "description": "< 7d | 7-14d | 14-30d | 30d+, same buckets as the Activity panel." },
