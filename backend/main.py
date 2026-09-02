@@ -227,13 +227,14 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
     items = [r for r in items if EXCLUDE_NAME_SUBSTR not in (r.get("name") or "")]
     # Data-quality filter: "Last Mile – Parcel" and "Last Mile – Document"
     # are only valid for Raden Roro Inggil Pratiwi's opportunities; exclude
-    # both from everyone else.
-    RESTRICTED_PRODUCT_LINES = {"Last Mile – Parcel", "Last Mile – Document"}
+    # both from everyone else. Compared dash-normalized since the CRM
+    # inconsistently returns nv_product_line with a hyphen vs. an en dash.
+    RESTRICTED_PRODUCT_LINES = {_normalize_stage("Last Mile – Parcel"), _normalize_stage("Last Mile – Document")}
     items = [
         r
         for r in items
         if not (
-            r.get("nv_product_line") in RESTRICTED_PRODUCT_LINES
+            _normalize_stage(r.get("nv_product_line") or "") in RESTRICTED_PRODUCT_LINES
             and r.get("owner_name") != "Raden Roro Inggil Pratiwi"
         )
     ]
