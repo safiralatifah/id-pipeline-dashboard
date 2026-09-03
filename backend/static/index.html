@@ -463,6 +463,12 @@
     color: var(--text-muted);
     margin: 0 0 18px;
   }
+  .params-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
 
   /* Funnel bars */
   .bar-row {
@@ -952,6 +958,10 @@
     .panels { grid-template-columns: 1fr; }
     .bar-row { grid-template-columns: 104px 1fr 46px; }
     .panels2 { grid-template-columns: 1fr; }
+    .params-grid { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 560px) {
+    .params-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -1314,6 +1324,31 @@
     <h1>PIP Radar</h1>
     <p class="panel-sub" style="margin:-8px 0 4px;">Four signals side by side per rep, to flag who may need a Performance Improvement Plan conversation &mdash; uses the same filters and identity scoping as Overview.</p>
     <p class="panel-sub" style="margin:0 0 20px; color:var(--accent); font-weight:600;">Draft feature &mdash; thresholds and the parameter name below are still open to feedback.</p>
+
+    <h2 style="font-family:'Sora', sans-serif; font-size:15.5px; font-weight:600; margin:0 0 4px;">Parameters</h2>
+    <p class="panel-sub" style="margin:0 0 16px;">Three reuse numbers already live on Overview. The fourth is new &mdash; a forward-looking check on whether a rep has enough in motion to hit next month's number, not just this one.</p>
+    <div class="params-grid">
+      <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
+        <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Created Opportunities</span>
+        <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">New opportunities logged this month (Acquisition / Cross&#8209;Selling only) &mdash; same definition as "Created Opportunities by Manager &amp; Salesperson."</p>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 10 / month</span>
+      </div>
+      <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
+        <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Closed&ndash;Won</span>
+        <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">Opportunities that actually closed this month, keyed by when the stage changed &mdash; not when they were created.</p>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 3 / month</span>
+      </div>
+      <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
+        <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">CRM Updated %</span>
+        <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">Notebook &lt;7d + Task Active, pooled over open opportunities and open tasks &mdash; the same combined KPI already on Overview.</p>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 90%+</span>
+      </div>
+      <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
+        <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Pipeline Runway</span>
+        <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">Committed revenue on open opportunities expected to close this month or next &mdash; a lead indicator for whether next month's number is already in motion.</p>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: Rp30M / month (Rp60M window)</span>
+      </div>
+    </div>
 
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
       <span id="pip-counts" style="font-size:12.5px; color:var(--text-muted);"></span>
