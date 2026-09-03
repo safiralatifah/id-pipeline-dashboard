@@ -1290,7 +1290,10 @@
 
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
       <input type="text" id="opplist-search" placeholder="Search name, owner, manager, stage&hellip;" style="flex:1; min-width:220px; max-width:360px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
-      <span id="opplist-count" style="font-size:12.5px; color:var(--text-muted);"></span>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <span id="opplist-count" style="font-size:12.5px; color:var(--text-muted);"></span>
+        <button type="button" class="filter-btn" id="opplist-export-btn">&#8595; Export CSV</button>
+      </div>
     </div>
 
     <div id="opplist-chart-filter-row" style="display:none; align-items:center; gap:8px; margin-bottom:16px;">
@@ -1301,7 +1304,10 @@
     <div id="opplist-sections"></div>
 
     <div class="panel" style="margin-top:16px;">
-      <h2>Task List <span id="opplist-tasklist-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <h2>Task List <span id="opplist-tasklist-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+        <button type="button" class="filter-btn" id="opplist-tasklist-export-btn">&#8595; Export CSV</button>
+      </div>
       <p class="panel-sub" style="margin-bottom:16px;">Open Tasks linked to the opportunities shown above.</p>
       <div style="overflow-x:auto;">
         <table class="simple-table opplist-table" id="opplist-tasklist-table">
@@ -1398,6 +1404,7 @@
           <li><strong>#Open Task</strong>: open Tasks (Not Started / In Progress, linked to this Opportunity) &mdash; only Tasks whose <code>related_object_type</code> is Opportunity are fetched at all, so a Task against a Lead/Account/Contact never appears anywhere in this app. <strong>#Task Not Updated</strong>: of those, how many aren't Active by the same rule the Activity panel's Task side uses (touched within 7 days AND not overdue).</li>
           <li>Click a column header to sort by it (click again to reverse); click an Opportunity Name to open that record directly in the CRM.</li>
           <li><strong>Task List</strong> (bottom of the page): every open Task belonging to whichever Opportunities are currently shown above (search box and any chart&#8209;driven filter both apply, via the Opportunity each Task is linked to &mdash; Tasks aren't re&#8209;filtered on their own fields). Sorted worst&#8209;first: Not Updated tasks before Active ones, then by days since last update. The Opportunity column links straight to the CRM record and shows its current Stage.</li>
+          <li><strong>Export CSV</strong>: each table has its own export button, downloading exactly what's currently filtered/shown in that table (search box and any chart&#8209;driven filter both apply) &mdash; not just the current page, and not the whole unfiltered dataset.</li>
         </ul>
       </div>
     </div>
@@ -2645,6 +2652,84 @@
       (!q || ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q)))
     );
   }
+
+  function csvValue(v) {
+    if (v == null) return "";
+    if (Array.isArray(v)) v = v.join("; ");
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  }
+
+  function downloadCsv(filename, rows, columns) {
+    const header = columns.map(c => csvValue(c.label)).join(",");
+    const body = rows.map(r => columns.map(c => csvValue(r[c.key])).join(",")).join("\r\n");
+    const blob = new Blob(["﻿" + header + "\r\n" + body], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function timestampForFilename() {
+    return new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  }
+
+  const OPP_EXPORT_COLUMNS = [
+    { key: "id", label: "ID" },
+    { key: "name", label: "Opportunity Name" },
+    { key: "crm_url", label: "CRM URL" },
+    { key: "owner_name", label: "Owner" },
+    { key: "manager", label: "Manager" },
+    { key: "stage", label: "Stage" },
+    { key: "stage_group", label: "Stage Group" },
+    { key: "type", label: "Type" },
+    { key: "nv_product_line", label: "NV Product Line" },
+    { key: "service_level", label: "Service Level" },
+    { key: "created_at", label: "Created At" },
+    { key: "aging_days", label: "Aging (days)" },
+    { key: "stage_last_changed_at", label: "Stage Last Changed At" },
+    { key: "last_stage_duration_days", label: "Last Stage Duration (days)" },
+    { key: "expected_close_date", label: "Expected Close Date" },
+    { key: "overdue", label: "Overdue" },
+    { key: "total_potential_revenue_mth", label: "Potential Revenue / Mth" },
+    { key: "committed_revenue_mth", label: "Committed Revenue / Mth" },
+    { key: "revenue_blank", label: "Revenue Blank" },
+    { key: "notebook_last_touch", label: "Notebook Last Touch" },
+    { key: "notebook_days_since_touch", label: "Notebook Days Since Touch" },
+    { key: "notebook_freshness", label: "Notebook Freshness" },
+    { key: "notebook_content", label: "Notebook Content" },
+    { key: "open_task_count", label: "#Open Task" },
+    { key: "task_not_updated_count", label: "#Task Not Updated" },
+  ];
+
+  document.getElementById("opplist-export-btn").addEventListener("click", () => {
+    downloadCsv(`opportunity-list-${timestampForFilename()}.csv`, getFilteredOppRows(), OPP_EXPORT_COLUMNS);
+  });
+
+  const TASK_EXPORT_COLUMNS = [
+    { key: "id", label: "Task ID" },
+    { key: "subject", label: "Task" },
+    { key: "status", label: "Status" },
+    { key: "owner_name", label: "Owner" },
+    { key: "due_date", label: "Due Date" },
+    { key: "days_since_update", label: "Days Since Update" },
+    { key: "active", label: "Active" },
+    { key: "opportunity_id", label: "Opportunity ID" },
+    { key: "opportunity_name", label: "Opportunity Name" },
+    { key: "opportunity_crm_url", label: "Opportunity CRM URL" },
+    { key: "opportunity_stage", label: "Opportunity Stage" },
+    { key: "opportunity_owner_name", label: "Opportunity Owner" },
+  ];
+
+  document.getElementById("opplist-tasklist-export-btn").addEventListener("click", () => {
+    const filteredOppIds = new Set(getFilteredOppRows().map(r => r.id));
+    const rows = oppAllTasks.filter(t => filteredOppIds.has(t.opportunity_id));
+    downloadCsv(`task-list-${timestampForFilename()}.csv`, rows, TASK_EXPORT_COLUMNS);
+  });
 
   function renderOpportunityList() {
     const filtered = getFilteredOppRows();
