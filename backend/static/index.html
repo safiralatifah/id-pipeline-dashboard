@@ -1350,6 +1350,15 @@
       </div>
     </div>
 
+    <div style="background:var(--accent-soft); border-radius:10px; padding:16px 18px; margin-bottom:24px; font-size:12.5px; line-height:1.65; color:var(--text-primary);">
+      <strong>How Suggested Action is determined:</strong> each of the 4 parameters above is scored as a percentage of its own target (capped at 100%). A parameter counts as <strong>red</strong> when it's below 50% of target.
+      <div style="display:flex; flex-wrap:wrap; gap:18px; margin-top:10px;">
+        <span><span class="pip-flag-pill" style="background:var(--status-critical-soft); color:var(--status-critical);">Recommend PIP Review</span> &mdash; 2 or more parameters are red</span>
+        <span><span class="pip-flag-pill" style="background:color-mix(in srgb, var(--age-3) 18%, var(--surface-1)); color:var(--age-3);">Watch</span> &mdash; exactly 1 parameter is red</span>
+        <span><span class="pip-flag-pill" style="background:var(--status-good-soft); color:var(--status-good);">On Track</span> &mdash; no parameters are red</span>
+      </div>
+    </div>
+
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
       <span id="pip-counts" style="font-size:12.5px; color:var(--text-muted);"></span>
       <label class="pip-toggle" id="pip-flagged-toggle">
