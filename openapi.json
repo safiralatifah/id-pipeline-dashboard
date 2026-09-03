@@ -574,6 +574,36 @@
                           }
                         }
                       }
+                    },
+                    "pip_radar": {
+                      "type": "object",
+                      "description": "Draft Performance Improvement Plan screening view — always present (not gated like action_items), scoped to the same roster_scope as Created Opportunities/Monthly Pace. Sample/illustrative feature, thresholds subject to change.",
+                      "properties": {
+                        "review_count": { "type": "integer", "description": "Rows with flag = review." },
+                        "watch_count": { "type": "integer", "description": "Rows with flag = watch." },
+                        "runway_target_per_month": { "type": "integer", "description": "Always 30000000 (Rp30M)." },
+                        "runway_months": { "type": "integer", "description": "Always 2." },
+                        "rows": {
+                          "type": "array",
+                          "description": "One row per rep in roster_scope, sorted worst first (most red signals, then name).",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" },
+                              "manager": { "type": "string", "nullable": true },
+                              "created": { "type": "integer", "description": "Opportunities created this month (Acquisition/Cross-Selling only) — same number as Created Opportunities by Manager & Salesperson." },
+                              "created_target": { "type": "integer", "description": "Always 10." },
+                              "won": { "type": "integer", "description": "Closed-Won this month (not Type-filtered) — same number as the won_counts sub-line in Created Opportunities by Manager & Salesperson." },
+                              "won_target": { "type": "integer", "description": "Always 3." },
+                              "crm_updated_pct": { "type": "number", "description": "Same combined Notebook+Task KPI as the Activity panel's By salesperson table." },
+                              "runway": { "type": "number", "description": "Sum of committed_revenue_mth across open, non-Future-Opportunity opportunities whose expected_close_date falls in this month or next." },
+                              "runway_target": { "type": "integer", "description": "Always 60000000 (Rp60M — 2 x runway_target_per_month)." },
+                              "red_count": { "type": "integer", "description": "How many of the 4 signals above are below 50% of their target." },
+                              "flag": { "type": "string", "description": "review (red_count >= 2) | watch (red_count == 1) | ontrack (red_count == 0)." }
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }

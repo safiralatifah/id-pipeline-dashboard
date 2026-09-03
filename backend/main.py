@@ -93,6 +93,15 @@ CLOSED_WON_MONTHLY_TARGET = 3
 CLOSED_WON_MANAGER_TARGETS = {name: count * CLOSED_WON_MONTHLY_TARGET for name, count in MANAGER_REP_COUNTS.items()}
 CLOSED_WON_OWNER_TARGETS = {name: CLOSED_WON_MONTHLY_TARGET for name in TEAM_ROSTER}
 
+# PIP Radar: a screening view over four signals (Created, Closed-Won, CRM
+# Updated %, Pipeline Runway) to flag reps who may need a Performance
+# Improvement Plan conversation. A signal is "red" below 50% of its target;
+# 2+ red signals -> Recommend PIP Review, 1 -> Watch, 0 -> On Track.
+PIP_RUNWAY_TARGET_PER_MONTH = 30_000_000
+PIP_RUNWAY_MONTHS = 2
+PIP_RUNWAY_TARGET = PIP_RUNWAY_TARGET_PER_MONTH * PIP_RUNWAY_MONTHS
+PIP_RED_THRESHOLD_PCT = 50
+
 _cache: dict[str, Any] = {
     "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False,
@@ -709,6 +718,87 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
     }
 
 
+def _build_pip_radar(
+    items: list[dict],
+    created_by_month: dict,
+    crm_updated_by_owner: list[dict],
+    roster_scope: set[str],
+    now: datetime,
+) -> dict:
+    """Draft PIP screening view: Created, Closed-Won, and CRM Updated % are
+    the exact same numbers already computed for Overview/Created
+    Opportunities — this just re-reads them per rep. Pipeline Runway
+    (committed revenue on open, non-Future-Opportunity deals expected to
+    close this month or next) is the one new signal, computed here."""
+    future_norm = _normalize_stage("Future Opportunity")
+    closed_stage_names = {_normalize_stage("Closed–Won"), _normalize_stage("Closed–Lost")}
+    active_items = [
+        r for r in items
+        if _normalize_stage(r.get("stage") or "") not in closed_stage_names | {future_norm}
+    ]
+
+    this_month_key = now.strftime("%Y-%m")
+    next_month_key = (now.replace(day=1) + timedelta(days=32)).replace(day=1).strftime("%Y-%m")
+    runway_by_owner: dict[str, float] = {name: 0.0 for name in roster_scope}
+    for r in active_items:
+        close_date = _parse_dt(r.get("expected_close_date"))
+        if not close_date or close_date.strftime("%Y-%m") not in (this_month_key, next_month_key):
+            continue
+        owner = r.get("owner_name") or ""
+        if owner in runway_by_owner:
+            runway_by_owner[owner] += float(r.get("committed_revenue_mth") or 0)
+
+    created_by_owner = {row["name"]: row for row in created_by_month["by_owner"]}
+    crm_by_owner = {row["name"]: row for row in crm_updated_by_owner}
+    current_month_key = created_by_month["months"][-1]
+
+    def _pct(value: float, target: float) -> float:
+        return min(value / target * 100, 999) if target else 0.0
+
+    rows = []
+    for name in roster_scope:
+        created_row = created_by_owner.get(name)
+        created_count = created_row["counts"].get(current_month_key, 0) if created_row else 0
+        created_target = created_row["target"] if created_row else None
+        won_count = created_row["won_counts"].get(current_month_key, 0) if created_row else 0
+        won_target = created_row["won_target"] if created_row else None
+        crm_row = crm_by_owner.get(name)
+        crm_pct = crm_row["pct"] if crm_row else 0.0
+        runway = runway_by_owner.get(name, 0.0)
+
+        signal_pcts = [
+            _pct(created_count, created_target),
+            _pct(won_count, won_target),
+            crm_pct,
+            _pct(runway, PIP_RUNWAY_TARGET),
+        ]
+        red_count = sum(1 for p in signal_pcts if p < PIP_RED_THRESHOLD_PCT)
+        flag = "review" if red_count >= 2 else "watch" if red_count == 1 else "ontrack"
+
+        rows.append({
+            "name": name,
+            "manager": _owner_manager(name),
+            "created": created_count,
+            "created_target": created_target,
+            "won": won_count,
+            "won_target": won_target,
+            "crm_updated_pct": crm_pct,
+            "runway": runway,
+            "runway_target": PIP_RUNWAY_TARGET,
+            "red_count": red_count,
+            "flag": flag,
+        })
+
+    rows.sort(key=lambda r: (-r["red_count"], r["name"]))
+    return {
+        "rows": rows,
+        "review_count": sum(1 for r in rows if r["flag"] == "review"),
+        "watch_count": sum(1 for r in rows if r["flag"] == "watch"),
+        "runway_target_per_month": PIP_RUNWAY_TARGET_PER_MONTH,
+        "runway_months": PIP_RUNWAY_MONTHS,
+    }
+
+
 def build_dashboard(
     items: list[dict],
     notebook_last_touch: dict[int, dict],
@@ -1240,6 +1330,7 @@ def build_dashboard(
             _build_action_items(_build_opportunity_rows(items, notebook_last_touch, tasks), tasks, roster_scope)
             if include_action_items else None
         ),
+        "pip_radar": _build_pip_radar(items, created_by_month, crm_updated_by_owner, roster_scope, now),
     }
 
 

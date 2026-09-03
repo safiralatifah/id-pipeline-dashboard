@@ -821,6 +821,52 @@
     font-size: 12.5px;
     font-weight: 600;
   }
+  .pip-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+  .pip-switch {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    flex: none;
+    transition: background 0.15s ease;
+  }
+  .pip-switch::after {
+    content: "";
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  .pip-switch.on { background: var(--accent-soft); border-color: var(--accent); }
+  .pip-switch.on::after { transform: translateX(14px); background: var(--accent); }
+  .pip-flag-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .pip-flag-pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; flex: none; }
+  .pip-metric { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  .pip-metric-val { font-family: "IBM Plex Mono", monospace; font-weight: 700; font-size: 13px; white-space: nowrap; }
+  .pip-bar-track { width: 56px; height: 4px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+  .pip-bar-fill { height: 100%; }
   .simple-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
   .simple-table th {
     text-align: left;
@@ -930,6 +976,10 @@
   <button type="button" class="nav-item" data-view="opplist">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="20" y2="6"></line><line x1="8" y1="12" x2="20" y2="12"></line><line x1="8" y1="18" x2="20" y2="18"></line><line x1="4" y1="6" x2="4.01" y2="6"></line><line x1="4" y1="12" x2="4.01" y2="12"></line><line x1="4" y1="18" x2="4.01" y2="18"></line></svg>
     <span>Opportunity List</span>
+  </button>
+  <button type="button" class="nav-item" data-view="pip-radar">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+    <span>PIP Radar</span>
   </button>
   <button type="button" class="nav-item" data-view="dictionary">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
@@ -1258,6 +1308,32 @@
   </div>
 </div>
 
+<div class="viz-root" id="view-pip-radar" style="display:none;">
+  <div class="wrap">
+    <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
+    <h1>PIP Radar</h1>
+    <p class="panel-sub" style="margin:-8px 0 4px;">Four signals side by side per rep, to flag who may need a Performance Improvement Plan conversation &mdash; uses the same filters and identity scoping as Overview.</p>
+    <p class="panel-sub" style="margin:0 0 20px; color:var(--accent); font-weight:600;">Draft feature &mdash; thresholds and the parameter name below are still open to feedback.</p>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;">
+      <span id="pip-counts" style="font-size:12.5px; color:var(--text-muted);"></span>
+      <label class="pip-toggle" id="pip-flagged-toggle">
+        <span class="pip-switch" id="pip-switch"></span>
+        Flagged only
+      </label>
+    </div>
+
+    <div class="panel">
+      <div style="overflow-x:auto;">
+        <table class="simple-table opplist-table" id="pip-table">
+          <thead><tr id="pip-thead"></tr></thead>
+          <tbody id="pip-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="viz-root" id="view-dictionary" style="display:none;">
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
@@ -1278,6 +1354,19 @@
           <li><strong>#Open Task</strong>: open Tasks (Not Started / In Progress, linked to this Opportunity) &mdash; only Tasks whose <code>related_object_type</code> is Opportunity are fetched at all, so a Task against a Lead/Account/Contact never appears anywhere in this app. <strong>#Task Not Updated</strong>: of those, how many aren't Active by the same rule the Activity panel's Task side uses (touched within 7 days AND not overdue).</li>
           <li>Click a column header to sort by it (click again to reverse); click an Opportunity Name to open that record directly in the CRM.</li>
           <li><strong>Task List</strong> (bottom of the page): every open Task belonging to whichever Opportunities are currently shown above (search box and any chart&#8209;driven filter both apply, via the Opportunity each Task is linked to &mdash; Tasks aren't re&#8209;filtered on their own fields). Sorted worst&#8209;first: Not Updated tasks before Active ones, then by days since last update. The Opportunity column links straight to the CRM record and shows its current Stage.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>PIP Radar <span style="font-size:12px; font-weight:600; color:var(--accent); text-transform:none; letter-spacing:0; vertical-align:middle;">(draft)</span></h2>
+      <div class="notes">
+        <ul>
+          <li>A screening view over four signals, one row per rep in scope (same Salesperson/Manager filter scoping as Created Opportunities by Manager &amp; Salesperson) &mdash; this is a draft feature, thresholds below are a first guess and adjustable.</li>
+          <li><strong>Created</strong> and <strong>Closed&ndash;Won</strong>: the exact same this&#8209;month counts and targets (10 created, 3 won) as Created Opportunities by Manager &amp; Salesperson &mdash; no separate computation.</li>
+          <li><strong>CRM Updated %</strong>: the same combined Notebook + Task KPI as the Activity panel's By salesperson table, checked against an implied 90% target.</li>
+          <li><strong>Pipeline Runway</strong>: sum of <code>committed_revenue_mth</code> across this rep's OPEN, non&#8209;Future&#8209;Opportunity opportunities whose <code>expected_close_date</code> falls in the current month or next &mdash; a forward check on whether next month's number is already in motion, not just this month's. Target: Rp30M/month (Rp60M across the 2&#8209;month window).</li>
+          <li><strong>Suggested Action</strong>: each of the 4 signals above is scored against its target; a signal below 50% of target counts as "red." <strong>Recommend PIP Review</strong> = 2+ red signals, <strong>Watch</strong> = exactly 1, <strong>On Track</strong> = none.</li>
         </ul>
       </div>
     </div>
@@ -1798,6 +1887,98 @@
     }).join("") || '<p style="font-size:12.5px;color:var(--text-muted);">No data.</p>';
   }
 
+  const PIP_CRM_TARGET = 90;
+  const PIP_COLUMNS = [
+    { key: "name", label: "Salesperson" },
+    { key: "manager", label: "Manager" },
+    { key: "created", label: "Created", num: true },
+    { key: "won", label: "Closed–Won", num: true },
+    { key: "crm_updated_pct", label: "CRM Updated %", num: true },
+    { key: "runway", label: "Pipeline Runway", num: true },
+    { key: "flag", label: "Suggested Action" },
+  ];
+  let pipRows = [];
+  let pipFlaggedOnly = false;
+  let pipSortKey = "red_count";
+  let pipSortDir = "desc";
+
+  function pipMetricCellHtml(value, target, fmt, hideTarget) {
+    const pct = target ? Math.min((value / target) * 100, 100) : 0;
+    const color = targetProgressColor(pct);
+    const label = hideTarget || target == null ? fmt(value) : `${fmt(value)}/${fmt(target)}`;
+    return `<td class="num">
+        <div class="pip-metric">
+          <span class="pip-metric-val" style="color:${color};">${label}</span>
+          <div class="pip-bar-track"><div class="pip-bar-fill" style="width:${pct}%; background:${color};"></div></div>
+        </div>
+      </td>`;
+  }
+
+  function pipFlagPillHtml(flag) {
+    const meta = {
+      review: { label: "Recommend PIP Review", color: "var(--status-critical)", soft: "var(--status-critical-soft)" },
+      watch: { label: "Watch", color: "var(--age-3)", soft: "color-mix(in srgb, var(--age-3) 18%, var(--surface-1))" },
+      ontrack: { label: "On Track", color: "var(--status-good)", soft: "var(--status-good-soft)" },
+    }[flag] || { label: flag, color: "var(--text-muted)", soft: "var(--surface-2)" };
+    return `<span class="pip-flag-pill" style="background:${meta.soft}; color:${meta.color};">${meta.label}</span>`;
+  }
+
+  function renderPipRadar(pip) {
+    pipRows = (pip && pip.rows) || [];
+    renderPipTable();
+  }
+
+  function renderPipTable() {
+    const sorted = pipRows.slice().sort((a, b) => {
+      let av = a[pipSortKey];
+      let bv = b[pipSortKey];
+      if (pipSortKey === "flag") { av = a.red_count; bv = b.red_count; }
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      const cmp = typeof av === "number" && typeof bv === "number" ? av - bv : String(av).localeCompare(String(bv));
+      return pipSortDir === "asc" ? cmp : -cmp;
+    });
+    const visible = pipFlaggedOnly ? sorted.filter(r => r.flag !== "ontrack") : sorted;
+    const reviewCount = pipRows.filter(r => r.flag === "review").length;
+
+    document.getElementById("pip-counts").innerHTML =
+      `<b>${visible.length}</b> of ${pipRows.length} shown &middot; <span style="color:var(--status-critical); font-weight:700;">${reviewCount}</span> flagged for PIP review`;
+
+    document.getElementById("pip-thead").innerHTML = PIP_COLUMNS.map(col => {
+      const arrow = pipSortKey === col.key ? `<span class="sort-arrow">${pipSortDir === "asc" ? "▲" : "▼"}</span>` : "";
+      return `<th class="${col.num ? "num" : ""}" data-key="${col.key}">${col.label}${arrow}</th>`;
+    }).join("");
+
+    document.getElementById("pip-tbody").innerHTML = visible.length
+      ? visible.map(row => `
+          <tr>
+            <td class="name">${row.name}</td>
+            <td style="color:var(--text-muted);">${row.manager || "&ndash;"}</td>
+            ${pipMetricCellHtml(row.created, row.created_target, v => v)}
+            ${pipMetricCellHtml(row.won, row.won_target, v => v)}
+            ${pipMetricCellHtml(row.crm_updated_pct, PIP_CRM_TARGET, v => `${v}%`, true)}
+            ${pipMetricCellHtml(row.runway, row.runway_target, fmtRupiah)}
+            <td>${pipFlagPillHtml(row.flag)}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="${PIP_COLUMNS.length}" style="color:var(--text-muted); padding:12px 0;">No matching reps.</td></tr>`;
+
+    document.querySelectorAll("#pip-thead th").forEach(th => {
+      th.addEventListener("click", () => {
+        const key = th.dataset.key;
+        if (pipSortKey === key) pipSortDir = pipSortDir === "asc" ? "desc" : "asc";
+        else { pipSortKey = key; pipSortDir = (key === "name" || key === "manager") ? "asc" : "desc"; }
+        renderPipTable();
+      });
+    });
+  }
+
+  document.getElementById("pip-flagged-toggle").addEventListener("click", () => {
+    pipFlaggedOnly = !pipFlaggedOnly;
+    document.getElementById("pip-switch").classList.toggle("on", pipFlaggedOnly);
+    renderPipTable();
+  });
+
   function pastMonthCellHtml(count, target, prevCount, wonCount, wonTarget) {
     const pct = target ? `<span style="color:var(--text-muted); font-size:11.5px;"> (${Math.round((count / target) * 100)}%)</span>` : "";
     let trend = "";
@@ -2024,6 +2205,7 @@
     renderForecast(d.forecast, d.forecast_undated_count);
 
     renderActionItems(d.action_items);
+    renderPipRadar(d.pip_radar);
 
     window.__createdByMonthMonths = d.created_by_month.months;
     renderTeamTable("table-by-manager", d.created_by_month.by_manager, "manager");
@@ -2394,6 +2576,7 @@
     document.getElementById("view-overview").style.display = "none";
     document.getElementById("view-action-items").style.display = "none";
     document.getElementById("view-opplist").style.display = "";
+    document.getElementById("view-pip-radar").style.display = "none";
     document.getElementById("view-dictionary").style.display = "none";
     window.scrollTo(0, 0);
   }
@@ -2501,6 +2684,7 @@
       document.getElementById("view-overview").style.display = btn.dataset.view === "overview" ? "" : "none";
       document.getElementById("view-action-items").style.display = btn.dataset.view === "action-items" ? "" : "none";
       document.getElementById("view-opplist").style.display = btn.dataset.view === "opplist" ? "" : "none";
+      document.getElementById("view-pip-radar").style.display = btn.dataset.view === "pip-radar" ? "" : "none";
       document.getElementById("view-dictionary").style.display = btn.dataset.view === "dictionary" ? "" : "none";
       if (btn.dataset.view === "opplist") loadOpportunities();
       window.scrollTo(0, 0);
