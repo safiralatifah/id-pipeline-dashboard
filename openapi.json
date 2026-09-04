@@ -247,7 +247,7 @@
                     },
                     "activity_summary": {
                       "type": "array",
-                      "description": "Open deals bucketed by days since their Notebook was last touched (falls back to created_at if never touched). Reps are expected to add a Notebook entry at least every 7 days.",
+                      "description": "Open, non-Future-Opportunity deals (Type not Up-Selling/Pricing) bucketed by days since their Notebook was last touched (falls back to created_at if never touched). Reps are expected to add a Notebook entry at least every 7 days.",
                       "items": {
                         "type": "object",
                         "properties": {
@@ -299,7 +299,7 @@
                       "description": "Roster names with no CRM owner_id on file — their Tasks can't be queried at all.",
                       "items": { "type": "string" }
                     },
-                    "crm_updated_pct": { "type": "number", "description": "The final Activity KPI: (Notebook <7d count + Task Active count) / (total open deals + total open Tasks), summed rather than averaged." },
+                    "crm_updated_pct": { "type": "number", "description": "The final Activity KPI: (Notebook <7d count + Task Active count) / (total open deals + total open Tasks), summed rather than averaged. Both sides exclude Future Opportunity and Up-Selling/Pricing Type (a Task inherits this via its related Opportunity)." },
                     "crm_updated_numerator": { "type": "integer" },
                     "crm_updated_denominator": { "type": "integer" },
                     "crm_updated_by_owner": {
@@ -336,7 +336,7 @@
                         "scope_size": { "type": "integer", "description": "Number of reps in the viewer's roster scope. 1 for an individual rep (or an admin previewing a single Salesperson filter); >1 for a Manager/Sales Head (or an admin previewing one). Drives whether the frontend renders per-deal item examples (1) or a per-rep count breakdown (>1) for each category below." },
                         "overdue": {
                           "type": "object",
-                          "description": "Open (non-Future-Opportunity) deals past expected_close_date, worst first.",
+                          "description": "Open (non-Future-Opportunity, Type not Up-Selling/Pricing) deals past expected_close_date, worst first.",
                           "properties": {
                             "total": { "type": "integer" },
                             "items": {
@@ -382,7 +382,7 @@
                         },
                         "stalled": {
                           "type": "object",
-                          "description": "Open (non-Future-Opportunity) deals with no stage movement in 30+ days, worst first. Same {total, items, by_owner} shape as overdue.",
+                          "description": "Open (non-Future-Opportunity, Type not Up-Selling/Pricing) deals with no stage movement in 30+ days, worst first. Same {total, items, by_owner} shape as overdue.",
                           "properties": {
                             "total": { "type": "integer" },
                             "items": {
@@ -427,7 +427,7 @@
                         },
                         "notebook_stale": {
                           "type": "object",
-                          "description": "Open (non-Future-Opportunity) deals without a Notebook update in 14+ days, worst first. Same {total, items, by_owner} shape as overdue.",
+                          "description": "Open (non-Future-Opportunity, Type not Up-Selling/Pricing) deals without a Notebook update in 14+ days, worst first. Same {total, items, by_owner} shape as overdue.",
                           "properties": {
                             "total": { "type": "integer" },
                             "items": {
@@ -472,7 +472,7 @@
                         },
                         "missing_revenue": {
                           "type": "object",
-                          "description": "Open (non-Future-Opportunity) deals with total_potential_revenue_mth or committed_revenue_mth blank on the CRM record (not filled in — an entered 0 doesn't count), sorted by aging_days descending. Same {total, items, by_owner} shape as overdue.",
+                          "description": "Open (non-Future-Opportunity, Type not Up-Selling/Pricing) deals with total_potential_revenue_mth or committed_revenue_mth blank on the CRM record (not filled in — an entered 0 doesn't count), sorted by aging_days descending. Same {total, items, by_owner} shape as overdue.",
                           "properties": {
                             "total": { "type": "integer" },
                             "items": {

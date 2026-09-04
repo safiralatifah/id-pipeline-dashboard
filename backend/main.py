@@ -71,6 +71,11 @@ TASK_OPEN_STATUSES = ["Not Started", "In Progress"]
 # against an existing account rather than new pipeline.
 CREATED_OPPORTUNITY_TYPES = {"Acquisition", "Cross-Selling"}
 
+# Opportunity.type values excluded from Activity (Notebook/Task/CRM Updated
+# %) and Action Items — Up-Selling/Pricing opportunities on an existing
+# account aren't held to the same update cadence as new-business pipeline.
+EXCLUDED_ACTIVITY_TYPES = {"Up-Selling", "Pricing"}
+
 # Action Items thresholds — deliberately the same numbers already used
 # elsewhere on the dashboard (Stage Bottlenecks' implicit "long" stage stay,
 # and the Notebook Activity 14d tier) so this panel doesn't introduce a
@@ -629,7 +634,13 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
 
     # Future Opportunity is deliberately parked, not actively worked — an
     # old Future Opportunity deal isn't "stuck" the way an active one is.
-    active_rows = [r for r in opp_rows if r["stage_group"] == "open"]
+    # Up-Selling/Pricing opportunities on an existing account aren't held to
+    # the same update cadence as new-business pipeline, so they're excluded
+    # too (same scope as Activity's Notebook/CRM Updated % computation).
+    active_rows = [
+        r for r in opp_rows
+        if r["stage_group"] == "open" and r["type"] not in EXCLUDED_ACTIVITY_TYPES
+    ]
 
     overdue = sorted((r for r in active_rows if r["overdue"]), key=lambda r: -(r["last_stage_duration_days"] or 0))
     stalled = sorted(
@@ -1143,6 +1154,33 @@ def build_dashboard(
         "unmapped_owners": sorted(o for o in unmapped_owners if o),
     }
 
+    # Activity (Notebook, Task, CRM Updated %) and Action Items are scoped
+    # to active, new-business-cadence pipeline only — Future Opportunity is
+    # parked (not being worked), and Up-Selling/Pricing opportunities on an
+    # existing account aren't held to the same update cadence as new
+    # business, so both are excluded from this population.
+    future_norm_activity = _normalize_stage("Future Opportunity")
+    activity_scope_items = [
+        r for r in open_items
+        if _normalize_stage(r.get("stage") or "") != future_norm_activity
+        and r.get("type") not in EXCLUDED_ACTIVITY_TYPES
+    ]
+
+    # Tasks are scoped the same way, via the Opportunity each is linked to
+    # (a Task has no type/stage of its own) — a Task with no matching
+    # Opportunity in `items` is kept rather than dropped, since that's a
+    # data gap, not evidence the Task is out of scope.
+    opp_stage_type_by_id = {r.get("id"): (r.get("stage") or "", r.get("type")) for r in items}
+
+    def _task_opportunity_in_scope(t: dict) -> bool:
+        info = opp_stage_type_by_id.get(t.get("related_record_id"))
+        if not info:
+            return True
+        stage, opp_type = info
+        return _normalize_stage(stage) != future_norm_activity and opp_type not in EXCLUDED_ACTIVITY_TYPES
+
+    tasks_in_scope = [t for t in tasks if _task_opportunity_in_scope(t)]
+
     # Activity: how recently each OPEN deal's Notebook was last touched.
     # Reps are expected to add an entry at least every 7 days. Falls back to
     # created_at when an opportunity has no Notebook entry at all (never
@@ -1152,7 +1190,7 @@ def build_dashboard(
     owner_totals: dict[str, int] = {}
     activity_undated_count = 0
 
-    for r in open_items:
+    for r in activity_scope_items:
         nb_entry = notebook_last_touch.get(r.get("id"))
         last_touch = (nb_entry["last_touch"] if nb_entry else None) or _parse_dt(r.get("created_at"))
         if not last_touch:
@@ -1172,7 +1210,7 @@ def build_dashboard(
     ]
     touched_within_7d = activity_bucket_counts.get(activity_labels[0], 0)
     activity_touched_pct = (
-        round(touched_within_7d / len(open_items) * 100, 1) if open_items else 0.0
+        round(touched_within_7d / len(activity_scope_items) * 100, 1) if activity_scope_items else 0.0
     )
     activity_by_owner = sorted(
         (
@@ -1200,7 +1238,7 @@ def build_dashboard(
     today = now.date()
     task_total_by_owner: Counter = Counter()
     task_active_by_owner: Counter = Counter()
-    for t in tasks:
+    for t in tasks_in_scope:
         owner = t.get("owner_name") or "(blank)"
         task_total_by_owner[owner] += 1
         last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
@@ -1231,7 +1269,7 @@ def build_dashboard(
     # 50 open deals and 2 open tasks isn't dragged down (or propped up) by
     # treating both signals as equally weighted.
     crm_updated_numerator = touched_within_7d + task_active_total
-    crm_updated_denominator = len(open_items) + task_total
+    crm_updated_denominator = len(activity_scope_items) + task_total
     crm_updated_pct = (
         round(crm_updated_numerator / crm_updated_denominator * 100, 1)
         if crm_updated_denominator else 0.0
@@ -1327,7 +1365,7 @@ def build_dashboard(
         "crm_updated_denominator": crm_updated_denominator,
         "crm_updated_by_owner": crm_updated_by_owner,
         "action_items": (
-            _build_action_items(_build_opportunity_rows(items, notebook_last_touch, tasks), tasks, roster_scope)
+            _build_action_items(_build_opportunity_rows(items, notebook_last_touch, tasks), tasks_in_scope, roster_scope)
             if include_action_items else None
         ),
         "pip_radar": _build_pip_radar(items, created_by_month, crm_updated_by_owner, roster_scope, now),
