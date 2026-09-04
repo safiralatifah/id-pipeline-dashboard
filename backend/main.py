@@ -1,4 +1,5 @@
 import asyncio
+import calendar
 import json
 import os
 import re
@@ -783,8 +784,25 @@ def _build_pip_radar(
     crm_by_owner = {row["name"]: row for row in crm_updated_by_owner}
     current_month_key = created_by_month["months"][-1]
 
+    # Created and Closed-Won are cumulative-through-the-month counts, so
+    # checking them against the full month's target is unfairly harsh in
+    # the first couple weeks (day 3 of 30 would need 33% of the month's
+    # target already banked just to look "on track"). Instead, compare
+    # against how much of the target should be banked by *today*, given
+    # how far through the month we are — a pace check, not an end-of-month
+    # check. CRM Updated % and Pipeline Runway are point-in-time snapshots,
+    # not cumulative counts, so they aren't prorated.
+    days_in_month = calendar.monthrange(now.year, now.month)[1]
+    month_progress_pct = round(now.day / days_in_month * 100, 1)
+
     def _pct(value: float, target: float) -> float:
         return min(value / target * 100, 999) if target else 0.0
+
+    def _pace_pct(value: float, target: float) -> float:
+        if not target:
+            return 0.0
+        expected_so_far = target * now.day / days_in_month
+        return min(value / expected_so_far * 100, 999) if expected_so_far else 100.0
 
     rows = []
     for name in roster_scope:
@@ -797,9 +815,11 @@ def _build_pip_radar(
         crm_pct = crm_row["pct"] if crm_row else 0.0
         runway = runway_by_owner.get(name, 0.0)
 
+        created_pace_pct = _pace_pct(created_count, created_target)
+        won_pace_pct = _pace_pct(won_count, won_target)
         signal_pcts = [
-            _pct(created_count, created_target),
-            _pct(won_count, won_target),
+            created_pace_pct,
+            won_pace_pct,
             crm_pct,
             _pct(runway, PIP_RUNWAY_TARGET),
         ]
@@ -811,8 +831,10 @@ def _build_pip_radar(
             "manager": _owner_manager(name),
             "created": created_count,
             "created_target": created_target,
+            "created_pace_pct": round(created_pace_pct, 1),
             "won": won_count,
             "won_target": won_target,
+            "won_pace_pct": round(won_pace_pct, 1),
             "crm_updated_pct": crm_pct,
             "runway": runway,
             "runway_target": PIP_RUNWAY_TARGET,
@@ -827,6 +849,7 @@ def _build_pip_radar(
         "watch_count": sum(1 for r in rows if r["flag"] == "watch"),
         "runway_target_per_month": PIP_RUNWAY_TARGET_PER_MONTH,
         "runway_months": PIP_RUNWAY_MONTHS,
+        "month_progress_pct": month_progress_pct,
     }
 
 

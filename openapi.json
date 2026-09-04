@@ -577,12 +577,13 @@
                     },
                     "pip_radar": {
                       "type": "object",
-                      "description": "Draft Performance Improvement Plan screening view — always present (not gated like action_items), scoped to the same roster_scope as Created Opportunities/Monthly Pace. Sample/illustrative feature, thresholds subject to change.",
+                      "description": "Draft Productivity Performance Radar screening view (frontend label; \"pip_radar\" is the field/route name) — always present (not gated like action_items), scoped to the same roster_scope as Created Opportunities/Monthly Pace. Sample/illustrative feature, thresholds subject to change.",
                       "properties": {
-                        "review_count": { "type": "integer", "description": "Rows with flag = review." },
+                        "review_count": { "type": "integer", "description": "Rows with flag = review (shown in the UI as \"Productivity Concern\")." },
                         "watch_count": { "type": "integer", "description": "Rows with flag = watch." },
                         "runway_target_per_month": { "type": "integer", "description": "Always 30000000 (Rp30M)." },
                         "runway_months": { "type": "integer", "description": "Always 2." },
+                        "month_progress_pct": { "type": "number", "description": "How far through the current calendar month today is (day-of-month / days-in-month * 100) — the basis for pace-adjusting the Created/Closed-Won targets below." },
                         "rows": {
                           "type": "array",
                           "description": "One row per rep in roster_scope, sorted worst first (most red signals, then name).",
@@ -592,14 +593,16 @@
                               "name": { "type": "string" },
                               "manager": { "type": "string", "nullable": true },
                               "created": { "type": "integer", "description": "Opportunities created this month (Acquisition/Cross-Selling only) — same number as Created Opportunities by Manager & Salesperson." },
-                              "created_target": { "type": "integer", "description": "Always 10." },
+                              "created_target": { "type": "integer", "description": "Always 10 — the full-month target, shown for context. Flagging uses created_pace_pct instead." },
+                              "created_pace_pct": { "type": "number", "description": "created / (created_target * day_of_month / days_in_month) * 100, capped at 999 — this rep's Created count as a percentage of what's expected banked by today, not by month end. Drives this signal's color/flag, not created/created_target directly." },
                               "won": { "type": "integer", "description": "Closed-Won this month (not Type-filtered) — same number as the won_counts sub-line in Created Opportunities by Manager & Salesperson." },
-                              "won_target": { "type": "integer", "description": "Always 3." },
-                              "crm_updated_pct": { "type": "number", "description": "Same combined Notebook+Task KPI as the Activity panel's By salesperson table." },
-                              "runway": { "type": "number", "description": "Sum of committed_revenue_mth across open, non-Future-Opportunity opportunities whose expected_close_date falls in this month or next." },
+                              "won_target": { "type": "integer", "description": "Always 3 — the full-month target, shown for context. Flagging uses won_pace_pct instead." },
+                              "won_pace_pct": { "type": "number", "description": "Same pace-adjustment as created_pace_pct, for won / won_target." },
+                              "crm_updated_pct": { "type": "number", "description": "Same combined Notebook+Task KPI as the Activity panel's By salesperson table. A point-in-time snapshot, not pace-adjusted." },
+                              "runway": { "type": "number", "description": "Sum of committed_revenue_mth across open, non-Future-Opportunity opportunities whose expected_close_date falls in this month or next. A point-in-time snapshot, not pace-adjusted." },
                               "runway_target": { "type": "integer", "description": "Always 60000000 (Rp60M — 2 x runway_target_per_month)." },
-                              "red_count": { "type": "integer", "description": "How many of the 4 signals above are below 50% of their target." },
-                              "flag": { "type": "string", "description": "review (red_count >= 2) | watch (red_count == 1) | ontrack (red_count == 0)." }
+                              "red_count": { "type": "integer", "description": "How many of the 4 signals (created_pace_pct, won_pace_pct, crm_updated_pct, runway/runway_target) are below 50%." },
+                              "flag": { "type": "string", "description": "review (red_count >= 2, shown as \"Productivity Concern\") | watch (red_count == 1) | ontrack (red_count == 0)." }
                             }
                           }
                         }

@@ -989,7 +989,7 @@
   </button>
   <button type="button" class="nav-item" data-view="pip-radar">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
-    <span>PIP Radar</span>
+    <span>Productivity Performance Radar</span>
   </button>
   <button type="button" class="nav-item" data-view="dictionary">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
@@ -1327,7 +1327,7 @@
 <div class="viz-root" id="view-pip-radar" style="display:none;">
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
-    <h1>PIP Radar</h1>
+    <h1>Productivity Performance Radar</h1>
     <p class="panel-sub" style="margin:-8px 0 4px;">Four signals side by side per rep, to flag who may need a Performance Improvement Plan conversation &mdash; uses the same filters and identity scoping as Overview.</p>
     <p class="panel-sub" style="margin:0 0 20px; color:var(--accent); font-weight:600;">Draft feature &mdash; thresholds and the parameter name below are still open to feedback.</p>
 
@@ -1337,12 +1337,12 @@
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
         <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Created Opportunities</span>
         <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">New opportunities logged this month (Acquisition / Cross&#8209;Selling only) &mdash; same definition as "Created Opportunities by Manager &amp; Salesperson."</p>
-        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 10 / month</span>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 10 / month (pace&#8209;adjusted)</span>
       </div>
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
         <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Closed&ndash;Won</span>
         <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">Opportunities that actually closed this month, keyed by when the stage changed &mdash; not when they were created.</p>
-        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 3 / month</span>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 3 / month (pace&#8209;adjusted)</span>
       </div>
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
         <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">CRM Updated %</span>
@@ -1359,7 +1359,7 @@
     <div style="background:var(--accent-soft); border-radius:10px; padding:16px 18px; margin-bottom:24px; font-size:12.5px; line-height:1.65; color:var(--text-primary);">
       <strong>How Suggested Action is determined:</strong> each of the 4 parameters above is scored as a percentage of its own target (capped at 100%). A parameter counts as <strong>red</strong> when it's below 50% of target.
       <div style="display:flex; flex-wrap:wrap; gap:18px; margin-top:10px;">
-        <span><span class="pip-flag-pill" style="background:var(--status-critical-soft); color:var(--status-critical);">Recommend PIP Review</span> &mdash; 2 or more parameters are red</span>
+        <span><span class="pip-flag-pill" style="background:var(--status-critical-soft); color:var(--status-critical);">Productivity Concern</span> &mdash; 2 or more parameters are red</span>
         <span><span class="pip-flag-pill" style="background:color-mix(in srgb, var(--age-3) 18%, var(--surface-1)); color:var(--age-3);">Watch</span> &mdash; exactly 1 parameter is red</span>
         <span><span class="pip-flag-pill" style="background:var(--status-good-soft); color:var(--status-good);">On Track</span> &mdash; no parameters are red</span>
       </div>
@@ -1410,14 +1410,15 @@
     </div>
 
     <div class="panel">
-      <h2>PIP Radar <span style="font-size:12px; font-weight:600; color:var(--accent); text-transform:none; letter-spacing:0; vertical-align:middle;">(draft)</span></h2>
+      <h2>Productivity Performance Radar <span style="font-size:12px; font-weight:600; color:var(--accent); text-transform:none; letter-spacing:0; vertical-align:middle;">(draft)</span></h2>
       <div class="notes">
         <ul>
           <li>A screening view over four signals, one row per rep in scope (same Salesperson/Manager filter scoping as Created Opportunities by Manager &amp; Salesperson) &mdash; this is a draft feature, thresholds below are a first guess and adjustable.</li>
           <li><strong>Created</strong> and <strong>Closed&ndash;Won</strong>: the exact same this&#8209;month counts and targets (10 created, 3 won) as Created Opportunities by Manager &amp; Salesperson &mdash; no separate computation.</li>
           <li><strong>CRM Updated %</strong>: the same combined Notebook + Task KPI as the Activity panel's By salesperson table, checked against an implied 90% target.</li>
           <li><strong>Pipeline Runway</strong>: sum of <code>committed_revenue_mth</code> across this rep's OPEN, non&#8209;Future&#8209;Opportunity opportunities whose <code>expected_close_date</code> falls in the current month or next &mdash; a forward check on whether next month's number is already in motion, not just this month's. Target: Rp30M/month (Rp60M across the 2&#8209;month window).</li>
-          <li><strong>Suggested Action</strong>: each of the 4 signals above is scored against its target; a signal below 50% of target counts as "red." <strong>Recommend PIP Review</strong> = 2+ red signals, <strong>Watch</strong> = exactly 1, <strong>On Track</strong> = none.</li>
+          <li><strong>Suggested Action</strong>: Created and Closed&ndash;Won are scored against a pace&#8209;adjusted target (see below), CRM Updated % and Pipeline Runway against their target directly; a signal below 50% counts as "red." <strong>Productivity Concern</strong> = 2+ red signals, <strong>Watch</strong> = exactly 1, <strong>On Track</strong> = none.</li>
+          <li><strong>Pace&#8209;adjusted targets</strong>: Created and Closed&ndash;Won are cumulative counts that build up over the month, so checking them against the full month's target is unfairly harsh early on. Instead they're checked against how much of the target should be banked <em>by today</em>, given how far through the month it is (e.g. on day 10 of a 30&#8209;day month, the effective bar for a 10&#8209;target is ~3.3, not 10). CRM Updated % and Pipeline Runway are point&#8209;in&#8209;time snapshots, not cumulative, so they aren't pace&#8209;adjusted.</li>
         </ul>
       </div>
     </div>
@@ -1954,8 +1955,8 @@
   let pipSortKey = "red_count";
   let pipSortDir = "desc";
 
-  function pipMetricCellHtml(value, target, fmt, hideTarget) {
-    const pct = target ? Math.min((value / target) * 100, 100) : 0;
+  function pipMetricCellHtml(value, target, fmt, hideTarget, pctOverride) {
+    const pct = pctOverride != null ? Math.min(pctOverride, 100) : (target ? Math.min((value / target) * 100, 100) : 0);
     const color = targetProgressColor(pct);
     const label = hideTarget || target == null ? fmt(value) : `${fmt(value)}/${fmt(target)}`;
     return `<td class="num">
@@ -1968,15 +1969,18 @@
 
   function pipFlagPillHtml(flag) {
     const meta = {
-      review: { label: "Recommend PIP Review", color: "var(--status-critical)", soft: "var(--status-critical-soft)" },
+      review: { label: "Productivity Concern", color: "var(--status-critical)", soft: "var(--status-critical-soft)" },
       watch: { label: "Watch", color: "var(--age-3)", soft: "color-mix(in srgb, var(--age-3) 18%, var(--surface-1))" },
       ontrack: { label: "On Track", color: "var(--status-good)", soft: "var(--status-good-soft)" },
     }[flag] || { label: flag, color: "var(--text-muted)", soft: "var(--surface-2)" };
     return `<span class="pip-flag-pill" style="background:${meta.soft}; color:${meta.color};">${meta.label}</span>`;
   }
 
+  let pipMonthProgressPct = null;
+
   function renderPipRadar(pip) {
     pipRows = (pip && pip.rows) || [];
+    pipMonthProgressPct = pip ? pip.month_progress_pct : null;
     renderPipTable();
   }
 
@@ -1994,8 +1998,11 @@
     const visible = pipFlaggedOnly ? sorted.filter(r => r.flag !== "ontrack") : sorted;
     const reviewCount = pipRows.filter(r => r.flag === "review").length;
 
+    const monthProgressHtml = pipMonthProgressPct != null
+      ? ` &middot; ${pipMonthProgressPct}% through the month (Created/Closed&ndash;Won targets are pace&#8209;adjusted)`
+      : "";
     document.getElementById("pip-counts").innerHTML =
-      `<b>${visible.length}</b> of ${pipRows.length} shown &middot; <span style="color:var(--status-critical); font-weight:700;">${reviewCount}</span> flagged for PIP review`;
+      `<b>${visible.length}</b> of ${pipRows.length} shown &middot; <span style="color:var(--status-critical); font-weight:700;">${reviewCount}</span> flagged as a productivity concern${monthProgressHtml}`;
 
     document.getElementById("pip-thead").innerHTML = PIP_COLUMNS.map(col => {
       const arrow = pipSortKey === col.key ? `<span class="sort-arrow">${pipSortDir === "asc" ? "▲" : "▼"}</span>` : "";
@@ -2007,8 +2014,8 @@
           <tr>
             <td class="name">${row.name}</td>
             <td style="color:var(--text-muted);">${row.manager || "&ndash;"}</td>
-            ${pipMetricCellHtml(row.created, row.created_target, v => v)}
-            ${pipMetricCellHtml(row.won, row.won_target, v => v)}
+            ${pipMetricCellHtml(row.created, row.created_target, v => v, false, row.created_pace_pct)}
+            ${pipMetricCellHtml(row.won, row.won_target, v => v, false, row.won_pace_pct)}
             ${pipMetricCellHtml(row.crm_updated_pct, PIP_CRM_TARGET, v => `${v}%`, true)}
             ${pipMetricCellHtml(row.runway, row.runway_target, fmtRupiah)}
             <td>${pipFlagPillHtml(row.flag)}</td>
