@@ -172,8 +172,8 @@ def _activity_bucket_for(days: int) -> tuple[str, str]:
     return "30d+", "critical"
 
 
-_PAGE_CONCURRENCY = 5
-_RATE_LIMIT_MAX_RETRIES = 5
+_PAGE_CONCURRENCY = 3
+_RATE_LIMIT_MAX_RETRIES = 8
 
 
 async def _get_with_retry(client: httpx.AsyncClient, url: str, headers: dict, params: dict, timeout: int = 20):
@@ -188,9 +188,9 @@ async def _get_with_retry(client: httpx.AsyncClient, url: str, headers: dict, pa
             return resp
         retry_after = resp.headers.get("Retry-After")
         try:
-            delay = float(retry_after) if retry_after else min(2 ** attempt, 30)
+            delay = float(retry_after) if retry_after else min(2 ** attempt, 60)
         except ValueError:
-            delay = min(2 ** attempt, 30)
+            delay = min(2 ** attempt, 60)
         await asyncio.sleep(delay)
     return resp
 
@@ -1403,11 +1403,13 @@ async def _refresh_dashboard_cache() -> None:
     _cache["refreshing"] = True
     try:
         async with httpx.AsyncClient() as client:
-            items, notebook_last_touch, tasks = await asyncio.gather(
-                fetch_all_opportunities(client),
-                fetch_notebook_last_touch(client),
-                fetch_open_tasks(client),
-            )
+            # Run one at a time rather than gathered — three concurrent
+            # paginated fetches (each already firing several requests at
+            # once internally) was enough to trip the CRM's rate limiter,
+            # especially right after a fresh restart.
+            items = await fetch_all_opportunities(client)
+            notebook_last_touch = await fetch_notebook_last_touch(client)
+            tasks = await fetch_open_tasks(client)
         # Only the raw fetch is cached — build_dashboard() re-runs per
         # request (cheap, pure in-memory aggregation) so the filter bar can
         # slice owners/managers/product lines/service levels without
