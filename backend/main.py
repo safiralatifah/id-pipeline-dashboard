@@ -172,7 +172,27 @@ def _activity_bucket_for(days: int) -> tuple[str, str]:
     return "30d+", "critical"
 
 
-_PAGE_CONCURRENCY = 8
+_PAGE_CONCURRENCY = 5
+_RATE_LIMIT_MAX_RETRIES = 5
+
+
+async def _get_with_retry(client: httpx.AsyncClient, url: str, headers: dict, params: dict, timeout: int = 20):
+    """GET with retry-with-backoff on 429, honoring Retry-After when the CRM
+    sends one. Concurrent paginated fetches (Opportunities, Notebook
+    entries, Tasks all running at once on every refresh) can trip the CRM's
+    rate limiter, especially right after a fresh restart — without this, a
+    single 429 aborted the whole background refresh."""
+    for attempt in range(_RATE_LIMIT_MAX_RETRIES + 1):
+        resp = await client.get(url, headers=headers, params=params, timeout=timeout)
+        if resp.status_code != 429 or attempt == _RATE_LIMIT_MAX_RETRIES:
+            return resp
+        retry_after = resp.headers.get("Retry-After")
+        try:
+            delay = float(retry_after) if retry_after else min(2 ** attempt, 30)
+        except ValueError:
+            delay = min(2 ** attempt, 30)
+        await asyncio.sleep(delay)
+    return resp
 
 
 async def _fetch_paginated(
@@ -183,7 +203,7 @@ async def _fetch_paginated(
     concurrently (bounded) instead of one-at-a-time — this matters once the
     collection is large (e.g. all-time Opportunities, or the ~1500-entry
     Notebook feed)."""
-    first = await client.get(url, headers=headers, params={**params, "page_size": page_size, "page": 1}, timeout=20)
+    first = await _get_with_retry(client, url, headers, {**params, "page_size": page_size, "page": 1})
     if first.status_code == 401:
         raise HTTPException(
             status_code=502,
@@ -201,7 +221,7 @@ async def _fetch_paginated(
 
     async def fetch_page(page: int) -> list[dict]:
         async with sem:
-            resp = await client.get(url, headers=headers, params={**params, "page_size": page_size, "page": page}, timeout=20)
+            resp = await _get_with_retry(client, url, headers, {**params, "page_size": page_size, "page": page})
             resp.raise_for_status()
             return list(resp.json().get("items") or [])
 
