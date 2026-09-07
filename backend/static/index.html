@@ -1012,6 +1012,7 @@
           <div class="info-row">Population: <b>open (all-time) + closed (last 12mo)</b></div>
           <div class="info-row">Snapshot: <b id="meta-snapshot">loading&hellip;</b></div>
           <div class="info-row"><b id="meta-total">&hellip;</b> opportunities matched</div>
+          <div class="info-row" id="meta-refresh-warning-row" style="display:none; color:var(--status-critical);">&#9888; Last refresh attempt (<span id="meta-refresh-warning-time"></span>) failed &mdash; showing data from the snapshot above.</div>
         </div>
       </div>
     </div>
@@ -1429,7 +1430,7 @@
         <ul>
           <li>"Record Type Indonesia" and "Record Type 12" are the <strong>same filter</strong> &mdash; Indonesia's record type ID in this CRM is <code>12</code>.</li>
           <li><strong>Population</strong>: every <strong>OPEN</strong> Indonesia opportunity regardless of age (so no old stale lead is missed), plus any opportunity &mdash; open or closed &mdash; created in the last 12 months. Indonesia has 72,721 Opportunity records all&#8209;time; fetching every one blew both the platform's request timeout and its memory limit, so closed/won history beyond 12 months isn't included. This population is what "Total" / "opportunities matched" refers to everywhere below unless a metric says otherwise.</li>
-          <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per&#8209;field filters proved unreliable for the Service Level field.</li>
+          <li>Data is refreshed by a background job roughly every 15 minutes (a full pull is ~73k records &mdash; too slow to run per page load), not sampled and not read off the CRM's own filter UI &mdash; that UI's per&#8209;field filters proved unreliable for the Service Level field. If the most recent refresh attempt failed (e.g. the CRM rate&#8209;limited it), the dashboard keeps showing the last successful snapshot rather than breaking &mdash; a red warning appears in this info popover when that's the case, naming when the failed attempt happened.</li>
           <li>"Last Mile &ndash; Parcel" and "Last Mile &ndash; Document" are excluded except for Raden Roro Inggil Pratiwi's opportunities (a data&#8209;quality rule, not a CRM limitation).</li>
           <li><strong>Prospecting</strong> is a legacy stage value no longer offered in the CRM's own stage filter dropdown. An opportunity actually sitting in it still counts toward Open Pipeline and every other stage&#8209;grouped panel &mdash; it just isn't given its own bar on the <strong>Opportunities by Stage</strong> chart specifically.</li>
           <li>Any record with <em>"UNAUTHORIZED OPPORTUNITY"</em> in its name is excluded from every count as a non&#8209;pipeline test artifact.</li>
@@ -2205,6 +2206,16 @@
 
     setText("meta-snapshot", new Date(d.snapshot_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }));
     setText("meta-total", d.total);
+    const refreshWarningRow = document.getElementById("meta-refresh-warning-row");
+    if (d.last_refresh_error) {
+      refreshWarningRow.style.display = "";
+      setText("meta-refresh-warning-time", d.last_refresh_attempt_at
+        ? new Date(d.last_refresh_attempt_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+        : "unknown time");
+      refreshWarningRow.title = d.last_refresh_error;
+    } else {
+      refreshWarningRow.style.display = "none";
+    }
     setText("stat-total", d.created_this_month);
     setText("stat-total-sub", vsLastMonth(d.created_this_month, d.created_last_month));
     setText("stat-open", d.open_pipeline);

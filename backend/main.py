@@ -110,7 +110,7 @@ PIP_RED_THRESHOLD_PCT = 50
 
 _cache: dict[str, Any] = {
     "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
-    "fetched_at": 0.0, "error": None, "refreshing": False,
+    "fetched_at": 0.0, "error": None, "refreshing": False, "last_attempt_at": None,
 }
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
@@ -1424,6 +1424,13 @@ async def _refresh_dashboard_cache() -> None:
     if _cache["refreshing"]:
         return
     _cache["refreshing"] = True
+    # Recorded on every attempt (success or failure) — separate from
+    # snapshot_at, which only advances on success. Once one refresh has
+    # succeeded, a later failure keeps serving the old (still valid) data
+    # with no visible error, so without this a string of silent failures
+    # is invisible until someone happens to notice the snapshot has gone
+    # stale. Surfaced in /api/pipeline so the frontend can flag it.
+    _cache["last_attempt_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     try:
         async with httpx.AsyncClient() as client:
             # Run one at a time rather than gathered — three concurrent
@@ -1499,6 +1506,11 @@ async def get_pipeline(
     result["filter_options"] = _filter_options(_cache["items"], allowed_owners, effective_owners, managers)
     result["viewer_name"] = viewer_name
     result["viewer_scoped"] = allowed_owners is not None
+    # Non-null only when the most recent background refresh attempt failed
+    # — data below is still the last good snapshot (from snapshot_at), not
+    # broken, but it's gone stale silently since that attempt.
+    result["last_refresh_error"] = _cache["error"]
+    result["last_refresh_attempt_at"] = _cache["last_attempt_at"] if _cache["error"] else None
     return result
 
 

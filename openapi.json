@@ -607,7 +607,9 @@
                           }
                         }
                       }
-                    }
+                    },
+                    "last_refresh_error": { "type": "string", "nullable": true, "description": "Non-null only when the most recent background refresh attempt failed (e.g. the CRM rate-limited it) — every field above is still the last successful snapshot (see snapshot_at), not broken, just possibly stale beyond the usual ~15 minutes." },
+                    "last_refresh_attempt_at": { "type": "string", "nullable": true, "description": "When the failed attempt happened. Null whenever last_refresh_error is null." }
                   }
                 }
               }
