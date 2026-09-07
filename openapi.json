@@ -609,7 +609,8 @@
                       }
                     },
                     "last_refresh_error": { "type": "string", "nullable": true, "description": "Non-null only when the most recent background refresh attempt failed (e.g. the CRM rate-limited it) — every field above is still the last successful snapshot (see snapshot_at), not broken, just possibly stale beyond the usual ~15 minutes." },
-                    "last_refresh_attempt_at": { "type": "string", "nullable": true, "description": "When the failed attempt happened. Null whenever last_refresh_error is null." }
+                    "last_refresh_attempt_at": { "type": "string", "nullable": true, "description": "When the failed attempt happened. Null whenever last_refresh_error is null." },
+                    "consecutive_refresh_failures": { "type": "integer", "description": "How many refresh attempts have failed in a row (0 when healthy). The background loop backs off further after each one (30min, 60min, capped there) instead of retrying every 15 minutes regardless, and resets to 0 on the next success." }
                   }
                 }
               }

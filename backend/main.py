@@ -111,11 +111,17 @@ PIP_RED_THRESHOLD_PCT = 50
 _cache: dict[str, Any] = {
     "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False, "last_attempt_at": None,
+    "consecutive_failures": 0,
 }
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
 # this background timer, never on-demand from get_pipeline().
 REFRESH_INTERVAL_SECONDS = 900
+# If the CRM is rate-limiting us, retrying again in exactly 15 minutes
+# regardless — forever — just keeps knocking on a door that isn't open yet.
+# Back off further after each consecutive failure (30min, 60min, ...), up to
+# this cap, and reset to the normal interval as soon as one attempt succeeds.
+REFRESH_BACKOFF_CAP_SECONDS = 3600
 
 _DASH_RE = re.compile("[-‐‑‒–—―]")
 
@@ -1450,8 +1456,10 @@ async def _refresh_dashboard_cache() -> None:
         _cache["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         _cache["fetched_at"] = time.time()
         _cache["error"] = None
+        _cache["consecutive_failures"] = 0
     except Exception as e:
         _cache["error"] = str(e)
+        _cache["consecutive_failures"] += 1
     finally:
         _cache["refreshing"] = False
 
@@ -1459,7 +1467,12 @@ async def _refresh_dashboard_cache() -> None:
 async def _refresh_loop() -> None:
     while True:
         await _refresh_dashboard_cache()
-        await asyncio.sleep(REFRESH_INTERVAL_SECONDS)
+        failures = _cache["consecutive_failures"]
+        delay = (
+            min(REFRESH_INTERVAL_SECONDS * (2 ** failures), REFRESH_BACKOFF_CAP_SECONDS)
+            if failures else REFRESH_INTERVAL_SECONDS
+        )
+        await asyncio.sleep(delay)
 
 
 @app.on_event("startup")
@@ -1511,6 +1524,7 @@ async def get_pipeline(
     # broken, but it's gone stale silently since that attempt.
     result["last_refresh_error"] = _cache["error"]
     result["last_refresh_attempt_at"] = _cache["last_attempt_at"] if _cache["error"] else None
+    result["consecutive_refresh_failures"] = _cache["consecutive_failures"]
     return result
 
 
