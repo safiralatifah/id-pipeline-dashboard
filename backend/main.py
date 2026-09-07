@@ -181,17 +181,19 @@ def _activity_bucket_for(days: int) -> tuple[str, str]:
 
 _PAGE_CONCURRENCY = 3
 _RATE_LIMIT_MAX_RETRIES = 8
+_RETRYABLE_STATUS_CODES = {429, 502, 503, 504}
 
 
 async def _get_with_retry(client: httpx.AsyncClient, url: str, headers: dict, params: dict, timeout: int = 20):
-    """GET with retry-with-backoff on 429, honoring Retry-After when the CRM
-    sends one. Concurrent paginated fetches (Opportunities, Notebook
-    entries, Tasks all running at once on every refresh) can trip the CRM's
-    rate limiter, especially right after a fresh restart — without this, a
-    single 429 aborted the whole background refresh."""
+    """GET with retry-with-backoff on 429 (rate limited) and 502/503/504
+    (the CRM's own service being down or overloaded) — honoring Retry-After
+    when the CRM sends one. Concurrent paginated fetches (Opportunities,
+    Notebook entries, Tasks all running at once on every refresh) can trip
+    the CRM's rate limiter, especially right after a fresh restart — without
+    this, a single bad response aborted the whole background refresh."""
     for attempt in range(_RATE_LIMIT_MAX_RETRIES + 1):
         resp = await client.get(url, headers=headers, params=params, timeout=timeout)
-        if resp.status_code != 429 or attempt == _RATE_LIMIT_MAX_RETRIES:
+        if resp.status_code not in _RETRYABLE_STATUS_CODES or attempt == _RATE_LIMIT_MAX_RETRIES:
             return resp
         retry_after = resp.headers.get("Retry-After")
         try:
