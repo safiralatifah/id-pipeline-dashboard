@@ -12,6 +12,9 @@ from typing import Any
 import httpx
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
+
+import storage
 
 app = FastAPI()
 
@@ -111,7 +114,7 @@ PIP_RED_THRESHOLD_PCT = 50
 _cache: dict[str, Any] = {
     "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False, "last_attempt_at": None,
-    "consecutive_failures": 0,
+    "consecutive_failures": 0, "last_full_pull_at": None,
 }
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
@@ -122,12 +125,63 @@ REFRESH_INTERVAL_SECONDS = 900
 # Back off further after each consecutive failure (30min, 60min, ...), up to
 # this cap, and reset to the normal interval as soon as one attempt succeeds.
 REFRESH_BACKOFF_CAP_SECONDS = 3600
+# Most 15-minute refreshes fetch only the delta (records touched since the
+# last successful refresh) — orders of magnitude cheaper than the full pull,
+# and the main reason the CRM's rate limiter used to trip. A full pull still
+# runs once a day to reconcile anything a pure delta can't reach (e.g. the
+# rare record whose record_type_id itself changed) and whenever there's no
+# cache yet to delta against.
+FULL_PULL_INTERVAL_SECONDS = 24 * 3600
+# Where the cache snapshot is persisted (object storage) so a restart loads
+# a warm cache instead of starting from nothing — see _save_snapshot /
+# _load_snapshot. Restoring last_full_pull_at from it too means the first
+# refresh after a restart is a cheap delta, not a full pull.
+_SNAPSHOT_KEY = "cache/pipeline_snapshot.json"
 
 _DASH_RE = re.compile("[-‐‑‒–—―]")
 
 
 def _normalize_stage(s: str) -> str:
     return _DASH_RE.sub("-", s).strip().lower()
+
+
+# Data-quality filter: "Last Mile – Parcel" and "Last Mile – Document" are
+# only valid for Raden Roro Inggil Pratiwi's opportunities; excluded for
+# everyone else. Compared dash-normalized since the CRM inconsistently
+# returns nv_product_line with a hyphen vs. an en dash.
+RESTRICTED_PRODUCT_LINES = {_normalize_stage("Last Mile – Parcel"), _normalize_stage("Last Mile – Document")}
+# "Cross-border" is excluded entirely, for every owner — not a valid NV
+# Product Line for this dashboard.
+EXCLUDED_PRODUCT_LINES = {_normalize_stage("Cross-border")}
+
+
+def _opportunity_included(r: dict) -> bool:
+    """Whether a raw Opportunity record belongs on the dashboard at all —
+    shared by the full pull and the delta merge so a record that changes in
+    a way that newly excludes it (e.g. its product line is edited to
+    Cross-border) drops out on the next delta cycle instead of lingering
+    forever."""
+    if EXCLUDE_NAME_SUBSTR in (r.get("name") or ""):
+        return False
+    product_line = _normalize_stage(r.get("nv_product_line") or "")
+    if product_line in RESTRICTED_PRODUCT_LINES and r.get("owner_name") != "Raden Roro Inggil Pratiwi":
+        return False
+    if product_line in EXCLUDED_PRODUCT_LINES:
+        return False
+    return True
+
+
+def _normalize_opportunity(r: dict) -> dict:
+    """service_level is a multi-select field, but the CRM returns a bare
+    string instead of a 1-item list for some records — spreading/joining
+    that string elsewhere would silently iterate its characters instead of
+    treating it as one value, so normalize to a list once, here."""
+    sl = r.get("service_level")
+    if isinstance(sl, str):
+        r["service_level"] = [sl] if sl else []
+    elif not sl:
+        r["service_level"] = []
+    return r
 
 
 def _parse_dt(s: str | None) -> datetime | None:
@@ -272,35 +326,64 @@ async def fetch_all_opportunities(client: httpx.AsyncClient) -> list[dict]:
         {"X-API-Key": api_key},
         {"filters": json.dumps(filters)},
     )
-    items = [r for r in items if EXCLUDE_NAME_SUBSTR not in (r.get("name") or "")]
-    # Data-quality filter: "Last Mile – Parcel" and "Last Mile – Document"
-    # are only valid for Raden Roro Inggil Pratiwi's opportunities; exclude
-    # both from everyone else. Compared dash-normalized since the CRM
-    # inconsistently returns nv_product_line with a hyphen vs. an en dash.
-    RESTRICTED_PRODUCT_LINES = {_normalize_stage("Last Mile – Parcel"), _normalize_stage("Last Mile – Document")}
-    items = [
-        r
-        for r in items
-        if not (
-            _normalize_stage(r.get("nv_product_line") or "") in RESTRICTED_PRODUCT_LINES
-            and r.get("owner_name") != "Raden Roro Inggil Pratiwi"
-        )
-    ]
-    # "Cross-border" is excluded entirely, for every owner — not a valid NV
-    # Product Line for this dashboard.
-    EXCLUDED_PRODUCT_LINES = {_normalize_stage("Cross-border")}
-    items = [r for r in items if _normalize_stage(r.get("nv_product_line") or "") not in EXCLUDED_PRODUCT_LINES]
-    # service_level is a multi-select field, but the CRM returns a bare
-    # string instead of a 1-item list for some records — spreading/joining
-    # that string elsewhere would silently iterate its characters instead of
-    # treating it as one value, so normalize to a list once, here.
-    for r in items:
-        sl = r.get("service_level")
-        if isinstance(sl, str):
-            r["service_level"] = [sl] if sl else []
-        elif not sl:
-            r["service_level"] = []
-    return items
+    return [_normalize_opportunity(r) for r in items if _opportunity_included(r)]
+
+
+async def fetch_opportunities_delta(client: httpx.AsyncClient, since: str) -> list[dict]:
+    """Only Indonesia Opportunities touched since the last successful
+    refresh, for merging into the cached set with _merge_opportunities.
+    Re-running the full ~72k-record filtered pull on every 15-minute refresh
+    was most of what tripped the CRM's rate limiter — this is orders of
+    magnitude cheaper and is what every refresh uses once a full pull has
+    populated the cache (see FULL_PULL_INTERVAL_SECONDS for when a full pull
+    still runs)."""
+    api_key = os.environ.get("CRM_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
+
+    filters = {
+        "logic": "AND",
+        "conditions": [
+            {"field": "record_type_id", "operator": "equals", "value": RECORD_TYPE_INDONESIA},
+            {"field": "updated_at", "operator": "greater_than", "value": since},
+        ],
+    }
+    return await _fetch_paginated(
+        client,
+        f"{CRM_BASE}/objects/Opportunity/records",
+        {"X-API-Key": api_key},
+        {"filters": json.dumps(filters)},
+    )
+
+
+def _merge_opportunities(existing: list[dict], delta_raw: list[dict]) -> list[dict]:
+    """Upsert a delta batch (raw, unfiltered) into the cached item list by
+    id. A delta record that no longer passes _opportunity_included (e.g. its
+    product line was edited to an excluded one) is dropped rather than
+    upserted, so it still leaves the set instead of lingering as a stale
+    copy. Then prune anything that has aged out of the open-or-recent window
+    purely from elapsed time — a Closed-Won/Lost record whose created_at
+    fell more than CLOSED_HISTORY_DAYS behind "now" leaves the set here even
+    though nothing about the record itself changed, so it never needs to
+    show up in a delta at all."""
+    by_id = {r["id"]: r for r in existing}
+    for r in delta_raw:
+        rid = r.get("id")
+        if rid is None:
+            continue
+        by_id.pop(rid, None)
+        if _opportunity_included(r):
+            by_id[rid] = _normalize_opportunity(r)
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=CLOSED_HISTORY_DAYS)
+
+    def _in_window(r: dict) -> bool:
+        if r.get("stage") not in ("Closed-Won", "Closed-Lost"):
+            return True
+        created = _parse_dt(r.get("created_at"))
+        return created is not None and created > cutoff
+
+    return [r for r in by_id.values() if _in_window(r)]
 
 
 async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, dict]:
@@ -1428,6 +1511,58 @@ def health():
     return {"status": "ok"}
 
 
+def _serialize_notebook_last_touch(nlt: dict[int, dict]) -> dict[str, dict]:
+    return {str(rid): {"last_touch": v["last_touch"].isoformat(), "content": v.get("content")} for rid, v in nlt.items()}
+
+
+def _deserialize_notebook_last_touch(raw: dict) -> dict[int, dict]:
+    result: dict[int, dict] = {}
+    for rid, v in raw.items():
+        touched = _parse_dt(v.get("last_touch"))
+        if touched is None:
+            continue
+        result[int(rid)] = {"last_touch": touched, "content": v.get("content")}
+    return result
+
+
+async def _save_snapshot() -> None:
+    """Best-effort persist of the cache to object storage, so the next
+    restart can warm-start from it instead of a cold cache. A save failure
+    never fails the refresh itself — the in-memory cache this request cycle
+    produced is already correct; only durability across a restart is lost,
+    and the next successful refresh will just try saving again."""
+    try:
+        payload = json.dumps({
+            "items": _cache["items"],
+            "notebook_last_touch": _serialize_notebook_last_touch(_cache["notebook_last_touch"]),
+            "tasks": _cache["tasks"],
+            "snapshot_at": _cache["snapshot_at"],
+            "last_full_pull_at": _cache["last_full_pull_at"],
+        }).encode("utf-8")
+        await run_in_threadpool(storage.put_bytes, _SNAPSHOT_KEY, payload, content_type="application/json")
+    except Exception:
+        pass
+
+
+async def _load_snapshot() -> None:
+    """Warm the cache from the last persisted snapshot at startup, if any —
+    so the dashboard serves (slightly stale) data immediately instead of
+    every restart blocking on a fresh full pull, and so the first refresh
+    after a restart is a cheap delta rather than the ~730-request pull that
+    used to trip the CRM's rate limiter right after every deploy."""
+    try:
+        raw = await run_in_threadpool(storage.get_bytes, _SNAPSHOT_KEY)
+        data = json.loads(raw)
+        _cache["items"] = data["items"]
+        _cache["notebook_last_touch"] = _deserialize_notebook_last_touch(data["notebook_last_touch"])
+        _cache["tasks"] = data["tasks"]
+        _cache["snapshot_at"] = data["snapshot_at"]
+        _cache["last_full_pull_at"] = data.get("last_full_pull_at")
+        _cache["fetched_at"] = time.time()
+    except Exception:
+        pass  # no snapshot yet (first-ever deploy), or object storage not configured/reachable
+
+
 async def _refresh_dashboard_cache() -> None:
     if _cache["refreshing"]:
         return
@@ -1445,7 +1580,16 @@ async def _refresh_dashboard_cache() -> None:
             # paginated fetches (each already firing several requests at
             # once internally) was enough to trip the CRM's rate limiter,
             # especially right after a fresh restart.
-            items = await fetch_all_opportunities(client)
+            do_full_pull = (
+                _cache["items"] is None
+                or _cache["last_full_pull_at"] is None
+                or time.time() - _cache["last_full_pull_at"] >= FULL_PULL_INTERVAL_SECONDS
+            )
+            if do_full_pull:
+                items = await fetch_all_opportunities(client)
+            else:
+                delta = await fetch_opportunities_delta(client, _cache["snapshot_at"])
+                items = _merge_opportunities(_cache["items"], delta)
             notebook_last_touch = await fetch_notebook_last_touch(client)
             tasks = await fetch_open_tasks(client)
         # Only the raw fetch is cached — build_dashboard() re-runs per
@@ -1459,6 +1603,13 @@ async def _refresh_dashboard_cache() -> None:
         _cache["fetched_at"] = time.time()
         _cache["error"] = None
         _cache["consecutive_failures"] = 0
+        # Only recorded once the whole cycle (including Notebook/Tasks)
+        # actually commits — otherwise a full Opportunities pull followed by
+        # a failed Notebook/Task fetch would mark the day's reconciliation
+        # done without it ever landing in the cache.
+        if do_full_pull:
+            _cache["last_full_pull_at"] = time.time()
+        await _save_snapshot()
     except Exception as e:
         _cache["error"] = str(e)
         _cache["consecutive_failures"] += 1
@@ -1479,6 +1630,7 @@ async def _refresh_loop() -> None:
 
 @app.on_event("startup")
 async def _start_background_refresh() -> None:
+    await _load_snapshot()
     asyncio.create_task(_refresh_loop())
 
 
