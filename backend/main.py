@@ -22,7 +22,11 @@ BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 
 with open(BASE_DIR / "team_roster.json", encoding="utf-8") as f:
-    TEAM_ROSTER: dict[str, dict] = json.load(f)
+    _RAW_TEAM_ROSTER: dict[str, dict] = json.load(f)
+# Canonicalize roster keys the same way CRM owner_names are canonicalized at
+# ingestion (see _normalize_owner_name, defined below), so the two sides
+# always join even if a roster entry is authored with stray whitespace.
+TEAM_ROSTER: dict[str, dict] = {" ".join(k.split()): v for k, v in _RAW_TEAM_ROSTER.items()}
 
 # Maps the viewer's SSO email (from the platform's unspoofable
 # X-Forwarded-Email header) to their name in TEAM_ROSTER, so the dashboard
@@ -145,6 +149,18 @@ def _normalize_stage(s: str) -> str:
     return _DASH_RE.sub("-", s).strip().lower()
 
 
+def _normalize_owner_name(name: str | None) -> str | None:
+    """Collapse any run of whitespace to a single space and trim, so a CRM
+    owner_name carrying a stray double space (e.g. "Deny  Ardianto") still
+    matches its single-spaced team_roster key. Applied at ingestion so every
+    downstream manager join, filter, dropdown, and grouping sees one
+    canonical form — an owner is never split between their real manager and
+    the "Unmapped" bucket over invisible whitespace."""
+    if not name:
+        return name
+    return " ".join(name.split())
+
+
 # Data-quality filter: "Last Mile – Parcel" and "Last Mile – Document" are
 # only valid for Raden Roro Inggil Pratiwi's opportunities; excluded for
 # everyone else. Compared dash-normalized since the CRM inconsistently
@@ -164,7 +180,7 @@ def _opportunity_included(r: dict) -> bool:
     if EXCLUDE_NAME_SUBSTR in (r.get("name") or ""):
         return False
     product_line = _normalize_stage(r.get("nv_product_line") or "")
-    if product_line in RESTRICTED_PRODUCT_LINES and r.get("owner_name") != "Raden Roro Inggil Pratiwi":
+    if product_line in RESTRICTED_PRODUCT_LINES and _normalize_owner_name(r.get("owner_name")) != "Raden Roro Inggil Pratiwi":
         return False
     if product_line in EXCLUDED_PRODUCT_LINES:
         return False
@@ -181,6 +197,7 @@ def _normalize_opportunity(r: dict) -> dict:
         r["service_level"] = [sl] if sl else []
     elif not sl:
         r["service_level"] = []
+    r["owner_name"] = _normalize_owner_name(r.get("owner_name"))
     return r
 
 
@@ -441,7 +458,10 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
     )
     # Filtered client-side rather than as a server-side condition above —
     # related_object_type's filter support on this endpoint isn't confirmed.
-    return [t for t in tasks if t.get("related_object_type") == "Opportunity"]
+    opp_tasks = [t for t in tasks if t.get("related_object_type") == "Opportunity"]
+    for t in opp_tasks:
+        t["owner_name"] = _normalize_owner_name(t.get("owner_name"))
+    return opp_tasks
 
 
 UNMAPPED_MANAGER_LABEL = "Unmapped"
@@ -450,8 +470,12 @@ UNMAPPED_MANAGER_LABEL = "Unmapped"
 def _owner_manager(owner: str) -> str:
     """The manager filter value for an owner — their real manager, or the
     synthetic "Unmapped" bucket for an owner with no team_roster entry (or
-    a roster entry with no manager field, e.g. a Sales Head)."""
-    return (TEAM_ROSTER.get(owner) or {}).get("manager") or UNMAPPED_MANAGER_LABEL
+    a roster entry with no manager field, e.g. a Sales Head). Normalizes the
+    owner name so the roster join is whitespace-tolerant even if a caller
+    passes a raw (un-ingested) CRM name — the roster keys are normalized the
+    same way at load."""
+    key = _normalize_owner_name(owner)
+    return (TEAM_ROSTER.get(key) or {}).get("manager") or UNMAPPED_MANAGER_LABEL
 
 
 def _filter_options(
@@ -1556,6 +1580,13 @@ async def _load_snapshot() -> None:
         _cache["items"] = data["items"]
         _cache["notebook_last_touch"] = _deserialize_notebook_last_touch(data["notebook_last_touch"])
         _cache["tasks"] = data["tasks"]
+        # Snapshots written before owner_name canonicalization can hold stray
+        # double spaces; normalize on warm-load so the fix takes effect on the
+        # first restart, not only after the next full pull re-ingests.
+        for _r in _cache["items"] or []:
+            _r["owner_name"] = _normalize_owner_name(_r.get("owner_name"))
+        for _t in _cache["tasks"] or []:
+            _t["owner_name"] = _normalize_owner_name(_t.get("owner_name"))
         _cache["snapshot_at"] = data["snapshot_at"]
         _cache["last_full_pull_at"] = data.get("last_full_pull_at")
         _cache["fetched_at"] = time.time()
