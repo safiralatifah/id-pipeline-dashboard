@@ -2312,6 +2312,7 @@
   }
 
   const OPP_COLUMNS = [
+    { key: "id", label: "Opportunity ID" },
     { key: "name", label: "Opportunity Name" },
     { key: "owner_name", label: "Owner" },
     { key: "stage", label: "Stage" },
@@ -2394,6 +2395,10 @@
   function oppCellHtml(row, key) {
     const v = row[key];
     switch (key) {
+      case "id":
+        return v == null || v === ""
+          ? "&ndash;"
+          : `<span style="font-family:var(--font-mono, ui-monospace, monospace); font-size:0.85em; color:var(--text-muted);">${v}</span>`;
       case "name":
         return row.crm_url
           ? `<a class="opp-link" href="${row.crm_url}" target="_blank" rel="noopener" title="${v || ""}">${v || "(untitled)"}</a>`
@@ -2700,7 +2705,7 @@
   }
 
   const OPP_EXPORT_COLUMNS = [
-    { key: "id", label: "ID" },
+    { key: "id", label: "Opportunity ID" },
     { key: "name", label: "Opportunity Name" },
     { key: "crm_url", label: "CRM URL" },
     { key: "owner_name", label: "Owner" },

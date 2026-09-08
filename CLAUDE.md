@@ -1,4 +1,4 @@
-<!-- BEGIN substrait-app contract (v6) — managed by the substrait plugin (link/deploy); edits inside this block are overwritten on update. Delete the whole block to opt out. -->
+<!-- BEGIN substrait-app contract (v7) — managed by the substrait plugin (link/deploy); edits inside this block are overwritten on update. Delete the whole block to opt out. -->
 ## Substrait deployment
 
 **Linked app:** `id-pipeline-dashboard-2` — https://id-pipeline-dashboard-2.ninjavan.apps.substrait.build
@@ -6,7 +6,10 @@
 This project deploys to the **Substrait platform** (linked via the gitignored
 `.substrait/config.json`). Deploy with **`/substrait:deploy`** (packages source-only,
 uploads, `--watch` follows the build to the live preview); re-link with
-`/substrait:link`. The `substrait-app` skill has the full contract; the essentials:
+`/substrait:link`. When the DEPLOYED app misbehaves (500s, blank page, a change that
+didn't take), read its runtime logs with **`/substrait:logs`** — `--watch` stops at the
+green deploy and cannot see runtime faults. The `substrait-app` skill has the full
+contract; the essentials:
 
 **Hard requirements (platform-enforced):**
 - Backend in any language. Its Dockerfile — `cicd/Dockerfile.backend` (repo-root build
