@@ -923,6 +923,22 @@
   .opplist-table .opp-note-toggle { cursor: pointer; text-decoration: underline dotted var(--text-muted); text-underline-offset: 2px; }
   .opplist-table .opp-note-toggle:hover { color: var(--text-primary); }
   .opplist-table tbody tr:hover { background: var(--surface-2); }
+  /* Flat "created cohort" view: freeze Opportunity ID + Name while the wide
+     column set scrolls horizontally. The two fixed widths must match the
+     sticky-col-2 left offset below. */
+  .opplist-table.cohort-table td.sticky-col,
+  .opplist-table.cohort-table th.sticky-col { position: sticky; background: var(--surface-1); }
+  .opplist-table.cohort-table th.sticky-col { background: var(--surface-2); z-index: 3; }
+  .opplist-table.cohort-table td.sticky-col { z-index: 1; }
+  .opplist-table.cohort-table .sticky-col-1 { left: 0; width: 120px; min-width: 120px; max-width: 120px; }
+  .opplist-table.cohort-table .sticky-col-2 {
+    left: 120px; width: 220px; min-width: 220px; max-width: 220px;
+    white-space: normal; box-shadow: 1px 0 0 var(--gridline);
+  }
+  .opplist-table.cohort-table tbody tr:hover td.sticky-col { background: var(--surface-2); }
+  /* Clickable "created" counts in the Overview team tables */
+  .created-count-link { cursor: pointer; text-decoration: underline dotted var(--text-muted); text-underline-offset: 3px; }
+  .created-count-link:hover { color: var(--accent); }
   .opp-pill {
     display: inline-flex;
     align-items: center;
@@ -1304,7 +1320,7 @@
 
     <div id="opplist-sections"></div>
 
-    <div class="panel" style="margin-top:16px;">
+    <div class="panel" style="margin-top:16px;" id="opplist-tasklist-panel">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
         <h2>Task List <span id="opplist-tasklist-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
         <button type="button" class="filter-btn" id="opplist-tasklist-export-btn">&#8595; Export CSV</button>
@@ -1835,17 +1851,17 @@
     return `<span class="won-pill" style="background:color-mix(in srgb, ${color} 16%, var(--surface-1)); color:${color};">${wonCount}/${wonTarget} won</span>`;
   }
 
-  function targetCellHtml(count, target, wonCount, wonTarget) {
+  function targetCellHtml(count, target, wonCount, wonTarget, countAttrs = "") {
     const wonHtml = wonPillHtml(wonCount, wonTarget);
     if (target == null) {
-      return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">${count}${wonHtml}</div></td>`;
+      return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;"><span${countAttrs}>${count}</span>${wonHtml}</div></td>`;
     }
     const pct = Math.min((count / target) * 100, 100);
     const color = targetProgressColor(pct);
     return `<td class="num">
         <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
           <div style="display:flex; align-items:center; gap:6px;">
-            <span style="font-weight:600; color:${color}; white-space:nowrap;">${count}/${target}</span>
+            <span style="font-weight:600; color:${color}; white-space:nowrap;"><span${countAttrs}>${count}</span>/${target}</span>
             <div style="width:40px; height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; flex:none;">
               <div style="width:${pct}%; height:100%; background:${color};"></div>
             </div>
@@ -2039,7 +2055,7 @@
     renderPipTable();
   });
 
-  function pastMonthCellHtml(count, target, prevCount, wonCount, wonTarget) {
+  function pastMonthCellHtml(count, target, prevCount, wonCount, wonTarget, countAttrs = "") {
     const pct = target ? `<span style="color:var(--text-muted); font-size:11.5px;"> (${Math.round((count / target) * 100)}%)</span>` : "";
     let trend = "";
     if (prevCount != null) {
@@ -2047,7 +2063,7 @@
       else if (count < prevCount) trend = `<span style="color:var(--status-critical); margin-left:4px;">&#9660;</span>`;
     }
     const wonHtml = wonPillHtml(wonCount, wonTarget);
-    return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;"><span>${count}${pct}${trend}</span>${wonHtml}</div></td>`;
+    return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;"><span><span${countAttrs}>${count}</span>${pct}${trend}</span>${wonHtml}</div></td>`;
   }
 
   const ROSTER_TABLE_NAME_COL_WIDTH = "200px";
@@ -2073,10 +2089,16 @@
             <tr>
               <td class="name"${filterKey ? ` data-filter-key="${filterKey}" data-filter-value="${r.name}"` : ""}>${r.name}</td>
               ${months.map((m, i) => {
+                const created = r.counts[m] ?? 0;
                 const wonCount = r.won_counts ? (r.won_counts[m] ?? 0) : null;
-                if (m === currentMonth) return targetCellHtml(r.counts[m] ?? 0, r.target, wonCount, r.won_target);
+                // Only a non-zero created count is clickable (nothing to show
+                // for 0); carries who + which month into the cohort filter.
+                const countAttrs = (created > 0 && filterKey)
+                  ? ` class="created-count-link" data-created-key="${filterKey}" data-created-value="${r.name}" data-created-month="${m}"`
+                  : "";
+                if (m === currentMonth) return targetCellHtml(created, r.target, wonCount, r.won_target, countAttrs);
                 const prevCount = i > 0 ? (r.counts[months[i - 1]] ?? 0) : null;
-                return pastMonthCellHtml(r.counts[m] ?? 0, r.target, prevCount, wonCount, r.won_target);
+                return pastMonthCellHtml(created, r.target, prevCount, wonCount, r.won_target, countAttrs);
               }).join("")}
             </tr>`).join("")}
         </tbody>
@@ -2342,8 +2364,32 @@
   let oppLoaded = false;
   let oppStructFilter = null;
   let oppStructFilterLabel = "";
+  // Column set for the flat "created cohort" view, opened by clicking a
+  // "created" count on Overview. Opportunity ID + Name are frozen (sticky)
+  // while the rest scrolls horizontally; Created Date sits right after Name so
+  // the two identity columns can be frozen as one contiguous block.
+  const OPP_COHORT_COLUMNS = [
+    { key: "id", label: "Opportunity ID", sticky: 1 },
+    { key: "name", label: "Opportunity Name", sticky: 2 },
+    { key: "created_at", label: "Created Date" },
+    { key: "owner_name", label: "Owner" },
+    { key: "stage", label: "Stage" },
+    { key: "closed_won_date", label: "Closed Won Date" },
+    { key: "type", label: "Type" },
+    { key: "product", label: "Product", sortable: false },
+    { key: "aging_days", label: "Aging", num: true },
+    { key: "last_stage_duration_days", label: "Last Stage Duration", num: true },
+    { key: "expected_close_date", label: "Expected Close Date" },
+    { key: "overdue", label: "Overdue" },
+    { key: "total_potential_revenue_mth", label: "Potential Rev / Mth", num: true },
+    { key: "committed_revenue_mth", label: "Committed Rev / Mth", num: true },
+    { key: "notebook_last_touch", label: "Notebook Last Touch", num: true },
+    { key: "open_task_count", label: "#Open Task", num: true },
+    { key: "task_not_updated_count", label: "#Task Not Updated", num: true },
+  ];
   const oppSectionState = {};
   OPP_SECTIONS.forEach(s => { oppSectionState[s.id] = { sortKey: "aging_days", sortDir: "desc", page: 1 }; });
+  oppSectionState.cohort = { sortKey: "created_at", sortDir: "desc", page: 1 };
 
   const TASK_COLUMNS = [
     { key: "subject", label: "Task" },
@@ -2386,10 +2432,15 @@
   let oppNotebookExpanded = new Set();
 
   function oppColClass(col, row) {
-    if (col.num) return "num";
-    if (col.key === "name") return "opp-name-cell";
-    if (col.key === "notebook_content") return `notebook-content${row && oppNotebookExpanded.has(row.id) ? " expanded" : ""}`;
-    return "";
+    const classes = [];
+    if (col.num) classes.push("num");
+    // In the cohort view the name column is frozen (sticky-col-2), which sets
+    // its own width — so skip opp-name-cell there to avoid a width conflict.
+    if (col.key === "name" && !col.sticky) classes.push("opp-name-cell");
+    if (col.key === "notebook_content") classes.push(`notebook-content${row && oppNotebookExpanded.has(row.id) ? " expanded" : ""}`);
+    if (col.sticky === 1) classes.push("sticky-col", "sticky-col-1");
+    if (col.sticky === 2) classes.push("sticky-col", "sticky-col-2");
+    return classes.join(" ");
   }
 
   function oppCellHtml(row, key) {
@@ -2413,6 +2464,8 @@
         return label ? `<span class="opp-pill opp-pill-neutral">${label}</span>` : "&ndash;";
       }
       case "expected_close_date":
+      case "created_at":
+      case "closed_won_date":
         return fmtDate(v);
       case "aging_days":
       case "last_stage_duration_days":
@@ -2455,7 +2508,13 @@
         return res.json();
       })
       .then(data => {
-        oppAllRows = data.rows || [];
+        oppAllRows = (data.rows || []).map(r => ({
+          ...r,
+          // The date a deal became Closed–Won is its last stage change (which
+          // already falls back to updated_at server-side); only meaningful for
+          // a won deal, blank otherwise.
+          closed_won_date: r.stage_group === "closed_won" ? (r.stage_last_changed_at || null) : null,
+        }));
         oppAllTasks = data.tasks || [];
         oppLoaded = true;
         OPP_SECTIONS.forEach(s => { oppSectionState[s.id].page = 1; });
@@ -2473,7 +2532,7 @@
     if (oppLoaded && document.getElementById("view-opplist").style.display !== "none") loadOpportunities();
   }
 
-  function renderOppSection(sectionId, rows) {
+  function renderOppSection(sectionId, rows, columns = OPP_COLUMNS) {
     const state = oppSectionState[sectionId];
     const sorted = rows.slice().sort((a, b) => {
       const av = oppCellValue(a, state.sortKey);
@@ -2497,7 +2556,7 @@
     document.getElementById(`opplist-prev-${sectionId}`).disabled = state.page <= 1;
     document.getElementById(`opplist-next-${sectionId}`).disabled = state.page >= totalPages;
 
-    document.getElementById(`opplist-thead-${sectionId}`).innerHTML = OPP_COLUMNS.map(col => {
+    document.getElementById(`opplist-thead-${sectionId}`).innerHTML = columns.map(col => {
       const sortable = col.sortable !== false;
       const arrow = sortable && state.sortKey === col.key ? `<span class="sort-arrow">${state.sortDir === "asc" ? "▲" : "▼"}</span>` : "";
       return `<th class="${oppColClass(col, null)}" data-key="${col.key}" data-sortable="${sortable}">${col.label}${arrow}</th>`;
@@ -2506,11 +2565,11 @@
     document.getElementById(`opplist-tbody-${sectionId}`).innerHTML = pageRows.length
       ? pageRows.map(row => `
           <tr>
-            ${OPP_COLUMNS.map(col => {
+            ${columns.map(col => {
               return `<td class="${oppColClass(col, row)}">${oppCellHtml(row, col.key)}</td>`;
             }).join("")}
           </tr>`).join("")
-      : `<tr><td colspan="${OPP_COLUMNS.length}" style="color:var(--text-muted); padding:12px 0;">No matching opportunities.</td></tr>`;
+      : `<tr><td colspan="${columns.length}" style="color:var(--text-muted); padding:12px 0;">No matching opportunities.</td></tr>`;
 
     document.querySelectorAll(`#opplist-thead-${sectionId} th[data-sortable=true]`).forEach(th => {
       th.addEventListener("click", () => {
@@ -2614,6 +2673,11 @@
     if (f.productLine && r.nv_product_line !== f.productLine) return false;
     if (f.serviceLevel && !(r.service_level || []).includes(f.serviceLevel)) return false;
     if (f.overdue && !r.overdue) return false;
+    // Created-cohort filter (from clicking a "created" count on Overview):
+    // the deal's created month, restricted to new-business Types, exactly as
+    // the Overview "Created" number is counted.
+    if (f.createdMonth && (r.created_at || "").slice(0, 7) !== f.createdMonth) return false;
+    if (f.newBusinessOnly && !["Acquisition", "Cross-Selling"].includes(r.type)) return false;
     if (f.closeDateFrom && (!r.expected_close_date || r.expected_close_date < f.closeDateFrom)) return false;
     if (f.closeDateTo && (!r.expected_close_date || r.expected_close_date > f.closeDateTo)) return false;
     if (f.ageField) {
@@ -2712,6 +2776,7 @@
     { key: "manager", label: "Manager" },
     { key: "stage", label: "Stage" },
     { key: "stage_group", label: "Stage Group" },
+    { key: "closed_won_date", label: "Closed Won Date" },
     { key: "type", label: "Type" },
     { key: "nv_product_line", label: "NV Product Line" },
     { key: "service_level", label: "Service Level" },
@@ -2770,6 +2835,16 @@
 
     document.getElementById("opplist-count").textContent = `${filtered.length} of ${oppAllRows.length} opportunit${oppAllRows.length === 1 ? "y" : "ies"}`;
 
+    // "Created cohort" mode (clicked a created count on Overview): one flat
+    // table of exactly those opportunities, wide focused column set, Task List
+    // hidden — it isn't about tasks.
+    const cohortMode = !!(oppStructFilter && oppStructFilter.cohort);
+    document.getElementById("opplist-tasklist-panel").hidden = cohortMode;
+    if (cohortMode) {
+      renderOppCohort(filtered);
+      return;
+    }
+
     document.getElementById("opplist-sections").innerHTML = OPP_SECTIONS.map(sec => `
       <div class="panel" style="margin-bottom:16px;">
         <h2>${sec.title} <span id="opplist-section-count-${sec.id}" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
@@ -2791,6 +2866,26 @@
     });
 
     renderTaskList();
+  }
+
+  function renderOppCohort(rows) {
+    document.getElementById("opplist-sections").innerHTML = `
+      <div class="panel" style="margin-bottom:16px;">
+        <h2>Created Opportunities <span id="opplist-section-count-cohort" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+        <p class="panel-sub" style="margin-bottom:16px;">Exactly the deals counted in the number you clicked. Opportunity&nbsp;ID and Opportunity&nbsp;Name stay pinned while the rest scrolls sideways.</p>
+        <div style="overflow-x:auto;">
+          <table class="simple-table opplist-table cohort-table" id="opplist-table-cohort">
+            <thead><tr id="opplist-thead-cohort"></tr></thead>
+            <tbody id="opplist-tbody-cohort"></tbody>
+          </table>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px;">
+          <button type="button" class="filter-btn" id="opplist-prev-cohort">&larr; Prev</button>
+          <span id="opplist-page-info-cohort" style="font-size:12.5px; color:var(--text-muted);"></span>
+          <button type="button" class="filter-btn" id="opplist-next-cohort">Next &rarr;</button>
+        </div>
+      </div>`;
+    renderOppSection("cohort", rows, OPP_COHORT_COLUMNS);
   }
 
   document.getElementById("opplist-search").addEventListener("input", e => {
@@ -2930,6 +3025,18 @@
   });
 
   document.addEventListener("click", e => {
+    const createdEl = e.target.closest(".created-count-link");
+    if (createdEl) {
+      const key = createdEl.dataset.createdKey;       // "manager" | "owner_name"
+      const value = createdEl.dataset.createdValue;
+      const month = createdEl.dataset.createdMonth;    // "YYYY-MM"
+      const base = key === "manager" ? { manager: value } : { ownerName: value };
+      applyOppChartFilter(
+        { ...base, createdMonth: month, newBusinessOnly: true, cohort: true },
+        `Created by ${value} · ${monthLabel(month)}`
+      );
+      return;
+    }
     const stageSeg = e.target.closest(".stage-age-seg");
     if (stageSeg) {
       const range = AGE_BUCKET_RANGES[stageSeg.dataset.bucket] || [null, null];
