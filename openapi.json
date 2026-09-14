@@ -532,7 +532,9 @@
                                   "subject": { "type": "string" },
                                   "owner_name": { "type": "string", "nullable": true },
                                   "days_since_update": { "type": "integer", "nullable": true },
-                                  "crm_url": { "type": "string", "nullable": true, "description": "Null when the Task isn't linked to an Opportunity." }
+                                  "crm_url": { "type": "string", "nullable": true, "description": "Direct link to the Task's own CRM record. Null only if the task has no id." },
+                                  "opportunity_id": { "type": "integer", "nullable": true, "description": "The linked Opportunity's id, when the task is linked to one." },
+                                  "opportunity_name": { "type": "string", "nullable": true, "description": "The linked Opportunity's name, from the currently-fetched Opportunity set. Null when opportunity_id is null, or when that Opportunity is deleted/out of the dashboard's window (opportunity_id is still shown so the row stays traceable)." }
                                 }
                               }
                             },
@@ -554,7 +556,9 @@
                                         "subject": { "type": "string" },
                                         "owner_name": { "type": "string", "nullable": true },
                                         "days_since_update": { "type": "integer", "nullable": true },
-                                        "crm_url": { "type": "string", "nullable": true }
+                                        "crm_url": { "type": "string", "nullable": true },
+                                        "opportunity_id": { "type": "integer", "nullable": true },
+                                        "opportunity_name": { "type": "string", "nullable": true }
                                       }
                                     }
                                   }
