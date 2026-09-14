@@ -576,6 +576,15 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .ai-cat { border-left: 3px solid var(--ai-rail, var(--status-critical)); border-radius: 0; padding-left: 16px; }
+  .ai-cat .section-label-row { justify-content: flex-start; gap: 9px; align-items: center; flex-wrap: wrap; }
+  .ai-cat-ico { color: var(--ai-rail); display: inline-flex; flex: none; }
+  .ai-cat-ico svg { width: 18px; height: 18px; display: block; }
+  .ai-cat-chip { font-size: 11px; font-weight: 500; color: var(--ai-rail); background: var(--ai-soft); padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .ai-cat .ai-item-days, .ai-cat .ai-owner-header .ai-item-days { color: var(--ai-rail); }
+  .ai-metric { flex: none; white-space: nowrap; display: inline-flex; align-items: baseline; }
+  .ai-item-unit { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 3px; font-family: inherit; }
+  .ai-badge { font-size: 11px; font-weight: 500; color: var(--ai-rail); background: var(--ai-soft); padding: 2px 9px; border-radius: 6px; white-space: nowrap; flex: none; }
   .ai-owner-group { border-bottom: 1px solid var(--gridline); padding: 3px 0; }
   .ai-owner-group:last-child { border-bottom: none; }
   .ai-owner-header {
@@ -1251,41 +1260,51 @@
     </div>
 
     <div class="panel" id="action-items-panel" style="display:none; border-color:var(--accent);">
-      <div id="ai-overdue-section" style="display:none;">
+      <div id="ai-overdue-section" class="ai-cat" style="display:none; --ai-rail:var(--status-critical); --ai-soft:var(--status-critical-soft);">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 2"/><path d="M5 3 3 5"/><path d="M19 3l2 2"/></svg></span>
           <span class="section-label">Overdue</span>
+          <span class="ai-cat-chip">Update close date or advance</span>
         </div>
         <p class="ai-sentence" id="ai-overdue-sentence"></p>
         <div id="ai-overdue-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-stalled-section" style="display:none; margin-top:18px;">
+      <div id="ai-stalled-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--age-3); --ai-soft:color-mix(in srgb, var(--age-3) 15%, var(--surface-1));">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></span>
           <span class="section-label">Stalled in Stage</span>
+          <span class="ai-cat-chip">Move to the next stage</span>
         </div>
         <p class="ai-sentence" id="ai-stalled-sentence"></p>
         <div id="ai-stalled-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-notebook-section" style="display:none; margin-top:18px;">
+      <div id="ai-notebook-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--stage-open); --ai-soft:color-mix(in srgb, var(--stage-open) 15%, var(--surface-1));">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h9a3 3 0 0 1 3 3v13H8a2 2 0 0 1-2-2z"/><path d="M6 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2"/><path d="M10 9h5"/><path d="M10 13h5"/></svg></span>
           <span class="section-label">Notebook Needs Updating</span>
+          <span class="ai-cat-chip">Add a Notebook entry</span>
         </div>
         <p class="ai-sentence" id="ai-notebook-sentence"></p>
         <div id="ai-notebook-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-revenue-section" style="display:none; margin-top:18px;">
+      <div id="ai-revenue-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--stage-future); --ai-soft:var(--stage-future-soft);">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M14.5 9.5a2.5 2 0 0 0-2.5-1.5c-1.7 0-2.5.9-2.5 2s.8 1.8 2.5 2 2.5.9 2.5 2-1 2-2.5 2a2.5 2 0 0 1-2.5-1.5"/><path d="M12 6.5v11"/></svg></span>
           <span class="section-label">Missing Revenue</span>
+          <span class="ai-cat-chip">Fill in potential / committed revenue</span>
         </div>
         <p class="ai-sentence" id="ai-revenue-sentence"></p>
         <div id="ai-revenue-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-tasks-section" style="display:none; margin-top:18px;">
+      <div id="ai-tasks-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--status-good); --ai-soft:var(--status-good-soft);">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.5 1.5L8 5"/><path d="M4 13l1.5 1.5L8 12"/><path d="M11 6h9"/><path d="M11 13h9"/><path d="M11 19h9"/></svg></span>
           <span class="section-label">Tasks Awaiting Action</span>
+          <span class="ai-cat-chip">Work or update the task</span>
         </div>
         <p class="ai-sentence" id="ai-tasks-sentence"></p>
         <div id="ai-tasks-list" class="ai-list"></div>
@@ -1871,7 +1890,20 @@
       </td>`;
   }
 
-  function aiItemHtml(item, unit) {
+  function aiItemHtml(item, unitLabel) {
+    const nameHtml = item.crm_url
+      ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.name || "(untitled)"}</a>`
+      : `<span class="ai-item-name">${item.name || "(untitled)"}</span>`;
+    const unit = unitLabel ? `<span class="ai-item-unit">${unitLabel}</span>` : "";
+    return `
+      <div class="ai-item">
+        ${nameHtml}
+        ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
+        <span class="ai-metric"><span class="ai-item-days">${item.days}d</span>${unit}</span>
+      </div>`;
+  }
+
+  function aiRevenueItemHtml(item) {
     const nameHtml = item.crm_url
       ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.name || "(untitled)"}</a>`
       : `<span class="ai-item-name">${item.name || "(untitled)"}</span>`;
@@ -1879,7 +1911,7 @@
       <div class="ai-item">
         ${nameHtml}
         ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
-        <span class="ai-item-days">${item.days}${unit}</span>
+        <span class="ai-badge">revenue blank</span>
       </div>`;
   }
 
@@ -1892,7 +1924,7 @@
       <div class="ai-item">
         ${nameHtml}
         ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
-        <span class="ai-item-days">${days}</span>
+        <span class="ai-metric"><span class="ai-item-days">${days}</span><span class="ai-item-unit">no update</span></span>
       </div>`;
   }
 
@@ -1929,16 +1961,16 @@
     const scopeSize = ai.scope_size || 1;
 
     aiSection("ai-overdue-section", "ai-overdue-list", "ai-overdue-sentence", ai.overdue, scopeSize,
-      r => aiItemHtml(r, "d"),
+      r => aiItemHtml(r, "overdue"),
       t => `${t} opportunit${t === 1 ? "y" : "ies"} past expected close date and still open.`);
     aiSection("ai-stalled-section", "ai-stalled-list", "ai-stalled-sentence", ai.stalled, scopeSize,
-      r => aiItemHtml(r, "d"),
+      r => aiItemHtml(r, "in stage"),
       t => `${t} opportunit${t === 1 ? "y" : "ies"} with no stage movement in 30+ days.`);
     aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-sentence", ai.notebook_stale, scopeSize,
-      r => aiItemHtml(r, "d"),
+      r => aiItemHtml(r, "since note"),
       t => `${t} opportunit${t === 1 ? "y" : "ies"} without a Notebook update in 14+ days.`);
     aiSection("ai-revenue-section", "ai-revenue-list", "ai-revenue-sentence", ai.missing_revenue, scopeSize,
-      r => aiItemHtml(r, "d"),
+      aiRevenueItemHtml,
       t => `${t} opportunit${t === 1 ? "y" : "ies"} missing potential or committed revenue.`);
     aiSection("ai-tasks-section", "ai-tasks-list", "ai-tasks-sentence", ai.tasks_pending, scopeSize,
       aiTaskItemHtml,
