@@ -8,7 +8,7 @@ description: >
 
 # Skill/plugin version this app was last deployed with — stamped by
 # /substrait:deploy; do not edit by hand.
-scaffold_version: 2026.08.30.104958
+scaffold_version: 2026.08.11.220000
 
 services:
   object-storage: {}     # persists the CRM cache snapshot across restarts
