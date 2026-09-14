@@ -1060,6 +1060,17 @@
           <div class="filter-options" id="filter-options-service_levels"></div>
         </div>
       </div>
+      <div class="filter-dropdown" data-key="industries">
+        <button type="button" class="filter-btn">Industry<span class="filter-count" id="filter-count-industries" style="display:none;"></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg></button>
+        <div class="filter-panel" id="filter-panel-industries">
+          <input type="text" class="filter-search" placeholder="Search industry…">
+          <div class="filter-actions">
+            <button type="button" class="filter-action-btn" data-action="all">Select all</button>
+            <button type="button" class="filter-action-btn" data-action="clear">Clear</button>
+          </div>
+          <div class="filter-options" id="filter-options-industries"></div>
+        </div>
+      </div>
       <button type="button" id="filter-clear-all" style="display:none;">Clear filters</button>
     </div>
 
@@ -1557,9 +1568,9 @@
 (function() {
   let TOTAL = 0;
 
-  const FILTER_KEYS = ["owners", "managers", "product_lines", "service_levels"];
-  const FILTER_LABELS = { owners: "Salesperson", managers: "Manager", product_lines: "NV Product Line", service_levels: "Service Level" };
-  const activeFilters = { owners: [], managers: [], product_lines: [], service_levels: [] };
+  const FILTER_KEYS = ["owners", "managers", "product_lines", "service_levels", "industries"];
+  const FILTER_LABELS = { owners: "Salesperson", managers: "Manager", product_lines: "NV Product Line", service_levels: "Service Level", industries: "Industry" };
+  const activeFilters = { owners: [], managers: [], product_lines: [], service_levels: [], industries: [] };
 
   function filterQueryString() {
     const params = new URLSearchParams();

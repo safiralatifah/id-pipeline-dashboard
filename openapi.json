@@ -36,7 +36,8 @@
           { "name": "owners", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and Tasks) owned by one of these owner_names. OR within this filter." },
           { "name": "managers", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and Tasks) whose owner's Manager (per team_roster.json) is one of these. Deals owned by someone not in the roster never match." },
           { "name": "product_lines", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose nv_product_line is one of these. Does not filter Tasks." },
-          { "name": "service_levels", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose service_level (multi-select) includes at least one of these. Does not filter Tasks." }
+          { "name": "service_levels", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose service_level (multi-select) includes at least one of these. Does not filter Tasks." },
+          { "name": "industries", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose linked Account's industry is one of these (Opportunity has no industry of its own — resolved from account_id via the CRM's Account object and cached). Does not filter Tasks." }
         ],
         "responses": {
           "200": {
@@ -318,12 +319,13 @@
                     "snapshot_at": { "type": "string", "format": "date-time" },
                     "filter_options": {
                       "type": "object",
-                      "description": "Dropdown choices for the filter bar, computed from the full unfiltered population — with one exception: owners and managers narrow each other (picking a Manager narrows the owners list to that manager's team, and picking Salespeople narrows the managers list to their managers), based on this request's own owners/managers query params. product_lines and service_levels are unaffected by any filter selection.",
+                      "description": "Dropdown choices for the filter bar, computed from the full unfiltered population — with one exception: owners and managers narrow each other (picking a Manager narrows the owners list to that manager's team, and picking Salespeople narrows the managers list to their managers), based on this request's own owners/managers query params. product_lines, service_levels and industries are unaffected by any filter selection.",
                       "properties": {
                         "owners": { "type": "array", "items": { "type": "string" }, "description": "Narrowed to the selected managers' teams when the managers filter is active." },
                         "managers": { "type": "array", "items": { "type": "string" }, "description": "Includes the synthetic value \"Unmapped\" when at least one matched Opportunity's owner has no team_roster manager (or isn't in the roster at all). Narrowed to the selected owners' own managers when the owners filter is active." },
                         "product_lines": { "type": "array", "items": { "type": "string" } },
-                        "service_levels": { "type": "array", "items": { "type": "string" } }
+                        "service_levels": { "type": "array", "items": { "type": "string" } },
+                        "industries": { "type": "array", "items": { "type": "string" }, "description": "Every distinct industry (from the linked Account, via account_id) present on a matched Opportunity, alphabetical — not a fixed enum like product_lines/service_levels." }
                       }
                     },
                     "viewer_name": { "type": "string", "nullable": true, "description": "The requester's team-roster name, resolved from the platform's X-Forwarded-Email header via a TEAM_EMAIL_MAP env var. Null if unmapped or SSO isn't the access method." },
@@ -625,6 +627,13 @@
       "get": {
         "summary": "Flat per-opportunity rows for the Opportunity List tab — same filters and identity scoping as /api/pipeline, not pre-aggregated.",
         "operationId": "get_opportunities",
+        "parameters": [
+          { "name": "owners", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and their joined Tasks) owned by one of these owner_names. OR within this filter." },
+          { "name": "managers", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and their joined Tasks) whose owner's Manager (per team_roster.json) is one of these." },
+          { "name": "product_lines", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose nv_product_line is one of these." },
+          { "name": "service_levels", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose service_level (multi-select) includes at least one of these." },
+          { "name": "industries", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose linked Account's industry is one of these." }
+        ],
         "responses": {
           "200": {
             "description": "One row per matched Opportunity.",
@@ -651,6 +660,7 @@
                           "stage_group": { "type": "string", "description": "open | future | closed_won | closed_lost — which of the four Opportunity List sections this row belongs to." },
                           "type": { "type": "string", "nullable": true, "description": "Acquisition | Cross-Selling | Pricing | Up-Selling | Regain | Others." },
                           "nv_product_line": { "type": "string", "nullable": true },
+                          "industry": { "type": "string", "nullable": true, "description": "From the linked Account (Opportunity.account_id), not a field on the Opportunity itself. Null if the Opportunity has no account_id or the Account has no industry set." },
                           "service_level": { "type": "array", "items": { "type": "string" } },
                           "created_at": { "type": "string", "format": "date-time" },
                           "aging_days": { "type": "integer", "nullable": true, "description": "Days since created_at — same definition as Deal Aging." },

@@ -62,6 +62,13 @@ PRODUCT_LINE_ORDER = [
 # "contains", not "equals" (equals silently returns 0 rows for this field type).
 SERVICE_LEVEL_VALUES = ["Same Day", "Standard", "LTL", "Next Day", "FTL", "Dedicated", "FCL", "LCL"]
 
+# Industry lives on Account, not Opportunity — Opportunity only carries
+# account_id. Looked up in chunks via an `id in [...]` filter against
+# /objects/Account/records rather than pulling the whole Account table; see
+# fetch_account_industries. One request per chunk since page_size matches
+# the chunk size, so every match for that chunk fits on page 1.
+ACCOUNT_INDUSTRY_CHUNK_SIZE = 100
+
 # Task is a global object (642k+ rows across every country) with no
 # record_type_id we can filter Indonesia by, so instead we scope the fetch to
 # just the owner_ids in our Indonesia team roster — cheap, and correct since
@@ -114,7 +121,7 @@ PIP_RED_THRESHOLD_PCT = 50
 _cache: dict[str, Any] = {
     "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False, "last_attempt_at": None,
-    "consecutive_failures": 0, "last_full_pull_at": None,
+    "consecutive_failures": 0, "last_full_pull_at": None, "account_industry": None,
 }
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
@@ -386,6 +393,37 @@ def _merge_opportunities(existing: list[dict], delta_raw: list[dict]) -> list[di
     return [r for r in by_id.values() if _in_window(r)]
 
 
+async def fetch_account_industries(client: httpx.AsyncClient, account_ids: list[int]) -> dict[int, str | None]:
+    """Industry for exactly the given account_ids, chunked through an `id in
+    [...]` filter against /objects/Account/records. Called only with
+    account_ids not already known (see _refresh_dashboard_cache) — on a
+    steady-state delta refresh that's typically zero or a handful, not the
+    whole Account table, which is what keeps this from being its own source
+    of CRM rate-limit pressure."""
+    if not account_ids:
+        return {}
+    api_key = os.environ.get("CRM_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
+
+    result: dict[int, str | None] = {}
+    for i in range(0, len(account_ids), ACCOUNT_INDUSTRY_CHUNK_SIZE):
+        chunk = account_ids[i : i + ACCOUNT_INDUSTRY_CHUNK_SIZE]
+        filters = {"logic": "AND", "conditions": [{"field": "id", "operator": "in", "value": chunk}]}
+        records = await _fetch_paginated(
+            client,
+            f"{CRM_BASE}/objects/Account/records",
+            {"X-API-Key": api_key},
+            {"filters": json.dumps(filters)},
+            page_size=ACCOUNT_INDUSTRY_CHUNK_SIZE,
+        )
+        for acc in records:
+            aid = acc.get("id")
+            if aid is not None:
+                result[aid] = acc.get("industry")
+    return result
+
+
 async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, dict]:
     """Most recent Notebook entry per Opportunity record_id, across all countries
     (the /notebook/entries endpoint has no record_type/country filter — we only
@@ -499,6 +537,10 @@ def _filter_options(
         "managers": sorted(result_managers),
         "product_lines": list(PRODUCT_LINE_ORDER),
         "service_levels": list(SERVICE_LEVEL_VALUES),
+        # Industry has no fixed display order like the two above (81+
+        # picklist values on the CRM side) — just every value actually
+        # present on a matched Opportunity's Account, alphabetical.
+        "industries": sorted({r.get("industry") for r in items if r.get("industry")}),
     }
 
 
@@ -508,12 +550,14 @@ def _apply_filters(
     managers: list[str] | None,
     product_lines: list[str] | None,
     service_levels: list[str] | None,
+    industries: list[str] | None = None,
 ) -> list[dict]:
     owners_set = set(owners) if owners else None
     managers_set = set(managers) if managers else None
     product_lines_set = set(product_lines) if product_lines else None
     service_levels_set = set(service_levels) if service_levels else None
-    if not any([owners_set, managers_set, product_lines_set, service_levels_set]):
+    industries_set = set(industries) if industries else None
+    if not any([owners_set, managers_set, product_lines_set, service_levels_set, industries_set]):
         return items
 
     def keep(r: dict) -> bool:
@@ -525,6 +569,8 @@ def _apply_filters(
         if product_lines_set is not None and r.get("nv_product_line") not in product_lines_set:
             return False
         if service_levels_set is not None and not (set(r.get("service_level") or []) & service_levels_set):
+            return False
+        if industries_set is not None and r.get("industry") not in industries_set:
             return False
         return True
 
@@ -675,6 +721,7 @@ def _build_opportunity_rows(
             "stage_group": stage_group,
             "type": r.get("type"),
             "nv_product_line": r.get("nv_product_line"),
+            "industry": r.get("industry"),
             "service_level": r.get("service_level") or [],
             "created_at": r.get("created_at"),
             "aging_days": (now - created).days if created else None,
@@ -1538,6 +1585,7 @@ async def _save_snapshot() -> None:
             "tasks": _cache["tasks"],
             "snapshot_at": _cache["snapshot_at"],
             "last_full_pull_at": _cache["last_full_pull_at"],
+            "account_industry": {str(k): v for k, v in (_cache["account_industry"] or {}).items()},
         }).encode("utf-8")
         await run_in_threadpool(storage.put_bytes, _SNAPSHOT_KEY, payload, content_type="application/json")
     except Exception:
@@ -1558,6 +1606,7 @@ async def _load_snapshot() -> None:
         _cache["tasks"] = data["tasks"]
         _cache["snapshot_at"] = data["snapshot_at"]
         _cache["last_full_pull_at"] = data.get("last_full_pull_at")
+        _cache["account_industry"] = {int(k): v for k, v in (data.get("account_industry") or {}).items()}
         _cache["fetched_at"] = time.time()
     except Exception:
         pass  # no snapshot yet (first-ever deploy), or object storage not configured/reachable
@@ -1587,9 +1636,24 @@ async def _refresh_dashboard_cache() -> None:
             )
             if do_full_pull:
                 items = await fetch_all_opportunities(client)
+                # Full pull re-resolves industry for every account in play,
+                # so a changed Account.industry (rare, but it happens) is
+                # caught here rather than never.
+                account_ids = sorted({r.get("account_id") for r in items if r.get("account_id") is not None})
+                account_industry = await fetch_account_industries(client, account_ids)
             else:
                 delta = await fetch_opportunities_delta(client, _cache["snapshot_at"])
                 items = _merge_opportunities(_cache["items"], delta)
+                # Steady-state delta: only look up accounts we haven't seen
+                # before, typically zero or a handful — not the whole set of
+                # accounts behind every cached Opportunity.
+                account_industry = dict(_cache["account_industry"] or {})
+                account_ids = {r.get("account_id") for r in items if r.get("account_id") is not None}
+                missing_ids = sorted(account_ids - account_industry.keys())
+                if missing_ids:
+                    account_industry.update(await fetch_account_industries(client, missing_ids))
+            for r in items:
+                r["industry"] = account_industry.get(r.get("account_id"))
             notebook_last_touch = await fetch_notebook_last_touch(client)
             tasks = await fetch_open_tasks(client)
         # Only the raw fetch is cached — build_dashboard() re-runs per
@@ -1599,6 +1663,7 @@ async def _refresh_dashboard_cache() -> None:
         _cache["items"] = items
         _cache["notebook_last_touch"] = notebook_last_touch
         _cache["tasks"] = tasks
+        _cache["account_industry"] = account_industry
         _cache["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         _cache["fetched_at"] = time.time()
         _cache["error"] = None
@@ -1641,6 +1706,7 @@ async def get_pipeline(
     managers: list[str] | None = Query(None),
     product_lines: list[str] | None = Query(None),
     service_levels: list[str] | None = Query(None),
+    industries: list[str] | None = Query(None),
 ):
     if _cache["items"] is None:
         if _cache["error"]:
@@ -1659,7 +1725,9 @@ async def get_pipeline(
     # default, since X-Forwarded-Email can't be spoofed once SSO is on.
     viewer_name, allowed_owners, effective_owners = _effective_owners(request, owners)
 
-    filtered_items = _apply_filters(_cache["items"], effective_owners, managers, product_lines, service_levels)
+    filtered_items = _apply_filters(
+        _cache["items"], effective_owners, managers, product_lines, service_levels, industries
+    )
     filtered_tasks = _apply_task_filters(_cache["tasks"], effective_owners, managers)
     roster_scope = _scoped_roster_names(effective_owners, managers)
     # Action Items is personalized, so it only appears for an identity-scoped
@@ -1689,6 +1757,7 @@ async def get_opportunities(
     managers: list[str] | None = Query(None),
     product_lines: list[str] | None = Query(None),
     service_levels: list[str] | None = Query(None),
+    industries: list[str] | None = Query(None),
 ):
     """Flat per-opportunity rows for the Opportunity List tab — same
     filters, same identity scoping, and the same cached fetch as
@@ -1705,7 +1774,9 @@ async def get_opportunities(
         )
 
     viewer_name, allowed_owners, effective_owners = _effective_owners(request, owners)
-    filtered_items = _apply_filters(_cache["items"], effective_owners, managers, product_lines, service_levels)
+    filtered_items = _apply_filters(
+        _cache["items"], effective_owners, managers, product_lines, service_levels, industries
+    )
     all_tasks = _cache["tasks"] or []
     rows = _build_opportunity_rows(filtered_items, _cache["notebook_last_touch"], all_tasks)
 
