@@ -584,6 +584,10 @@
   .ai-cat .ai-item-days, .ai-cat .ai-owner-header .ai-item-days { color: var(--ai-rail); }
   .ai-metric { flex: none; white-space: nowrap; display: inline-flex; align-items: baseline; }
   .ai-item-unit { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 3px; font-family: inherit; }
+  .ai-task-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+  .ai-task-main .ai-item-name { flex: none; }
+  .ai-task-opp { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ai-task-opp .ai-task-oppid { font-family: "IBM Plex Mono", monospace; }
   .ai-badge { font-size: 11px; font-weight: 500; color: var(--ai-rail); background: var(--ai-soft); padding: 2px 9px; border-radius: 6px; white-space: nowrap; flex: none; }
   .ai-owner-group { border-bottom: 1px solid var(--gridline); padding: 3px 0; }
   .ai-owner-group:last-child { border-bottom: none; }
@@ -1916,13 +1920,22 @@
   }
 
   function aiTaskItemHtml(item) {
-    const nameHtml = item.crm_url
+    const subjectHtml = item.crm_url
       ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.subject}</a>`
       : `<span class="ai-item-name">${item.subject}</span>`;
+    let oppHtml = "";
+    if (item.opportunity_id != null) {
+      const idTag = `<span class="ai-task-oppid">#${item.opportunity_id}</span>`;
+      const label = item.opportunity_name ? `${item.opportunity_name} · ${idTag}` : idTag;
+      oppHtml = `<span class="ai-task-opp" title="${item.opportunity_name || ""}">${label}</span>`;
+    }
     const days = item.days_since_update == null ? "&ndash;" : `${item.days_since_update}d`;
     return `
       <div class="ai-item">
-        ${nameHtml}
+        <div class="ai-task-main">
+          ${subjectHtml}
+          ${oppHtml}
+        </div>
         ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
         <span class="ai-metric"><span class="ai-item-days">${days}</span><span class="ai-item-unit">no update</span></span>
       </div>`;

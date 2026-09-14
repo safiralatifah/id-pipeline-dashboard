@@ -42,6 +42,7 @@ except (json.JSONDecodeError, AttributeError):
 
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 CRM_OPPORTUNITY_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Opportunity/records"
+CRM_TASK_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Task/records"
 RECORD_TYPE_INDONESIA = "12"
 CLOSED_HISTORY_DAYS = 365
 EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
@@ -795,22 +796,26 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
     # Tasks pending: open Tasks (already Not Started / In Progress only, per
     # fetch_open_tasks) that aren't "Active" by the same rule Task Activity
     # uses — touched within 7 days AND not overdue.
+    # The task links straight to its own CRM record; the linked Opportunity's
+    # id and name ride along as a small caption. Name comes from the fetched
+    # opportunity set — absent when the Opportunity is deleted or out of the
+    # dashboard's window (id is still shown so the row stays traceable).
+    opp_name_by_id = {r["id"]: r.get("name") for r in opp_rows}
     pending_tasks = []
     for t in tasks:
         if _task_is_active(t, now, today):
             continue
         last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
-        related_id = t.get("related_record_id")
+        task_id = t.get("id")
+        related_id = t.get("related_record_id") if t.get("related_object_type") == "Opportunity" else None
         pending_tasks.append({
-            "id": t.get("id"),
+            "id": task_id,
             "subject": t.get("subject") or "(no subject)",
             "owner_name": t.get("owner_name"),
             "days_since_update": (now - last_activity).days if last_activity else None,
-            "crm_url": (
-                f"{CRM_OPPORTUNITY_URL_BASE}/{related_id}"
-                if t.get("related_object_type") == "Opportunity" and related_id is not None
-                else None
-            ),
+            "crm_url": f"{CRM_TASK_URL_BASE}/{task_id}" if task_id is not None else None,
+            "opportunity_id": related_id,
+            "opportunity_name": opp_name_by_id.get(related_id) if related_id is not None else None,
         })
     pending_tasks.sort(key=lambda t: -(t["days_since_update"] or 0))
 
