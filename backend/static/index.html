@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Indonesia Pipeline</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23b8322c'/><path d='M4 16H11L14 9L18 24L21 16H28' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -576,6 +577,24 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
+  .ai-cat { border-left: 3px solid var(--ai-rail, var(--status-critical)); border-radius: 0; padding-left: 16px; }
+  .ai-cat .section-label-row { justify-content: flex-start; gap: 9px; align-items: center; flex-wrap: wrap; }
+  .ai-cat-ico { color: var(--ai-rail); display: inline-flex; flex: none; }
+  .ai-cat-ico svg { width: 18px; height: 18px; display: block; }
+  .ai-cat-chip { font-size: 11px; font-weight: 500; color: var(--ai-rail); background: var(--ai-soft); padding: 2px 9px; border-radius: 20px; white-space: nowrap; }
+  .ai-cat .ai-item-days, .ai-cat .ai-owner-header .ai-item-days { color: var(--ai-rail); }
+  .ai-metric { flex: none; white-space: nowrap; display: inline-flex; align-items: baseline; }
+  .ai-item-unit { font-size: 11px; font-weight: 400; color: var(--text-muted); margin-left: 3px; font-family: inherit; }
+  .ai-task-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+  .ai-task-main .ai-item-name { flex: none; }
+  .ai-task-opp { font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ai-task-opp .ai-task-oppid { font-family: "IBM Plex Mono", monospace; }
+  .ai-badge { font-size: 11px; font-weight: 500; color: var(--ai-rail); background: var(--ai-soft); padding: 2px 9px; border-radius: 6px; white-space: nowrap; flex: none; }
+  .ai-cat .section-label-row { cursor: pointer; user-select: none; }
+  .ai-cat-caret { margin-left: auto; color: var(--text-muted); display: inline-flex; flex: none; transition: transform 0.15s ease; }
+  .ai-cat-caret svg { width: 16px; height: 16px; display: block; }
+  .ai-cat.collapsed .ai-cat-caret { transform: rotate(-90deg); }
+  .ai-cat.collapsed .ai-sentence, .ai-cat.collapsed .ai-list { display: none; }
   .ai-owner-group { border-bottom: 1px solid var(--gridline); padding: 3px 0; }
   .ai-owner-group:last-child { border-bottom: none; }
   .ai-owner-header {
@@ -923,6 +942,22 @@
   .opplist-table .opp-note-toggle { cursor: pointer; text-decoration: underline dotted var(--text-muted); text-underline-offset: 2px; }
   .opplist-table .opp-note-toggle:hover { color: var(--text-primary); }
   .opplist-table tbody tr:hover { background: var(--surface-2); }
+  /* Flat "created cohort" view: freeze Opportunity ID + Name while the wide
+     column set scrolls horizontally. The two fixed widths must match the
+     sticky-col-2 left offset below. */
+  .opplist-table.cohort-table td.sticky-col,
+  .opplist-table.cohort-table th.sticky-col { position: sticky; background: var(--surface-1); }
+  .opplist-table.cohort-table th.sticky-col { background: var(--surface-2); z-index: 3; }
+  .opplist-table.cohort-table td.sticky-col { z-index: 1; }
+  .opplist-table.cohort-table .sticky-col-1 { left: 0; width: 120px; min-width: 120px; max-width: 120px; }
+  .opplist-table.cohort-table .sticky-col-2 {
+    left: 120px; width: 220px; min-width: 220px; max-width: 220px;
+    white-space: normal; box-shadow: 1px 0 0 var(--gridline);
+  }
+  .opplist-table.cohort-table tbody tr:hover td.sticky-col { background: var(--surface-2); }
+  /* Clickable "created" counts in the Overview team tables */
+  .created-count-link { cursor: pointer; text-decoration: underline dotted var(--text-muted); text-underline-offset: 3px; }
+  .created-count-link:hover { color: var(--accent); }
   .opp-pill {
     display: inline-flex;
     align-items: center;
@@ -1246,41 +1281,51 @@
     </div>
 
     <div class="panel" id="action-items-panel" style="display:none; border-color:var(--accent);">
-      <div id="ai-overdue-section" style="display:none;">
+      <div id="ai-overdue-section" class="ai-cat" style="display:none; --ai-rail:var(--status-critical); --ai-soft:var(--status-critical-soft);">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="7"/><path d="M12 10v3l2 2"/><path d="M5 3 3 5"/><path d="M19 3l2 2"/></svg></span>
           <span class="section-label">Overdue</span>
+          <span class="ai-cat-chip">Update close date or advance</span>
         </div>
         <p class="ai-sentence" id="ai-overdue-sentence"></p>
         <div id="ai-overdue-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-stalled-section" style="display:none; margin-top:18px;">
+      <div id="ai-stalled-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--age-3); --ai-soft:color-mix(in srgb, var(--age-3) 15%, var(--surface-1));">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></span>
           <span class="section-label">Stalled in Stage</span>
+          <span class="ai-cat-chip">Move to the next stage</span>
         </div>
         <p class="ai-sentence" id="ai-stalled-sentence"></p>
         <div id="ai-stalled-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-notebook-section" style="display:none; margin-top:18px;">
+      <div id="ai-notebook-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--stage-open); --ai-soft:color-mix(in srgb, var(--stage-open) 15%, var(--surface-1));">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h9a3 3 0 0 1 3 3v13H8a2 2 0 0 1-2-2z"/><path d="M6 4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2"/><path d="M10 9h5"/><path d="M10 13h5"/></svg></span>
           <span class="section-label">Notebook Needs Updating</span>
+          <span class="ai-cat-chip">Add a Notebook entry</span>
         </div>
         <p class="ai-sentence" id="ai-notebook-sentence"></p>
         <div id="ai-notebook-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-revenue-section" style="display:none; margin-top:18px;">
+      <div id="ai-revenue-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--stage-future); --ai-soft:var(--stage-future-soft);">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><path d="M14.5 9.5a2.5 2 0 0 0-2.5-1.5c-1.7 0-2.5.9-2.5 2s.8 1.8 2.5 2 2.5.9 2.5 2-1 2-2.5 2a2.5 2 0 0 1-2.5-1.5"/><path d="M12 6.5v11"/></svg></span>
           <span class="section-label">Missing Revenue</span>
+          <span class="ai-cat-chip">Fill in potential / committed revenue</span>
         </div>
         <p class="ai-sentence" id="ai-revenue-sentence"></p>
         <div id="ai-revenue-list" class="ai-list"></div>
       </div>
 
-      <div id="ai-tasks-section" style="display:none; margin-top:18px;">
+      <div id="ai-tasks-section" class="ai-cat" style="display:none; margin-top:18px; --ai-rail:var(--status-good); --ai-soft:var(--status-good-soft);">
         <div class="section-label-row">
+          <span class="ai-cat-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l1.5 1.5L8 5"/><path d="M4 13l1.5 1.5L8 12"/><path d="M11 6h9"/><path d="M11 13h9"/><path d="M11 19h9"/></svg></span>
           <span class="section-label">Tasks Awaiting Action</span>
+          <span class="ai-cat-chip">Work or update the task</span>
         </div>
         <p class="ai-sentence" id="ai-tasks-sentence"></p>
         <div id="ai-tasks-list" class="ai-list"></div>
@@ -1315,7 +1360,7 @@
 
     <div id="opplist-sections"></div>
 
-    <div class="panel" style="margin-top:16px;">
+    <div class="panel" style="margin-top:16px;" id="opplist-tasklist-panel">
       <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
         <h2>Task List <span id="opplist-tasklist-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
         <button type="button" class="filter-btn" id="opplist-tasklist-export-btn">&#8595; Export CSV</button>
@@ -1846,17 +1891,17 @@
     return `<span class="won-pill" style="background:color-mix(in srgb, ${color} 16%, var(--surface-1)); color:${color};">${wonCount}/${wonTarget} won</span>`;
   }
 
-  function targetCellHtml(count, target, wonCount, wonTarget) {
+  function targetCellHtml(count, target, wonCount, wonTarget, countAttrs = "") {
     const wonHtml = wonPillHtml(wonCount, wonTarget);
     if (target == null) {
-      return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">${count}${wonHtml}</div></td>`;
+      return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;"><span${countAttrs}>${count}</span>${wonHtml}</div></td>`;
     }
     const pct = Math.min((count / target) * 100, 100);
     const color = targetProgressColor(pct);
     return `<td class="num">
         <div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;">
           <div style="display:flex; align-items:center; gap:6px;">
-            <span style="font-weight:600; color:${color}; white-space:nowrap;">${count}/${target}</span>
+            <span style="font-weight:600; color:${color}; white-space:nowrap;"><span${countAttrs}>${count}</span>/${target}</span>
             <div style="width:40px; height:5px; border-radius:3px; background:var(--surface-2); overflow:hidden; flex:none;">
               <div style="width:${pct}%; height:100%; background:${color};"></div>
             </div>
@@ -1866,7 +1911,20 @@
       </td>`;
   }
 
-  function aiItemHtml(item, unit) {
+  function aiItemHtml(item, unitLabel) {
+    const nameHtml = item.crm_url
+      ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.name || "(untitled)"}</a>`
+      : `<span class="ai-item-name">${item.name || "(untitled)"}</span>`;
+    const unit = unitLabel ? `<span class="ai-item-unit">${unitLabel}</span>` : "";
+    return `
+      <div class="ai-item">
+        ${nameHtml}
+        ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
+        <span class="ai-metric"><span class="ai-item-days">${item.days}d</span>${unit}</span>
+      </div>`;
+  }
+
+  function aiRevenueItemHtml(item) {
     const nameHtml = item.crm_url
       ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.name || "(untitled)"}</a>`
       : `<span class="ai-item-name">${item.name || "(untitled)"}</span>`;
@@ -1874,20 +1932,29 @@
       <div class="ai-item">
         ${nameHtml}
         ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
-        <span class="ai-item-days">${item.days}${unit}</span>
+        <span class="ai-badge">revenue blank</span>
       </div>`;
   }
 
   function aiTaskItemHtml(item) {
-    const nameHtml = item.crm_url
+    const subjectHtml = item.crm_url
       ? `<a class="ai-item-name" href="${item.crm_url}" target="_blank" rel="noopener">${item.subject}</a>`
       : `<span class="ai-item-name">${item.subject}</span>`;
+    let oppHtml = "";
+    if (item.opportunity_id != null) {
+      const idTag = `<span class="ai-task-oppid">#${item.opportunity_id}</span>`;
+      const label = item.opportunity_name ? `${item.opportunity_name} · ${idTag}` : idTag;
+      oppHtml = `<span class="ai-task-opp" title="${item.opportunity_name || ""}">${label}</span>`;
+    }
     const days = item.days_since_update == null ? "&ndash;" : `${item.days_since_update}d`;
     return `
       <div class="ai-item">
-        ${nameHtml}
+        <div class="ai-task-main">
+          ${subjectHtml}
+          ${oppHtml}
+        </div>
         ${item.owner_name ? `<span class="ai-item-owner">${item.owner_name}</span>` : ""}
-        <span class="ai-item-days">${days}</span>
+        <span class="ai-metric"><span class="ai-item-days">${days}</span><span class="ai-item-unit">no update</span></span>
       </div>`;
   }
 
@@ -1924,16 +1991,16 @@
     const scopeSize = ai.scope_size || 1;
 
     aiSection("ai-overdue-section", "ai-overdue-list", "ai-overdue-sentence", ai.overdue, scopeSize,
-      r => aiItemHtml(r, "d"),
+      r => aiItemHtml(r, "overdue"),
       t => `${t} opportunit${t === 1 ? "y" : "ies"} past expected close date and still open.`);
     aiSection("ai-stalled-section", "ai-stalled-list", "ai-stalled-sentence", ai.stalled, scopeSize,
-      r => aiItemHtml(r, "d"),
+      r => aiItemHtml(r, "in stage"),
       t => `${t} opportunit${t === 1 ? "y" : "ies"} with no stage movement in 30+ days.`);
     aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-sentence", ai.notebook_stale, scopeSize,
-      r => aiItemHtml(r, "d"),
+      r => aiItemHtml(r, "since note"),
       t => `${t} opportunit${t === 1 ? "y" : "ies"} without a Notebook update in 14+ days.`);
     aiSection("ai-revenue-section", "ai-revenue-list", "ai-revenue-sentence", ai.missing_revenue, scopeSize,
-      r => aiItemHtml(r, "d"),
+      aiRevenueItemHtml,
       t => `${t} opportunit${t === 1 ? "y" : "ies"} missing potential or committed revenue.`);
     aiSection("ai-tasks-section", "ai-tasks-list", "ai-tasks-sentence", ai.tasks_pending, scopeSize,
       aiTaskItemHtml,
@@ -2050,7 +2117,7 @@
     renderPipTable();
   });
 
-  function pastMonthCellHtml(count, target, prevCount, wonCount, wonTarget) {
+  function pastMonthCellHtml(count, target, prevCount, wonCount, wonTarget, countAttrs = "") {
     const pct = target ? `<span style="color:var(--text-muted); font-size:11.5px;"> (${Math.round((count / target) * 100)}%)</span>` : "";
     let trend = "";
     if (prevCount != null) {
@@ -2058,7 +2125,7 @@
       else if (count < prevCount) trend = `<span style="color:var(--status-critical); margin-left:4px;">&#9660;</span>`;
     }
     const wonHtml = wonPillHtml(wonCount, wonTarget);
-    return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;"><span>${count}${pct}${trend}</span>${wonHtml}</div></td>`;
+    return `<td class="num"><div style="display:flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap;"><span><span${countAttrs}>${count}</span>${pct}${trend}</span>${wonHtml}</div></td>`;
   }
 
   const ROSTER_TABLE_NAME_COL_WIDTH = "200px";
@@ -2084,10 +2151,16 @@
             <tr>
               <td class="name"${filterKey ? ` data-filter-key="${filterKey}" data-filter-value="${r.name}"` : ""}>${r.name}</td>
               ${months.map((m, i) => {
+                const created = r.counts[m] ?? 0;
                 const wonCount = r.won_counts ? (r.won_counts[m] ?? 0) : null;
-                if (m === currentMonth) return targetCellHtml(r.counts[m] ?? 0, r.target, wonCount, r.won_target);
+                // Only a non-zero created count is clickable (nothing to show
+                // for 0); carries who + which month into the cohort filter.
+                const countAttrs = (created > 0 && filterKey)
+                  ? ` class="created-count-link" data-created-key="${filterKey}" data-created-value="${r.name}" data-created-month="${m}"`
+                  : "";
+                if (m === currentMonth) return targetCellHtml(created, r.target, wonCount, r.won_target, countAttrs);
                 const prevCount = i > 0 ? (r.counts[months[i - 1]] ?? 0) : null;
-                return pastMonthCellHtml(r.counts[m] ?? 0, r.target, prevCount, wonCount, r.won_target);
+                return pastMonthCellHtml(created, r.target, prevCount, wonCount, r.won_target, countAttrs);
               }).join("")}
             </tr>`).join("")}
         </tbody>
@@ -2323,6 +2396,7 @@
   }
 
   const OPP_COLUMNS = [
+    { key: "id", label: "Opportunity ID" },
     { key: "name", label: "Opportunity Name" },
     { key: "owner_name", label: "Owner" },
     { key: "stage", label: "Stage" },
@@ -2352,8 +2426,32 @@
   let oppLoaded = false;
   let oppStructFilter = null;
   let oppStructFilterLabel = "";
+  // Column set for the flat "created cohort" view, opened by clicking a
+  // "created" count on Overview. Opportunity ID + Name are frozen (sticky)
+  // while the rest scrolls horizontally; Created Date sits right after Name so
+  // the two identity columns can be frozen as one contiguous block.
+  const OPP_COHORT_COLUMNS = [
+    { key: "id", label: "Opportunity ID", sticky: 1 },
+    { key: "name", label: "Opportunity Name", sticky: 2 },
+    { key: "created_at", label: "Created Date" },
+    { key: "owner_name", label: "Owner" },
+    { key: "stage", label: "Stage" },
+    { key: "closed_won_date", label: "Closed Won Date" },
+    { key: "type", label: "Type" },
+    { key: "product", label: "Product", sortable: false },
+    { key: "aging_days", label: "Aging", num: true },
+    { key: "last_stage_duration_days", label: "Last Stage Duration", num: true },
+    { key: "expected_close_date", label: "Expected Close Date" },
+    { key: "overdue", label: "Overdue" },
+    { key: "total_potential_revenue_mth", label: "Potential Rev / Mth", num: true },
+    { key: "committed_revenue_mth", label: "Committed Rev / Mth", num: true },
+    { key: "notebook_last_touch", label: "Notebook Last Touch", num: true },
+    { key: "open_task_count", label: "#Open Task", num: true },
+    { key: "task_not_updated_count", label: "#Task Not Updated", num: true },
+  ];
   const oppSectionState = {};
   OPP_SECTIONS.forEach(s => { oppSectionState[s.id] = { sortKey: "aging_days", sortDir: "desc", page: 1 }; });
+  oppSectionState.cohort = { sortKey: "created_at", sortDir: "desc", page: 1 };
 
   const TASK_COLUMNS = [
     { key: "subject", label: "Task" },
@@ -2396,15 +2494,24 @@
   let oppNotebookExpanded = new Set();
 
   function oppColClass(col, row) {
-    if (col.num) return "num";
-    if (col.key === "name") return "opp-name-cell";
-    if (col.key === "notebook_content") return `notebook-content${row && oppNotebookExpanded.has(row.id) ? " expanded" : ""}`;
-    return "";
+    const classes = [];
+    if (col.num) classes.push("num");
+    // In the cohort view the name column is frozen (sticky-col-2), which sets
+    // its own width — so skip opp-name-cell there to avoid a width conflict.
+    if (col.key === "name" && !col.sticky) classes.push("opp-name-cell");
+    if (col.key === "notebook_content") classes.push(`notebook-content${row && oppNotebookExpanded.has(row.id) ? " expanded" : ""}`);
+    if (col.sticky === 1) classes.push("sticky-col", "sticky-col-1");
+    if (col.sticky === 2) classes.push("sticky-col", "sticky-col-2");
+    return classes.join(" ");
   }
 
   function oppCellHtml(row, key) {
     const v = row[key];
     switch (key) {
+      case "id":
+        return v == null || v === ""
+          ? "&ndash;"
+          : `<span style="font-family:var(--font-mono, ui-monospace, monospace); font-size:0.85em; color:var(--text-muted);">${v}</span>`;
       case "name":
         return row.crm_url
           ? `<a class="opp-link" href="${row.crm_url}" target="_blank" rel="noopener" title="${v || ""}">${v || "(untitled)"}</a>`
@@ -2419,6 +2526,8 @@
         return label ? `<span class="opp-pill opp-pill-neutral">${label}</span>` : "&ndash;";
       }
       case "expected_close_date":
+      case "created_at":
+      case "closed_won_date":
         return fmtDate(v);
       case "aging_days":
       case "last_stage_duration_days":
@@ -2461,7 +2570,13 @@
         return res.json();
       })
       .then(data => {
-        oppAllRows = data.rows || [];
+        oppAllRows = (data.rows || []).map(r => ({
+          ...r,
+          // The date a deal became Closed–Won is its last stage change (which
+          // already falls back to updated_at server-side); only meaningful for
+          // a won deal, blank otherwise.
+          closed_won_date: r.stage_group === "closed_won" ? (r.stage_last_changed_at || null) : null,
+        }));
         oppAllTasks = data.tasks || [];
         oppLoaded = true;
         OPP_SECTIONS.forEach(s => { oppSectionState[s.id].page = 1; });
@@ -2479,7 +2594,7 @@
     if (oppLoaded && document.getElementById("view-opplist").style.display !== "none") loadOpportunities();
   }
 
-  function renderOppSection(sectionId, rows) {
+  function renderOppSection(sectionId, rows, columns = OPP_COLUMNS) {
     const state = oppSectionState[sectionId];
     const sorted = rows.slice().sort((a, b) => {
       const av = oppCellValue(a, state.sortKey);
@@ -2503,7 +2618,7 @@
     document.getElementById(`opplist-prev-${sectionId}`).disabled = state.page <= 1;
     document.getElementById(`opplist-next-${sectionId}`).disabled = state.page >= totalPages;
 
-    document.getElementById(`opplist-thead-${sectionId}`).innerHTML = OPP_COLUMNS.map(col => {
+    document.getElementById(`opplist-thead-${sectionId}`).innerHTML = columns.map(col => {
       const sortable = col.sortable !== false;
       const arrow = sortable && state.sortKey === col.key ? `<span class="sort-arrow">${state.sortDir === "asc" ? "▲" : "▼"}</span>` : "";
       return `<th class="${oppColClass(col, null)}" data-key="${col.key}" data-sortable="${sortable}">${col.label}${arrow}</th>`;
@@ -2512,11 +2627,11 @@
     document.getElementById(`opplist-tbody-${sectionId}`).innerHTML = pageRows.length
       ? pageRows.map(row => `
           <tr>
-            ${OPP_COLUMNS.map(col => {
+            ${columns.map(col => {
               return `<td class="${oppColClass(col, row)}">${oppCellHtml(row, col.key)}</td>`;
             }).join("")}
           </tr>`).join("")
-      : `<tr><td colspan="${OPP_COLUMNS.length}" style="color:var(--text-muted); padding:12px 0;">No matching opportunities.</td></tr>`;
+      : `<tr><td colspan="${columns.length}" style="color:var(--text-muted); padding:12px 0;">No matching opportunities.</td></tr>`;
 
     document.querySelectorAll(`#opplist-thead-${sectionId} th[data-sortable=true]`).forEach(th => {
       th.addEventListener("click", () => {
@@ -2620,6 +2735,11 @@
     if (f.productLine && r.nv_product_line !== f.productLine) return false;
     if (f.serviceLevel && !(r.service_level || []).includes(f.serviceLevel)) return false;
     if (f.overdue && !r.overdue) return false;
+    // Created-cohort filter (from clicking a "created" count on Overview):
+    // the deal's created month, restricted to new-business Types, exactly as
+    // the Overview "Created" number is counted.
+    if (f.createdMonth && (r.created_at || "").slice(0, 7) !== f.createdMonth) return false;
+    if (f.newBusinessOnly && !["Acquisition", "Cross-Selling"].includes(r.type)) return false;
     if (f.closeDateFrom && (!r.expected_close_date || r.expected_close_date < f.closeDateFrom)) return false;
     if (f.closeDateTo && (!r.expected_close_date || r.expected_close_date > f.closeDateTo)) return false;
     if (f.ageField) {
@@ -2711,13 +2831,14 @@
   }
 
   const OPP_EXPORT_COLUMNS = [
-    { key: "id", label: "ID" },
+    { key: "id", label: "Opportunity ID" },
     { key: "name", label: "Opportunity Name" },
     { key: "crm_url", label: "CRM URL" },
     { key: "owner_name", label: "Owner" },
     { key: "manager", label: "Manager" },
     { key: "stage", label: "Stage" },
     { key: "stage_group", label: "Stage Group" },
+    { key: "closed_won_date", label: "Closed Won Date" },
     { key: "type", label: "Type" },
     { key: "nv_product_line", label: "NV Product Line" },
     { key: "service_level", label: "Service Level" },
@@ -2776,6 +2897,16 @@
 
     document.getElementById("opplist-count").textContent = `${filtered.length} of ${oppAllRows.length} opportunit${oppAllRows.length === 1 ? "y" : "ies"}`;
 
+    // "Created cohort" mode (clicked a created count on Overview): one flat
+    // table of exactly those opportunities, wide focused column set, Task List
+    // hidden — it isn't about tasks.
+    const cohortMode = !!(oppStructFilter && oppStructFilter.cohort);
+    document.getElementById("opplist-tasklist-panel").hidden = cohortMode;
+    if (cohortMode) {
+      renderOppCohort(filtered);
+      return;
+    }
+
     document.getElementById("opplist-sections").innerHTML = OPP_SECTIONS.map(sec => `
       <div class="panel" style="margin-bottom:16px;">
         <h2>${sec.title} <span id="opplist-section-count-${sec.id}" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
@@ -2797,6 +2928,26 @@
     });
 
     renderTaskList();
+  }
+
+  function renderOppCohort(rows) {
+    document.getElementById("opplist-sections").innerHTML = `
+      <div class="panel" style="margin-bottom:16px;">
+        <h2>Created Opportunities <span id="opplist-section-count-cohort" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+        <p class="panel-sub" style="margin-bottom:16px;">Exactly the deals counted in the number you clicked. Opportunity&nbsp;ID and Opportunity&nbsp;Name stay pinned while the rest scrolls sideways.</p>
+        <div style="overflow-x:auto;">
+          <table class="simple-table opplist-table cohort-table" id="opplist-table-cohort">
+            <thead><tr id="opplist-thead-cohort"></tr></thead>
+            <tbody id="opplist-tbody-cohort"></tbody>
+          </table>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:16px;">
+          <button type="button" class="filter-btn" id="opplist-prev-cohort">&larr; Prev</button>
+          <span id="opplist-page-info-cohort" style="font-size:12.5px; color:var(--text-muted);"></span>
+          <button type="button" class="filter-btn" id="opplist-next-cohort">Next &rarr;</button>
+        </div>
+      </div>`;
+    renderOppSection("cohort", rows, OPP_COHORT_COLUMNS);
   }
 
   document.getElementById("opplist-search").addEventListener("input", e => {
@@ -2935,7 +3086,48 @@
     }
   });
 
+  const AI_COLLAPSE_KEY = "ai-collapsed-sections";
+  function aiLoadCollapsed() {
+    try { return new Set(JSON.parse(localStorage.getItem(AI_COLLAPSE_KEY) || "[]")); }
+    catch (e) { return new Set(); }
+  }
+  function aiSaveCollapsed(set) {
+    try { localStorage.setItem(AI_COLLAPSE_KEY, JSON.stringify([...set])); } catch (e) {}
+  }
+  (function initAiCollapse() {
+    const collapsed = aiLoadCollapsed();
+    const caretSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+    document.querySelectorAll("#action-items-panel .ai-cat").forEach(sec => {
+      if (collapsed.has(sec.id)) sec.classList.add("collapsed");
+      const row = sec.querySelector(".section-label-row");
+      if (!row) return;
+      const caret = document.createElement("span");
+      caret.className = "ai-cat-caret";
+      caret.innerHTML = caretSvg;
+      caret.setAttribute("aria-hidden", "true");
+      row.appendChild(caret);
+      row.addEventListener("click", () => {
+        sec.classList.toggle("collapsed");
+        const c = aiLoadCollapsed();
+        if (sec.classList.contains("collapsed")) c.add(sec.id); else c.delete(sec.id);
+        aiSaveCollapsed(c);
+      });
+    });
+  })();
+
   document.addEventListener("click", e => {
+    const createdEl = e.target.closest(".created-count-link");
+    if (createdEl) {
+      const key = createdEl.dataset.createdKey;       // "manager" | "owner_name"
+      const value = createdEl.dataset.createdValue;
+      const month = createdEl.dataset.createdMonth;    // "YYYY-MM"
+      const base = key === "manager" ? { manager: value } : { ownerName: value };
+      applyOppChartFilter(
+        { ...base, createdMonth: month, newBusinessOnly: true, cohort: true },
+        `Created by ${value} · ${monthLabel(month)}`
+      );
+      return;
+    }
     const stageSeg = e.target.closest(".stage-age-seg");
     if (stageSeg) {
       const range = AGE_BUCKET_RANGES[stageSeg.dataset.bucket] || [null, null];

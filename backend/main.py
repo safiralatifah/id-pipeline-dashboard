@@ -21,8 +21,26 @@ app = FastAPI()
 BASE_DIR = Path(__file__).parent
 STATIC_DIR = BASE_DIR / "static"
 
+
+def _name_key(name: str | None) -> str:
+    """Canonical key for case- AND whitespace-insensitive name matching. The
+    roster, the SSO email map, and CRM owner_names are all hand-maintained and
+    don't agree on casing or spacing, so every viewer-scope and owner/manager
+    comparison canonicalizes through this. Mirrors Task Progress Monitor's
+    casefold-based scoping — a casing mismatch must never resolve a viewer's
+    scope to empty (which used to fall open to "see everything")."""
+    return " ".join((name or "").split()).casefold()
+
+
 with open(BASE_DIR / "team_roster.json", encoding="utf-8") as f:
-    TEAM_ROSTER: dict[str, dict] = json.load(f)
+    _RAW_TEAM_ROSTER: dict[str, dict] = json.load(f)
+# Canonicalize roster keys the same way CRM owner_names are canonicalized at
+# ingestion (see _normalize_owner_name, defined below), so the two sides
+# always join even if a roster entry is authored with stray whitespace.
+TEAM_ROSTER: dict[str, dict] = {" ".join(k.split()): v for k, v in _RAW_TEAM_ROSTER.items()}
+# Canonical-key views of the roster for case/whitespace-insensitive lookups.
+TEAM_ROSTER_BY_KEY: dict[str, dict] = {_name_key(k): v for k, v in TEAM_ROSTER.items()}
+TEAM_ROSTER_KEY_TO_NAME: dict[str, str] = {_name_key(k): k for k in TEAM_ROSTER}
 
 # Maps the viewer's SSO email (from the platform's unspoofable
 # X-Forwarded-Email header) to their name in TEAM_ROSTER, so the dashboard
@@ -38,6 +56,7 @@ except (json.JSONDecodeError, AttributeError):
 
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 CRM_OPPORTUNITY_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Opportunity/records"
+CRM_TASK_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Task/records"
 RECORD_TYPE_INDONESIA = "12"
 CLOSED_HISTORY_DAYS = 365
 EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
@@ -152,6 +171,18 @@ def _normalize_stage(s: str) -> str:
     return _DASH_RE.sub("-", s).strip().lower()
 
 
+def _normalize_owner_name(name: str | None) -> str | None:
+    """Collapse any run of whitespace to a single space and trim, so a CRM
+    owner_name carrying a stray double space (e.g. "Deny  Ardianto") still
+    matches its single-spaced team_roster key. Applied at ingestion so every
+    downstream manager join, filter, dropdown, and grouping sees one
+    canonical form — an owner is never split between their real manager and
+    the "Unmapped" bucket over invisible whitespace."""
+    if not name:
+        return name
+    return " ".join(name.split())
+
+
 # Data-quality filter: "Last Mile – Parcel" and "Last Mile – Document" are
 # only valid for Raden Roro Inggil Pratiwi's opportunities; excluded for
 # everyone else. Compared dash-normalized since the CRM inconsistently
@@ -171,7 +202,7 @@ def _opportunity_included(r: dict) -> bool:
     if EXCLUDE_NAME_SUBSTR in (r.get("name") or ""):
         return False
     product_line = _normalize_stage(r.get("nv_product_line") or "")
-    if product_line in RESTRICTED_PRODUCT_LINES and r.get("owner_name") != "Raden Roro Inggil Pratiwi":
+    if product_line in RESTRICTED_PRODUCT_LINES and _name_key(r.get("owner_name")) != _name_key("Raden Roro Inggil Pratiwi"):
         return False
     if product_line in EXCLUDED_PRODUCT_LINES:
         return False
@@ -188,6 +219,7 @@ def _normalize_opportunity(r: dict) -> dict:
         r["service_level"] = [sl] if sl else []
     elif not sl:
         r["service_level"] = []
+    r["owner_name"] = _normalize_owner_name(r.get("owner_name"))
     return r
 
 
@@ -479,7 +511,10 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
     )
     # Filtered client-side rather than as a server-side condition above —
     # related_object_type's filter support on this endpoint isn't confirmed.
-    return [t for t in tasks if t.get("related_object_type") == "Opportunity"]
+    opp_tasks = [t for t in tasks if t.get("related_object_type") == "Opportunity"]
+    for t in opp_tasks:
+        t["owner_name"] = _normalize_owner_name(t.get("owner_name"))
+    return opp_tasks
 
 
 UNMAPPED_MANAGER_LABEL = "Unmapped"
@@ -488,8 +523,11 @@ UNMAPPED_MANAGER_LABEL = "Unmapped"
 def _owner_manager(owner: str) -> str:
     """The manager filter value for an owner — their real manager, or the
     synthetic "Unmapped" bucket for an owner with no team_roster entry (or
-    a roster entry with no manager field, e.g. a Sales Head)."""
-    return (TEAM_ROSTER.get(owner) or {}).get("manager") or UNMAPPED_MANAGER_LABEL
+    a roster entry with no manager field, e.g. a Sales Head). Matches the owner
+    name case- and whitespace-insensitively (see _name_key), so a CRM spelling
+    that differs from the roster's casing still resolves the right manager
+    instead of falling into "Unmapped"."""
+    return (TEAM_ROSTER_BY_KEY.get(_name_key(owner)) or {}).get("manager") or UNMAPPED_MANAGER_LABEL
 
 
 def _filter_options(
@@ -512,25 +550,26 @@ def _filter_options(
     managers_pool = {v["manager"] for v in TEAM_ROSTER.values() if v.get("manager")}
     has_unmapped = any(_owner_manager(o) == UNMAPPED_MANAGER_LABEL for o in owners_pool)
     if allowed_owners is not None:
-        owners_pool &= allowed_owners
+        allowed_canon = {_name_key(a) for a in allowed_owners}
+        owners_pool = {o for o in owners_pool if _name_key(o) in allowed_canon}
         managers_pool = {
-            TEAM_ROSTER[name]["manager"]
+            (TEAM_ROSTER_BY_KEY.get(_name_key(name)) or {}).get("manager")
             for name in allowed_owners
-            if TEAM_ROSTER.get(name) and TEAM_ROSTER[name].get("manager")
         }
+        managers_pool.discard(None)
         has_unmapped = any(_owner_manager(o) == UNMAPPED_MANAGER_LABEL for o in owners_pool)
     if has_unmapped:
         managers_pool.add(UNMAPPED_MANAGER_LABEL)
 
     result_owners = owners_pool
     if selected_managers:
-        managers_set = set(selected_managers)
-        result_owners = {o for o in owners_pool if _owner_manager(o) in managers_set}
+        managers_set = {_name_key(m) for m in selected_managers}
+        result_owners = {o for o in owners_pool if _name_key(_owner_manager(o)) in managers_set}
 
     result_managers = managers_pool
     if selected_owners:
-        owners_set = set(selected_owners)
-        result_managers = {_owner_manager(o) for o in owners_pool if o in owners_set}
+        owners_set = {_name_key(o) for o in selected_owners}
+        result_managers = {_owner_manager(o) for o in owners_pool if _name_key(o) in owners_set}
 
     return {
         "owners": sorted(result_owners),
@@ -552,8 +591,8 @@ def _apply_filters(
     service_levels: list[str] | None,
     industries: list[str] | None = None,
 ) -> list[dict]:
-    owners_set = set(owners) if owners else None
-    managers_set = set(managers) if managers else None
+    owners_set = {_name_key(o) for o in owners} if owners else None
+    managers_set = {_name_key(m) for m in managers} if managers else None
     product_lines_set = set(product_lines) if product_lines else None
     service_levels_set = set(service_levels) if service_levels else None
     industries_set = set(industries) if industries else None
@@ -562,9 +601,9 @@ def _apply_filters(
 
     def keep(r: dict) -> bool:
         owner = r.get("owner_name") or ""
-        if owners_set is not None and owner not in owners_set:
+        if owners_set is not None and _name_key(owner) not in owners_set:
             return False
-        if managers_set is not None and _owner_manager(owner) not in managers_set:
+        if managers_set is not None and _name_key(_owner_manager(owner)) not in managers_set:
             return False
         if product_lines_set is not None and r.get("nv_product_line") not in product_lines_set:
             return False
@@ -582,16 +621,16 @@ def _apply_task_filters(
 ) -> list[dict]:
     # Tasks aren't tagged with product line / service level, so those two
     # filters don't apply to the Task population — only owner and manager do.
-    owners_set = set(owners) if owners else None
-    managers_set = set(managers) if managers else None
+    owners_set = {_name_key(o) for o in owners} if owners else None
+    managers_set = {_name_key(m) for m in managers} if managers else None
     if owners_set is None and managers_set is None:
         return tasks
 
     def keep(t: dict) -> bool:
         owner = t.get("owner_name") or ""
-        if owners_set is not None and owner not in owners_set:
+        if owners_set is not None and _name_key(owner) not in owners_set:
             return False
-        if managers_set is not None and _owner_manager(owner) not in managers_set:
+        if managers_set is not None and _name_key(_owner_manager(owner)) not in managers_set:
             return False
         return True
 
@@ -599,14 +638,20 @@ def _apply_task_filters(
 
 
 def _viewer_scope_names(viewer_name: str) -> set[str]:
-    """Everyone the viewer is allowed to see: themself (if they're a rep in
-    the roster), plus every rep reporting to them as Manager, plus every rep
-    under them as Sales Head — the sales_head field is already flat across
-    the whole chain, so this covers a Sales Head's full downstream team in
-    one pass, not just their direct reports."""
-    scope = {viewer_name} if viewer_name in TEAM_ROSTER else set()
+    """Everyone the viewer is allowed to see: always themself, plus every rep
+    reporting to them as Manager, plus every rep under them as Sales Head — the
+    sales_head field is already flat across the whole chain, so this covers a
+    Sales Head's full downstream team in one pass, not just their direct
+    reports. All name matching is case- and whitespace-insensitive (see
+    _name_key). The viewer is ALWAYS in their own scope, so a mapped viewer's
+    scope is never empty — a casing mismatch can no longer collapse it to empty
+    and fall open to "see everything" (a plain rep just sees their own rows)."""
+    vkey = _name_key(viewer_name)
+    scope = {viewer_name}
     for name, v in TEAM_ROSTER.items():
-        if v.get("manager") == viewer_name or v.get("sales_head") == viewer_name:
+        if _name_key(name) == vkey:  # viewer is a roster rep — use its spelling
+            scope.add(name)
+        if _name_key(v.get("manager")) == vkey or _name_key(v.get("sales_head")) == vkey:
             scope.add(name)
     return scope
 
@@ -616,15 +661,15 @@ def _resolve_viewer(request: Request) -> tuple[str | None, set[str] | None]:
     viewer, or (None, None) if unrestricted (unmapped viewer, or SSO not
     enabled — X-Forwarded-Email is unspoofable when the platform's Google
     SSO gate is on, and simply absent otherwise, which this treats as "no
-    restriction" rather than an error)."""
+    restriction" rather than an error). A viewer matched in the email map is
+    always scoped (at least to their own rows), never unrestricted."""
     email = (request.headers.get("x-forwarded-email") or "").strip().lower()
     if not email:
         return None, None
     viewer_name = TEAM_EMAIL_MAP.get(email)
     if not viewer_name:
         return None, None
-    scope = _viewer_scope_names(viewer_name)
-    return viewer_name, (scope or None)
+    return viewer_name, _viewer_scope_names(viewer_name)
 
 
 def _effective_owners(
@@ -634,25 +679,31 @@ def _effective_owners(
     the owners filter actually applied: the client's own selection clamped
     to the viewer's identity scope, or the full scope if they selected
     nothing, or just the client's own selection if the viewer is
-    unrestricted."""
+    unrestricted. Clamping is case-/whitespace-insensitive."""
     viewer_name, allowed_owners = _resolve_viewer(request)
     effective_owners = owners
     if allowed_owners is not None:
-        effective_owners = list(set(owners) & allowed_owners) if owners else list(allowed_owners)
+        if owners:
+            allowed_canon = {_name_key(a) for a in allowed_owners}
+            effective_owners = [o for o in owners if _name_key(o) in allowed_canon]
+        else:
+            effective_owners = list(allowed_owners)
     return viewer_name, allowed_owners, effective_owners
 
 
 def _scoped_roster_names(owners: list[str] | None, managers: list[str] | None) -> set[str]:
     """Which team_roster names the By Salesperson table pre-seeds with
     zero-count rows — narrowed to match the active Salesperson/Manager
-    filters (same AND semantics as _apply_filters) so e.g. filtering to one
-    manager only lists that manager's own reps, not the whole company."""
+    filters (same AND semantics as _apply_filters, case-/whitespace-
+    insensitive) so e.g. filtering to one manager only lists that manager's
+    own reps, not the whole company."""
     scope = set(TEAM_ROSTER)
     if owners:
-        scope &= set(owners)
+        owners_canon = {_name_key(o) for o in owners}
+        scope = {name for name in scope if _name_key(name) in owners_canon}
     if managers:
-        managers_set = set(managers)
-        scope &= {name for name in TEAM_ROSTER if _owner_manager(name) in managers_set}
+        managers_canon = {_name_key(m) for m in managers}
+        scope &= {name for name in TEAM_ROSTER if _name_key(_owner_manager(name)) in managers_canon}
     return scope
 
 
@@ -818,22 +869,26 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
     # Tasks pending: open Tasks (already Not Started / In Progress only, per
     # fetch_open_tasks) that aren't "Active" by the same rule Task Activity
     # uses — touched within 7 days AND not overdue.
+    # The task links straight to its own CRM record; the linked Opportunity's
+    # id and name ride along as a small caption. Name comes from the fetched
+    # opportunity set — absent when the Opportunity is deleted or out of the
+    # dashboard's window (id is still shown so the row stays traceable).
+    opp_name_by_id = {r["id"]: r.get("name") for r in opp_rows}
     pending_tasks = []
     for t in tasks:
         if _task_is_active(t, now, today):
             continue
         last_activity = _parse_dt(t.get("updated_at")) or _parse_dt(t.get("created_at"))
-        related_id = t.get("related_record_id")
+        task_id = t.get("id")
+        related_id = t.get("related_record_id") if t.get("related_object_type") == "Opportunity" else None
         pending_tasks.append({
-            "id": t.get("id"),
+            "id": task_id,
             "subject": t.get("subject") or "(no subject)",
             "owner_name": t.get("owner_name"),
             "days_since_update": (now - last_activity).days if last_activity else None,
-            "crm_url": (
-                f"{CRM_OPPORTUNITY_URL_BASE}/{related_id}"
-                if t.get("related_object_type") == "Opportunity" and related_id is not None
-                else None
-            ),
+            "crm_url": f"{CRM_TASK_URL_BASE}/{task_id}" if task_id is not None else None,
+            "opportunity_id": related_id,
+            "opportunity_name": opp_name_by_id.get(related_id) if related_id is not None else None,
         })
     pending_tasks.sort(key=lambda t: -(t["days_since_update"] or 0))
 
@@ -1274,14 +1329,14 @@ def build_dashboard(
             continue
         month_key = created.strftime("%Y-%m")
         owner = r.get("owner_name") or ""
-        roster_entry = TEAM_ROSTER.get(owner)
+        roster_name = TEAM_ROSTER_KEY_TO_NAME.get(_name_key(owner))
         manager = _owner_manager(owner)
-        if not roster_entry:
+        if not roster_name:
             unmapped_owners.add(owner)
         manager_totals.setdefault(manager, {}).setdefault(month_key, 0)
         manager_totals[manager][month_key] += 1
-        if roster_entry and owner in owner_created_totals:
-            owner_created_totals[owner][month_key] = owner_created_totals[owner].get(month_key, 0) + 1
+        if roster_name and roster_name in owner_created_totals:
+            owner_created_totals[roster_name][month_key] = owner_created_totals[roster_name].get(month_key, 0) + 1
 
     # Closed-Won by the same 3-month window, keyed by when the deal actually
     # closed (stage_last_changed_at, falling back to updated_at) — not Type
@@ -1299,11 +1354,14 @@ def build_dashboard(
         if month_key not in created_month_keys:
             continue
         owner = r.get("owner_name") or ""
+        # Key the owner rollup by the roster's spelling so it joins the Created
+        # by_owner rows even when the CRM owner_name differs in case/spacing.
+        owner_key = TEAM_ROSTER_KEY_TO_NAME.get(_name_key(owner), owner)
         manager = _owner_manager(owner)
         manager_won_totals.setdefault(manager, {}).setdefault(month_key, 0)
         manager_won_totals[manager][month_key] += 1
-        owner_won_totals.setdefault(owner, {}).setdefault(month_key, 0)
-        owner_won_totals[owner][month_key] += 1
+        owner_won_totals.setdefault(owner_key, {}).setdefault(month_key, 0)
+        owner_won_totals[owner_key][month_key] += 1
 
     def _rollup(
         totals: dict[str, dict[str, int]],
@@ -1604,6 +1662,13 @@ async def _load_snapshot() -> None:
         _cache["items"] = data["items"]
         _cache["notebook_last_touch"] = _deserialize_notebook_last_touch(data["notebook_last_touch"])
         _cache["tasks"] = data["tasks"]
+        # Snapshots written before owner_name canonicalization can hold stray
+        # double spaces; normalize on warm-load so the fix takes effect on the
+        # first restart, not only after the next full pull re-ingests.
+        for _r in _cache["items"] or []:
+            _r["owner_name"] = _normalize_owner_name(_r.get("owner_name"))
+        for _t in _cache["tasks"] or []:
+            _t["owner_name"] = _normalize_owner_name(_t.get("owner_name"))
         _cache["snapshot_at"] = data["snapshot_at"]
         _cache["last_full_pull_at"] = data.get("last_full_pull_at")
         _cache["account_industry"] = {int(k): v for k, v in (data.get("account_industry") or {}).items()}
