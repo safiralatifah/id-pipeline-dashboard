@@ -1026,6 +1026,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
     <span>Productivity Performance Radar</span>
   </button>
+  <button type="button" class="nav-item" data-view="leads">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+    <span>Leads</span>
+  </button>
   <button type="button" class="nav-item" data-view="dictionary">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
     <span>Dictionary</span>
@@ -1441,6 +1445,47 @@
   </div>
 </div>
 
+<div class="viz-root" id="view-leads" style="display:none;">
+  <div class="wrap">
+    <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
+    <h1>Leads</h1>
+    <p class="panel-sub" style="margin:-8px 0 20px;">How many leads were created and where they stand, plus how many are still open. Uses the same Salesperson/Manager filters and identity scoping as Overview (Product Line / Service Level don't apply to Leads).</p>
+
+    <div class="stat-grid">
+      <div class="stat accent">
+        <span class="label">Leads Created (This Month)</span>
+        <span class="value" id="lead-created">&ndash;</span>
+        <span class="sub" id="lead-created-sub">&nbsp;</span>
+      </div>
+      <div class="stat">
+        <span class="label">Open Leads</span>
+        <span class="value" id="lead-open">&ndash;</span>
+        <span class="sub" id="lead-open-sub">&nbsp;</span>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Open Leads by Status <span id="lead-open-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+      <p class="panel-sub" style="margin-bottom:16px;">Leads still in play &mdash; regardless of when they were created.</p>
+      <div id="lead-open-bars"></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Leads Created This Month &mdash; by Status</h2>
+      <p class="panel-sub" style="margin-bottom:16px;">Of the leads created this month, where each one stands now.</p>
+      <div id="lead-created-bars"></div>
+    </div>
+
+    <div class="panel" style="margin-top:16px;">
+      <h2>Leads Created per Month</h2>
+      <p class="panel-sub" style="margin-bottom:16px;">New leads created each month (last 3 months).</p>
+      <div id="lead-month-bars"></div>
+    </div>
+
+    <p id="lead-error" style="display:none; color:var(--status-critical); font-size:13px; margin-top:16px;"></p>
+  </div>
+</div>
+
 <div class="viz-root" id="view-dictionary" style="display:none;">
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
@@ -1645,6 +1690,7 @@
       updateFilterUi();
       load();
       refreshOpplistIfActive();
+      refreshLeadsIfActive();
     }
     FILTER_KEYS.forEach(key => {
       const container = document.getElementById(`filter-options-${key}`);
@@ -1668,6 +1714,7 @@
           updateFilterUi();
           load();
           refreshOpplistIfActive();
+          refreshLeadsIfActive();
         });
       });
     });
@@ -1720,6 +1767,7 @@
           if (search && search.value) search.dispatchEvent(new Event("input"));
           load();
           refreshOpplistIfActive();
+          refreshLeadsIfActive();
         });
       });
     });
@@ -1733,6 +1781,7 @@
       renderFilterOptions(window.__filterOptions || {});
       load();
       refreshOpplistIfActive();
+      refreshLeadsIfActive();
     });
   }
 
@@ -2594,6 +2643,90 @@
     if (oppLoaded && document.getElementById("view-opplist").style.display !== "none") loadOpportunities();
   }
 
+  const LEAD_STATUS_COLOR = {
+    "Suspect": "var(--text-muted)",
+    "Suspect follow up": "var(--age-2)",
+    "Prospect Qualified": "var(--stage-open)",
+    "Disqualified Suspect": "var(--status-critical)",
+    "Disqualified Prospect": "var(--status-critical)",
+    "Converted": "var(--status-good)",
+  };
+
+  function renderLeadBars(containerId, rows, denom, opts) {
+    opts = opts || {};
+    const labelKey = opts.labelKey || "status";
+    const colorFn = opts.colorFn || (r => LEAD_STATUS_COLOR[r[labelKey]] || "var(--stage-open)");
+    const unit = opts.unit || "leads";
+    const el = document.getElementById(containerId);
+    if (!rows || !rows.length) { el.innerHTML = `<p style="font-size:12.5px;color:var(--text-muted);">No ${unit}.</p>`; return; }
+    const maxCount = Math.max(...rows.map(r => r.count), 1);
+    el.innerHTML = rows.map(r => {
+      const label = r[labelKey];
+      const widthPct = Math.max((r.count / maxCount) * 100, 4);
+      const pct = denom ? ((r.count / denom) * 100).toFixed(1) : "0.0";
+      const labelInside = widthPct > 22;
+      return `
+        <div class="bar-row" title="${label}: ${r.count} ${unit} (${pct}%)">
+          <span class="bar-name">${label}</span>
+          <div class="bar-track">
+            <div class="bar-fill${labelInside ? '' : ' on-surface'}" style="width:${widthPct}%; background:${colorFn(r)};">
+              <span class="count">${r.count}</span>
+            </div>
+          </div>
+          <span class="bar-pct">${pct}%</span>
+        </div>`;
+    }).join("");
+  }
+
+  let leadsLoaded = false;
+  function loadLeads() {
+    document.getElementById("lead-error").style.display = "none";
+    fetch(`/api/leads${filterQueryString()}`)
+      .then(res => {
+        if (res.status === 503) return res.json().then(b => { throw new Error(b.detail || "Initial data load in progress — retry shortly"); });
+        if (!res.ok) return res.json().then(b => { throw new Error(b.detail || res.statusText); });
+        return res.json();
+      })
+      .then(d => { leadsLoaded = true; renderLeads(d); })
+      .catch(err => {
+        const e = document.getElementById("lead-error");
+        e.textContent = `Could not load leads: ${err.message}`;
+        e.style.display = "";
+      });
+  }
+
+  function renderLeads(d) {
+    setText("lead-created", d.created_this_month);
+    const cur = d.created_this_month, prev = d.created_last_month;
+    let sub;
+    if (prev > 0) {
+      const pct = Math.round(Math.abs(cur - prev) / prev * 100);
+      sub = `${cur >= prev ? "▲" : "▼"} ${pct}% vs last month (${prev})`;
+    } else {
+      sub = `vs ${prev} last month`;
+    }
+    document.getElementById("lead-created-sub").textContent = sub;
+
+    setText("lead-open", d.open_total);
+    document.getElementById("lead-open-sub").textContent = "Suspect + Suspect follow up + Prospect Qualified";
+    setText("lead-open-count", `(${d.open_total})`);
+
+    renderLeadBars("lead-open-bars", d.open_by_status, d.open_total);
+    renderLeadBars("lead-created-bars", d.created_by_status, d.created_this_month);
+    const months = d.created_by_month || [];
+    const monthTotal = months.reduce((a, m) => a + m.count, 0);
+    renderLeadBars(
+      "lead-month-bars",
+      months.map(m => ({ label: monthLabel(m.month), count: m.count })),
+      monthTotal,
+      { labelKey: "label", colorFn: () => "var(--stage-open)" }
+    );
+  }
+
+  function refreshLeadsIfActive() {
+    if (leadsLoaded && document.getElementById("view-leads").style.display !== "none") loadLeads();
+  }
+
   function renderOppSection(sectionId, rows, columns = OPP_COLUMNS) {
     const state = oppSectionState[sectionId];
     const sorted = rows.slice().sort((a, b) => {
@@ -2781,6 +2914,7 @@
     document.getElementById("view-opplist").style.display = "";
     document.getElementById("view-pip-radar").style.display = "none";
     document.getElementById("view-dictionary").style.display = "none";
+    document.getElementById("view-leads").style.display = "none";
     window.scrollTo(0, 0);
   }
 
@@ -2998,7 +3132,9 @@
       document.getElementById("view-opplist").style.display = btn.dataset.view === "opplist" ? "" : "none";
       document.getElementById("view-pip-radar").style.display = btn.dataset.view === "pip-radar" ? "" : "none";
       document.getElementById("view-dictionary").style.display = btn.dataset.view === "dictionary" ? "" : "none";
+      document.getElementById("view-leads").style.display = btn.dataset.view === "leads" ? "" : "none";
       if (btn.dataset.view === "opplist") loadOpportunities();
+      if (btn.dataset.view === "leads") loadLeads();
       window.scrollTo(0, 0);
     });
   });

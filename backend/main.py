@@ -58,6 +58,17 @@ CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 CRM_OPPORTUNITY_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Opportunity/records"
 CRM_TASK_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Task/records"
 RECORD_TYPE_INDONESIA = "12"
+# Leads use a different record type for Indonesia than Opportunities do.
+RECORD_TYPE_INDONESIA_LEAD = "9"
+# Lead statuses still "in play" (an open lead), regardless of when it was
+# created — everything else (Disqualified Suspect/Prospect, Converted) is
+# terminal. Spelled exactly as the CRM's Lead Status picklist.
+LEAD_OPEN_STATUSES = ["Suspect", "Suspect follow up", "Prospect Qualified"]
+# Full display order for the Lead Status breakdown (open first, then terminal).
+LEAD_STATUS_ORDER = [
+    "Suspect", "Suspect follow up", "Prospect Qualified",
+    "Disqualified Suspect", "Disqualified Prospect", "Converted",
+]
 CLOSED_HISTORY_DAYS = 365
 EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
 
@@ -138,7 +149,8 @@ PIP_RUNWAY_TARGET = PIP_RUNWAY_TARGET_PER_MONTH * PIP_RUNWAY_MONTHS
 PIP_RED_THRESHOLD_PCT = 50
 
 _cache: dict[str, Any] = {
-    "items": None, "notebook_last_touch": None, "tasks": None, "snapshot_at": None,
+    "items": None, "notebook_last_touch": None, "tasks": None, "leads": None,
+    "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False, "last_attempt_at": None,
     "consecutive_failures": 0, "last_full_pull_at": None, "account_industry": None,
 }
@@ -517,6 +529,48 @@ async def fetch_open_tasks(client: httpx.AsyncClient) -> list[dict]:
     return opp_tasks
 
 
+async def fetch_leads(client: httpx.AsyncClient) -> list[dict]:
+    """Indonesia Leads for the Leads tab. Fetches every currently-open lead
+    (Suspect / Suspect follow up / Prospect Qualified) regardless of age, plus
+    anything created within the last year — so "open leads" is complete and
+    "created per month" has recent history, mirroring the Opportunity fetch.
+    Projected down to just the fields the tab needs, to keep the cache small."""
+    api_key = os.environ.get("CRM_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
+    created_since = (datetime.now(timezone.utc) - timedelta(days=CLOSED_HISTORY_DAYS)).strftime(
+        "%Y-%m-%dT%H:%M:%SZ"
+    )
+    filters = {
+        "logic": "AND",
+        "conditions": [
+            {"field": "record_type_id", "operator": "equals", "value": RECORD_TYPE_INDONESIA_LEAD},
+            {
+                "logic": "OR",
+                "conditions": [
+                    {"field": "status", "operator": "in", "value": LEAD_OPEN_STATUSES},
+                    {"field": "created_at", "operator": "greater_than", "value": created_since},
+                ],
+            },
+        ],
+    }
+    leads = await _fetch_paginated(
+        client,
+        f"{CRM_BASE}/objects/Lead/records",
+        {"X-API-Key": api_key},
+        {"filters": json.dumps(filters)},
+    )
+    return [
+        {
+            "id": lead.get("id"),
+            "owner_name": _normalize_owner_name(lead.get("owner_name")),
+            "status": lead.get("status"),
+            "created_at": lead.get("created_at"),
+        }
+        for lead in leads
+    ]
+
+
 UNMAPPED_MANAGER_LABEL = "Unmapped"
 
 
@@ -635,6 +689,28 @@ def _apply_task_filters(
         return True
 
     return [t for t in tasks if keep(t)]
+
+
+def _apply_lead_filters(
+    leads: list[dict], owners: list[str] | None, managers: list[str] | None
+) -> list[dict]:
+    # Leads are scoped by owner and manager only (same as Tasks) — the Product
+    # Line / Service Level filters are about the Opportunity pipeline, not Leads.
+    # Case-/whitespace-insensitive, like every other owner/manager match.
+    owners_set = {_name_key(o) for o in owners} if owners else None
+    managers_set = {_name_key(m) for m in managers} if managers else None
+    if owners_set is None and managers_set is None:
+        return leads
+
+    def keep(lead: dict) -> bool:
+        owner = lead.get("owner_name") or ""
+        if owners_set is not None and _name_key(owner) not in owners_set:
+            return False
+        if managers_set is not None and _name_key(_owner_manager(owner)) not in managers_set:
+            return False
+        return True
+
+    return [lead for lead in leads if keep(lead)]
 
 
 def _viewer_scope_names(viewer_name: str) -> set[str]:
@@ -1641,6 +1717,7 @@ async def _save_snapshot() -> None:
             "items": _cache["items"],
             "notebook_last_touch": _serialize_notebook_last_touch(_cache["notebook_last_touch"]),
             "tasks": _cache["tasks"],
+            "leads": _cache["leads"],
             "snapshot_at": _cache["snapshot_at"],
             "last_full_pull_at": _cache["last_full_pull_at"],
             "account_industry": {str(k): v for k, v in (_cache["account_industry"] or {}).items()},
@@ -1662,6 +1739,9 @@ async def _load_snapshot() -> None:
         _cache["items"] = data["items"]
         _cache["notebook_last_touch"] = _deserialize_notebook_last_touch(data["notebook_last_touch"])
         _cache["tasks"] = data["tasks"]
+        _cache["leads"] = data.get("leads")
+        for _l in _cache["leads"] or []:
+            _l["owner_name"] = _normalize_owner_name(_l.get("owner_name"))
         # Snapshots written before owner_name canonicalization can hold stray
         # double spaces; normalize on warm-load so the fix takes effect on the
         # first restart, not only after the next full pull re-ingests.
@@ -1721,6 +1801,7 @@ async def _refresh_dashboard_cache() -> None:
                 r["industry"] = account_industry.get(r.get("account_id"))
             notebook_last_touch = await fetch_notebook_last_touch(client)
             tasks = await fetch_open_tasks(client)
+            leads = await fetch_leads(client)
         # Only the raw fetch is cached — build_dashboard() re-runs per
         # request (cheap, pure in-memory aggregation) so the filter bar can
         # slice owners/managers/product lines/service levels without
@@ -1729,6 +1810,7 @@ async def _refresh_dashboard_cache() -> None:
         _cache["notebook_last_touch"] = notebook_last_touch
         _cache["tasks"] = tasks
         _cache["account_industry"] = account_industry
+        _cache["leads"] = leads
         _cache["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         _cache["fetched_at"] = time.time()
         _cache["error"] = None
@@ -1857,6 +1939,81 @@ async def get_opportunities(
         "total": len(rows),
         "tasks": task_rows,
         "task_total": len(task_rows),
+        "snapshot_at": _cache["snapshot_at"],
+        "viewer_name": viewer_name,
+        "viewer_scoped": allowed_owners is not None,
+    }
+
+
+@app.get("/api/leads")
+async def get_leads(
+    request: Request,
+    owners: list[str] | None = Query(None),
+    managers: list[str] | None = Query(None),
+    product_lines: list[str] | None = Query(None),
+    service_levels: list[str] | None = Query(None),
+):
+    """Lead counts for the Leads tab: how many leads were created (this month,
+    last month, and per month) with their status breakdown, plus how many leads
+    are still open (Suspect / Suspect follow up / Prospect Qualified) regardless
+    of when they were created. Same identity scoping as the rest of the app;
+    Product Line / Service Level filters don't apply to Leads."""
+    if _cache["leads"] is None:
+        if _cache["error"]:
+            raise HTTPException(status_code=502, detail=f"Initial data load failed: {_cache['error']}")
+        raise HTTPException(status_code=503, detail="Initial data load in progress — retry shortly")
+
+    viewer_name, allowed_owners, effective_owners = _effective_owners(request, owners)
+    leads = _apply_lead_filters(_cache["leads"], effective_owners, managers)
+
+    now = datetime.now(timezone.utc)
+    this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month_end = this_month_start - timedelta(seconds=1)
+    last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+    month_keys = [now.strftime("%Y-%m")]
+    cursor = now.replace(day=1)
+    for _ in range(2):
+        cursor = (cursor - timedelta(days=1)).replace(day=1)
+        month_keys.append(cursor.strftime("%Y-%m"))
+    month_keys = sorted(set(month_keys))
+
+    created_this_month = 0
+    created_last_month = 0
+    created_status_counts: Counter = Counter()
+    created_month_counts: Counter = Counter()
+    open_status_counts: Counter = Counter()
+    for lead in leads:
+        status = lead.get("status")
+        if status in LEAD_OPEN_STATUSES:
+            open_status_counts[status] += 1
+        created = _parse_dt(lead.get("created_at"))
+        if not created:
+            continue
+        month_key = created.strftime("%Y-%m")
+        if month_key in month_keys:
+            created_month_counts[month_key] += 1
+        if created >= this_month_start:
+            created_this_month += 1
+            created_status_counts[status] += 1
+        elif last_month_start <= created <= last_month_end:
+            created_last_month += 1
+
+    return {
+        "created_this_month": created_this_month,
+        "created_last_month": created_last_month,
+        "created_by_status": [
+            {"status": s, "count": created_status_counts.get(s, 0)}
+            for s in LEAD_STATUS_ORDER if created_status_counts.get(s, 0)
+        ],
+        "open_total": sum(open_status_counts.values()),
+        "open_by_status": [
+            {"status": s, "count": open_status_counts.get(s, 0)} for s in LEAD_OPEN_STATUSES
+        ],
+        "created_by_month": [
+            {"month": mk, "count": created_month_counts.get(mk, 0)} for mk in month_keys
+        ],
+        "total_in_scope": len(leads),
         "snapshot_at": _cache["snapshot_at"],
         "viewer_name": viewer_name,
         "viewer_scoped": allowed_owners is not None,

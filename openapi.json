@@ -716,6 +716,122 @@
         }
       }
     },
+    "/api/leads": {
+      "get": {
+        "summary": "Lead counts for the Leads tab: leads created (this/last month, per month) with status breakdown, and open leads (Suspect / Suspect follow up / Prospect Qualified) regardless of creation date. Same identity scoping; Product Line / Service Level do not apply.",
+        "operationId": "get_leads",
+        "parameters": [
+          {
+            "name": "owners",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Repeatable. Keep only leads owned by one of these owner_names. OR within this filter."
+          },
+          {
+            "name": "managers",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Repeatable. Keep only leads whose owner's Manager (per team_roster.json) is one of these."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Aggregated Lead counts for Indonesia leads in the viewer's scope.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "created_this_month": {
+                      "type": "integer"
+                    },
+                    "created_last_month": {
+                      "type": "integer"
+                    },
+                    "created_by_status": {
+                      "type": "array",
+                      "description": "Status breakdown of leads created this month (non-zero statuses only).",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "open_total": {
+                      "type": "integer",
+                      "description": "Total open leads (the three open statuses), any creation date."
+                    },
+                    "open_by_status": {
+                      "type": "array",
+                      "description": "Open leads per status: Suspect, Suspect follow up, Prospect Qualified.",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "status": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "created_by_month": {
+                      "type": "array",
+                      "description": "Leads created per month (last 3 months).",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "month": {
+                            "type": "string",
+                            "description": "YYYY-MM"
+                          },
+                          "count": {
+                            "type": "integer"
+                          }
+                        }
+                      }
+                    },
+                    "total_in_scope": {
+                      "type": "integer"
+                    },
+                    "snapshot_at": {
+                      "type": "string",
+                      "format": "date-time"
+                    },
+                    "viewer_name": {
+                      "type": "string",
+                      "nullable": true
+                    },
+                    "viewer_scoped": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/{full_path}": {
       "get": {
         "summary": "Serves the Indonesia opportunity pipeline dashboard page for any path.",
