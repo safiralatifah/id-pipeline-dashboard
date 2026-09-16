@@ -314,13 +314,16 @@ async def _get_with_retry(client: httpx.AsyncClient, url: str, headers: dict, pa
 
 
 async def _fetch_paginated(
-    client: httpx.AsyncClient, url: str, headers: dict, params: dict, page_size: int = 100
+    client: httpx.AsyncClient, url: str, headers: dict, params: dict, page_size: int = 100,
+    page_concurrency: int | None = None,
 ) -> list[dict]:
     """Fetch every page of a {items,total,page,page_size,has_next} envelope.
     Page 1 is fetched first to learn the total, then the rest are fetched
     concurrently (bounded) instead of one-at-a-time — this matters once the
     collection is large (e.g. all-time Opportunities, or the ~1500-entry
-    Notebook feed)."""
+    Notebook feed). Pass page_concurrency=1 for a gentle, sequential pull that
+    is far less likely to trip the CRM's rate limiter (used for Leads, which
+    refresh rarely and don't need to be fast)."""
     first = await _get_with_retry(client, url, headers, {**params, "page_size": page_size, "page": 1})
     if first.status_code == 401:
         raise HTTPException(
@@ -335,7 +338,7 @@ async def _fetch_paginated(
         return items
 
     total_pages = -(-total // page_size)  # ceil division
-    sem = asyncio.Semaphore(_PAGE_CONCURRENCY)
+    sem = asyncio.Semaphore(page_concurrency or _PAGE_CONCURRENCY)
 
     async def fetch_page(page: int) -> list[dict]:
         async with sem:
@@ -563,6 +566,7 @@ async def fetch_leads(client: httpx.AsyncClient) -> list[dict]:
         f"{CRM_BASE}/objects/Lead/records",
         {"X-API-Key": api_key},
         {"filters": json.dumps(filters)},
+        page_concurrency=1,  # gentle sequential pull — leads refresh rarely
     )
     return [
         {
