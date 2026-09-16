@@ -1805,14 +1805,6 @@ async def _refresh_dashboard_cache() -> None:
                 r["industry"] = account_industry.get(r.get("account_id"))
             notebook_last_touch = await fetch_notebook_last_touch(client)
             tasks = await fetch_open_tasks(client)
-            # Leads are pulled only on the daily full pull (or the first time,
-            # before any leads are cached) — the open-lead set is thousands of
-            # records with no cheap delta, so re-pulling it every 15 minutes was
-            # overloading the CRM (429s). Delta cycles reuse the cached leads.
-            if do_full_pull or _cache["leads"] is None:
-                leads = await fetch_leads(client)
-            else:
-                leads = _cache["leads"]
         # Only the raw fetch is cached — build_dashboard() re-runs per
         # request (cheap, pure in-memory aggregation) so the filter bar can
         # slice owners/managers/product lines/service levels without
@@ -1821,7 +1813,6 @@ async def _refresh_dashboard_cache() -> None:
         _cache["notebook_last_touch"] = notebook_last_touch
         _cache["tasks"] = tasks
         _cache["account_industry"] = account_industry
-        _cache["leads"] = leads
         _cache["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         _cache["fetched_at"] = time.time()
         _cache["error"] = None
@@ -1851,10 +1842,44 @@ async def _refresh_loop() -> None:
         await asyncio.sleep(delay)
 
 
+# Leads have no cheap delta and the open-lead set is thousands of records, so
+# they refresh on their own gentle schedule, fully decoupled from the 15-minute
+# opportunity refresh — a heavy or rate-limited lead pull can neither stall nor
+# be stalled by it. Refreshed a few times a day; retried sooner while it has
+# failed or nothing is cached yet.
+LEADS_REFRESH_INTERVAL_SECONDS = 6 * 3600
+LEADS_RETRY_SECONDS = 20 * 60
+LEADS_STARTUP_DELAY_SECONDS = 60
+
+
+async def _refresh_leads_cache() -> None:
+    """Best-effort independent refresh of the Leads cache. A failure here never
+    touches the opportunity/notebook/task cache — it leaves the previous leads
+    in place (or None) to be retried on the next cycle."""
+    try:
+        async with httpx.AsyncClient() as client:
+            _cache["leads"] = await fetch_leads(client)
+        await _save_snapshot()
+    except Exception:
+        pass
+
+
+async def _leads_refresh_loop() -> None:
+    # Let the opportunity load settle first so two large pulls don't hit the
+    # CRM at once right after a restart.
+    await asyncio.sleep(LEADS_STARTUP_DELAY_SECONDS)
+    while True:
+        await _refresh_leads_cache()
+        await asyncio.sleep(
+            LEADS_REFRESH_INTERVAL_SECONDS if _cache["leads"] is not None else LEADS_RETRY_SECONDS
+        )
+
+
 @app.on_event("startup")
 async def _start_background_refresh() -> None:
     await _load_snapshot()
     asyncio.create_task(_refresh_loop())
+    asyncio.create_task(_leads_refresh_loop())
 
 
 @app.get("/api/pipeline")
@@ -1970,9 +1995,10 @@ async def get_leads(
     of when they were created. Same identity scoping as the rest of the app;
     Product Line / Service Level filters don't apply to Leads."""
     if _cache["leads"] is None:
-        if _cache["error"]:
-            raise HTTPException(status_code=502, detail=f"Initial data load failed: {_cache['error']}")
-        raise HTTPException(status_code=503, detail="Initial data load in progress — retry shortly")
+        raise HTTPException(
+            status_code=503,
+            detail="Leads are still loading from the CRM — check back in a minute.",
+        )
 
     viewer_name, allowed_owners, effective_owners = _effective_owners(request, owners)
     leads = _apply_lead_filters(_cache["leads"], effective_owners, managers)
