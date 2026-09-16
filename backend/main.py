@@ -2062,21 +2062,25 @@ async def get_leads(
     open_status_counts: Counter = Counter()
     open_by_owner: Counter = Counter()
     open_rows: list[dict] = []
+    created_rows: list[dict] = []
+
+    def _lead_row(lead: dict) -> dict:
+        lead_id = lead.get("id")
+        return {
+            "id": lead_id,
+            "owner_name": lead.get("owner_name") or "(unassigned)",
+            "company_name": lead.get("company_name"),
+            "status": lead.get("status"),
+            "created_at": lead.get("created_at"),
+            "crm_url": f"{CRM_LEAD_URL_BASE}/{lead_id}" if lead_id is not None else None,
+        }
+
     for lead in leads:
         status = lead.get("status")
         if status in LEAD_OPEN_STATUSES:
             open_status_counts[status] += 1
-            owner = lead.get("owner_name") or "(unassigned)"
-            open_by_owner[owner] += 1
-            lead_id = lead.get("id")
-            open_rows.append({
-                "id": lead_id,
-                "owner_name": owner,
-                "company_name": lead.get("company_name"),
-                "status": status,
-                "created_at": lead.get("created_at"),
-                "crm_url": f"{CRM_LEAD_URL_BASE}/{lead_id}" if lead_id is not None else None,
-            })
+            open_by_owner[lead.get("owner_name") or "(unassigned)"] += 1
+            open_rows.append(_lead_row(lead))
         created = _parse_dt(lead.get("created_at"))
         if not created:
             continue
@@ -2086,6 +2090,7 @@ async def get_leads(
         if created >= this_month_start:
             created_this_month += 1
             created_status_counts[status] += 1
+            created_rows.append(_lead_row(lead))
         elif last_month_start <= created <= last_month_end:
             created_last_month += 1
 
@@ -2111,6 +2116,12 @@ async def get_leads(
         ],
         "open_rows": sorted(
             open_rows,
+            key=lambda r: (r["owner_name"], -(_parse_dt(r["created_at"]).timestamp() if _parse_dt(r["created_at"]) else 0)),
+        ),
+        # Every lead created this month (any status) — the detail behind the
+        # "Leads Created This Month" card, so the count is verifiable.
+        "created_rows": sorted(
+            created_rows,
             key=lambda r: (r["owner_name"], -(_parse_dt(r["created_at"]).timestamp() if _parse_dt(r["created_at"]) else 0)),
         ),
         "total_in_scope": len(leads),

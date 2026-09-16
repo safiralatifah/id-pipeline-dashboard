@@ -1457,8 +1457,8 @@
     </div>
 
     <div class="stat-grid">
-      <div class="stat accent">
-        <span class="label">Leads Created (This Month)</span>
+      <div class="stat accent" id="lead-created-card" style="cursor:pointer;" title="Click to see the leads created this month">
+        <span class="label">Leads Created (This Month) &nbsp;<span style="font-weight:400; text-transform:none; letter-spacing:0; color:var(--accent);">view detail &rsaquo;</span></span>
         <span class="value" id="lead-created">&ndash;</span>
         <span class="sub" id="lead-created-sub">&nbsp;</span>
       </div>
@@ -1466,6 +1466,20 @@
         <span class="label">Open Leads</span>
         <span class="value" id="lead-open">&ndash;</span>
         <span class="sub" id="lead-open-sub">&nbsp;</span>
+      </div>
+    </div>
+
+    <div class="panel" id="lead-created-detail-panel" style="display:none;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <h2>Leads Created This Month &mdash; detail <span id="lead-created-detail-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+        <button type="button" class="filter-btn" id="lead-created-detail-close">Close</button>
+      </div>
+      <p class="panel-sub" id="lead-created-detail-summary" style="margin:6px 0 14px;"></p>
+      <div style="overflow-x:auto;">
+        <table class="simple-table" style="width:100%;">
+          <thead><tr><th>Salesperson</th><th>Lead (Company)</th><th>Status</th><th class="num">Created</th></tr></thead>
+          <tbody id="lead-created-detail-body"></tbody>
+        </table>
       </div>
     </div>
 
@@ -2693,10 +2707,15 @@
 
   let leadOpenRows = [];
   let leadByOwner = [];
+  let leadCreatedRows = [];
+  let leadCreatedByStatus = [];
   let leadRefreshedAt = null;
   const leadExpandedOwners = new Set();
 
   function renderLeads(d) {
+    leadCreatedRows = d.created_rows || [];
+    leadCreatedByStatus = d.created_by_status || [];
+    if (document.getElementById("lead-created-detail-panel").style.display !== "none") renderLeadCreatedDetail();
     setText("lead-created", d.created_this_month);
     const cur = d.created_this_month, prev = d.created_last_month;
     let sub;
@@ -2791,6 +2810,33 @@
   }
 
   document.getElementById("lead-search").addEventListener("input", () => renderLeadGroups());
+
+  function renderLeadCreatedDetail() {
+    document.getElementById("lead-created-detail-count").textContent = `(${leadCreatedRows.length})`;
+    document.getElementById("lead-created-detail-summary").textContent = leadCreatedByStatus.length
+      ? "Of these: " + leadCreatedByStatus.map(s => `${s.count} ${s.status}`).join(" · ") + ". Only the open ones appear in the table below."
+      : "No leads created this month.";
+    const body = document.getElementById("lead-created-detail-body");
+    body.innerHTML = leadCreatedRows.length
+      ? leadCreatedRows.map(r => `
+          <tr>
+            <td class="name">${r.owner_name}</td>
+            <td>${r.crm_url ? `<a class="opp-link" href="${r.crm_url}" target="_blank" rel="noopener">${r.company_name || "(no name)"}</a>` : (r.company_name || "&ndash;")}</td>
+            <td>${leadStatusPill(r.status)}</td>
+            <td class="num">${fmtDate(r.created_at)}</td>
+          </tr>`).join("")
+      : `<tr><td colspan="4" style="color:var(--text-muted); padding:12px 0;">No leads created this month.</td></tr>`;
+  }
+
+  document.getElementById("lead-created-card").addEventListener("click", () => {
+    const panel = document.getElementById("lead-created-detail-panel");
+    const willShow = panel.style.display === "none";
+    panel.style.display = willShow ? "" : "none";
+    if (willShow) { renderLeadCreatedDetail(); panel.scrollIntoView({ behavior: "smooth", block: "nearest" }); }
+  });
+  document.getElementById("lead-created-detail-close").addEventListener("click", () => {
+    document.getElementById("lead-created-detail-panel").style.display = "none";
+  });
 
   function pollLeadRefresh(before, tries) {
     if (tries > 30) {

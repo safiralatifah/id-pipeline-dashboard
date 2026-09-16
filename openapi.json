@@ -845,6 +845,7 @@
                     "total_in_scope": {
         "open_by_owner": { "type": "array", "description": "Open leads per salesperson.", "items": { "type": "object", "properties": { "owner_name": { "type": "string" }, "total": { "type": "integer" } } } },
         "open_rows": { "type": "array", "description": "Each open lead: company, status, created date, and a link to the CRM record.", "items": { "type": "object", "properties": { "id": { "type": "integer" }, "owner_name": { "type": "string" }, "company_name": { "type": "string", "nullable": true }, "status": { "type": "string" }, "created_at": { "type": "string", "format": "date-time" }, "crm_url": { "type": "string" } } } },
+        "created_rows": { "type": "array", "description": "Every lead created this month (any status): salesperson, company, status, created date, and a CRM link.", "items": { "type": "object", "properties": { "id": { "type": "integer" }, "owner_name": { "type": "string" }, "company_name": { "type": "string", "nullable": true }, "status": { "type": "string" }, "created_at": { "type": "string", "format": "date-time" }, "crm_url": { "type": "string" } } } },
         "leads_refreshed_at": { "type": "string", "nullable": true, "format": "date-time" },
         "can_refresh": { "type": "boolean", "description": "Whether this viewer may trigger a manual refresh." },
                       "type": "integer"
