@@ -69,6 +69,10 @@ LEAD_STATUS_ORDER = [
     "Suspect", "Suspect follow up", "Prospect Qualified",
     "Disqualified Suspect", "Disqualified Prospect", "Converted",
 ]
+# How far back to pull *terminal* leads for the "created per month" trend — only
+# the last few months are shown, so no need to pull a full year of converted/
+# disqualified leads on top of every open one. Open leads are pulled at any age.
+LEAD_CREATED_HISTORY_DAYS = 100
 CLOSED_HISTORY_DAYS = 365
 EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
 
@@ -538,7 +542,7 @@ async def fetch_leads(client: httpx.AsyncClient) -> list[dict]:
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
-    created_since = (datetime.now(timezone.utc) - timedelta(days=CLOSED_HISTORY_DAYS)).strftime(
+    created_since = (datetime.now(timezone.utc) - timedelta(days=LEAD_CREATED_HISTORY_DAYS)).strftime(
         "%Y-%m-%dT%H:%M:%SZ"
     )
     filters = {
@@ -1801,7 +1805,14 @@ async def _refresh_dashboard_cache() -> None:
                 r["industry"] = account_industry.get(r.get("account_id"))
             notebook_last_touch = await fetch_notebook_last_touch(client)
             tasks = await fetch_open_tasks(client)
-            leads = await fetch_leads(client)
+            # Leads are pulled only on the daily full pull (or the first time,
+            # before any leads are cached) — the open-lead set is thousands of
+            # records with no cheap delta, so re-pulling it every 15 minutes was
+            # overloading the CRM (429s). Delta cycles reuse the cached leads.
+            if do_full_pull or _cache["leads"] is None:
+                leads = await fetch_leads(client)
+            else:
+                leads = _cache["leads"]
         # Only the raw fetch is cached — build_dashboard() re-runs per
         # request (cheap, pure in-memory aggregation) so the filter bar can
         # slice owners/managers/product lines/service levels without
