@@ -716,6 +716,38 @@
         }
       }
     },
+    "/api/leads/refresh": {
+      "post": {
+        "summary": "Manually pull leads from the CRM now (builders and Sales Managers only). Returns immediately; the pull runs in the background \u2014 poll /api/leads and watch leads_refreshed_at change.",
+        "operationId": "refresh_leads",
+        "responses": {
+          "200": {
+            "description": "Refresh started (or already running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "started | already_refreshing"
+                    },
+                    "leads_refreshed_at": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is a plain Salesperson \u2014 not allowed to refresh."
+          }
+        }
+      }
+    },
     "/api/leads": {
       "get": {
         "summary": "Lead counts for the Leads tab: leads created (this/last month, per month) with status breakdown, and open leads (Suspect / Suspect follow up / Prospect Qualified) regardless of creation date. Same identity scoping; Product Line / Service Level do not apply.",
@@ -811,6 +843,10 @@
                       }
                     },
                     "total_in_scope": {
+        "open_by_owner": { "type": "array", "description": "Open leads per salesperson.", "items": { "type": "object", "properties": { "owner_name": { "type": "string" }, "total": { "type": "integer" } } } },
+        "open_rows": { "type": "array", "description": "Each open lead: company, status, created date, and a link to the CRM record.", "items": { "type": "object", "properties": { "id": { "type": "integer" }, "owner_name": { "type": "string" }, "company_name": { "type": "string", "nullable": true }, "status": { "type": "string" }, "created_at": { "type": "string", "format": "date-time" }, "crm_url": { "type": "string" } } } },
+        "leads_refreshed_at": { "type": "string", "nullable": true, "format": "date-time" },
+        "can_refresh": { "type": "boolean", "description": "Whether this viewer may trigger a manual refresh." },
                       "type": "integer"
                     },
                     "snapshot_at": {

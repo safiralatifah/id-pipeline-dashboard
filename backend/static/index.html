@@ -1449,7 +1449,12 @@
   <div class="wrap">
     <p class="eyebrow">Ninja Van CRM &middot; Sales Pipeline</p>
     <h1>Leads</h1>
-    <p class="panel-sub" style="margin:-8px 0 20px;">How many leads were created and where they stand, plus how many are still open. Uses the same Salesperson/Manager filters and identity scoping as Overview (Product Line / Service Level don't apply to Leads).</p>
+    <p class="panel-sub" style="margin:-8px 0 16px;">How many leads were created and where they stand, plus how many are still open. Uses the same Salesperson/Manager filters and identity scoping as Overview (Product Line / Service Level don't apply to Leads).</p>
+
+    <div id="lead-refresh-row" style="display:none; align-items:center; gap:12px; margin-bottom:18px;">
+      <button type="button" class="filter-btn" id="lead-refresh-btn">&#8635; Refresh from CRM</button>
+      <span id="lead-refresh-status" style="font-size:12px; color:var(--text-muted);"></span>
+    </div>
 
     <div class="stat-grid">
       <div class="stat accent">
@@ -1465,21 +1470,12 @@
     </div>
 
     <div class="panel">
-      <h2>Open Leads by Status <span id="lead-open-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
-      <p class="panel-sub" style="margin-bottom:16px;">Leads still in play &mdash; regardless of when they were created.</p>
-      <div id="lead-open-bars"></div>
-    </div>
-
-    <div class="panel" style="margin-top:16px;">
-      <h2>Leads Created This Month &mdash; by Status</h2>
-      <p class="panel-sub" style="margin-bottom:16px;">Of the leads created this month, where each one stands now.</p>
-      <div id="lead-created-bars"></div>
-    </div>
-
-    <div class="panel" style="margin-top:16px;">
-      <h2>Leads Created per Month</h2>
-      <p class="panel-sub" style="margin-bottom:16px;">New leads created each month (last 3 months).</p>
-      <div id="lead-month-bars"></div>
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <h2>Open Leads by Salesperson <span id="lead-table-count" style="color:var(--text-muted); font-weight:500; font-size:13px;"></span></h2>
+        <input type="text" id="lead-search" placeholder="Search salesperson or company&hellip;" style="min-width:220px; max-width:320px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
+      </div>
+      <p class="panel-sub" style="margin:6px 0 16px;">Leads still in play (Suspect, Suspect follow up, Prospect Qualified). Click a salesperson to see their leads &mdash; each company links to its CRM record.</p>
+      <div id="lead-groups"></div>
     </div>
 
     <p id="lead-error" style="display:none; color:var(--status-critical); font-size:13px; margin-top:16px;"></p>
@@ -2695,6 +2691,11 @@
       });
   }
 
+  let leadOpenRows = [];
+  let leadByOwner = [];
+  let leadRefreshedAt = null;
+  const leadExpandedOwners = new Set();
+
   function renderLeads(d) {
     setText("lead-created", d.created_this_month);
     const cur = d.created_this_month, prev = d.created_last_month;
@@ -2709,19 +2710,124 @@
 
     setText("lead-open", d.open_total);
     document.getElementById("lead-open-sub").textContent = "Suspect + Suspect follow up + Prospect Qualified";
-    setText("lead-open-count", `(${d.open_total})`);
 
-    renderLeadBars("lead-open-bars", d.open_by_status, d.open_total);
-    renderLeadBars("lead-created-bars", d.created_by_status, d.created_this_month);
-    const months = d.created_by_month || [];
-    const monthTotal = months.reduce((a, m) => a + m.count, 0);
-    renderLeadBars(
-      "lead-month-bars",
-      months.map(m => ({ label: monthLabel(m.month), count: m.count })),
-      monthTotal,
-      { labelKey: "label", colorFn: () => "var(--stage-open)" }
-    );
+    document.getElementById("lead-refresh-row").style.display = d.can_refresh ? "flex" : "none";
+    leadRefreshedAt = d.leads_refreshed_at || null;
+    updateLeadRefreshStatus();
+
+    leadOpenRows = d.open_rows || [];
+    leadByOwner = d.open_by_owner || [];
+    document.getElementById("lead-table-count").textContent = `(${d.open_total} open)`;
+    renderLeadGroups();
   }
+
+  function updateLeadRefreshStatus(msg) {
+    const el = document.getElementById("lead-refresh-status");
+    if (msg != null) { el.textContent = msg; return; }
+    el.textContent = leadRefreshedAt ? `Last refreshed ${fmtDateTime(leadRefreshedAt)}` : "";
+  }
+
+  function fmtDateTime(iso) {
+    const dt = new Date(iso);
+    if (isNaN(dt)) return "";
+    return dt.toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  }
+
+  function leadStatusPill(s) {
+    const c = LEAD_STATUS_COLOR[s] || "var(--stage-open)";
+    return `<span class="opp-pill" style="background:color-mix(in srgb, ${c} 18%, var(--surface-1)); color:${c};">${s}</span>`;
+  }
+
+  function leadRowsTableHtml(rows) {
+    if (!rows.length) return '<p style="padding:4px 0 8px 14px; font-size:12px; color:var(--text-muted);">No matching leads.</p>';
+    return `
+      <div style="overflow-x:auto; padding:2px 0 8px 14px;">
+        <table class="simple-table" style="width:100%;">
+          <thead><tr><th>Lead (Company)</th><th>Status</th><th class="num">Created</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td>${r.crm_url ? `<a class="opp-link" href="${r.crm_url}" target="_blank" rel="noopener">${r.company_name || "(no name)"}</a>` : (r.company_name || "&ndash;")}</td>
+                <td>${leadStatusPill(r.status)}</td>
+                <td class="num">${fmtDate(r.created_at)}</td>
+              </tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
+  }
+
+  function renderLeadGroups() {
+    const q = (document.getElementById("lead-search").value || "").trim().toLowerCase();
+    const rowsByOwner = {};
+    leadOpenRows.forEach(r => { (rowsByOwner[r.owner_name] = rowsByOwner[r.owner_name] || []).push(r); });
+    const groups = leadByOwner.map(o => {
+      const all = rowsByOwner[o.owner_name] || [];
+      const ownerMatch = !q || o.owner_name.toLowerCase().includes(q);
+      const rows = q ? all.filter(r => ownerMatch || (r.company_name || "").toLowerCase().includes(q)) : all;
+      return { owner: o.owner_name, total: o.total, rows, ownerMatch };
+    }).filter(g => !q || g.ownerMatch || g.rows.length);
+
+    const container = document.getElementById("lead-groups");
+    if (!groups.length) { container.innerHTML = '<p style="font-size:12.5px; color:var(--text-muted);">No open leads.</p>'; return; }
+    container.innerHTML = groups.map(g => {
+      const expanded = q ? true : leadExpandedOwners.has(g.owner);
+      const caret = expanded ? "▾" : "▸";
+      return `
+        <div class="ai-owner-group">
+          <div class="ai-owner-header lead-group-header" data-owner="${g.owner.replace(/"/g, "&quot;")}" style="cursor:pointer; user-select:none;">
+            <span class="ai-item-name"><span style="color:var(--text-muted); margin-right:6px;">${caret}</span>${g.owner}</span>
+            <span class="ai-item-days" style="color:var(--stage-open);">${g.total}</span>
+          </div>
+          ${expanded ? leadRowsTableHtml(g.rows) : ""}
+        </div>`;
+    }).join("");
+    container.querySelectorAll(".lead-group-header").forEach(h => {
+      h.addEventListener("click", () => {
+        const o = h.dataset.owner;
+        if (leadExpandedOwners.has(o)) leadExpandedOwners.delete(o); else leadExpandedOwners.add(o);
+        renderLeadGroups();
+      });
+    });
+  }
+
+  document.getElementById("lead-search").addEventListener("input", () => renderLeadGroups());
+
+  function pollLeadRefresh(before, tries) {
+    if (tries > 30) {
+      document.getElementById("lead-refresh-btn").disabled = false;
+      updateLeadRefreshStatus("Still refreshing — reopen the tab in a minute.");
+      return;
+    }
+    setTimeout(() => {
+      fetch(`/api/leads${filterQueryString()}`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => {
+          if (d.leads_refreshed_at && d.leads_refreshed_at !== before) {
+            renderLeads(d);
+            document.getElementById("lead-refresh-btn").disabled = false;
+            updateLeadRefreshStatus(`Updated (${fmtDateTime(d.leads_refreshed_at)})`);
+          } else {
+            pollLeadRefresh(before, tries + 1);
+          }
+        })
+        .catch(() => pollLeadRefresh(before, tries + 1));
+    }, 5000);
+  }
+
+  document.getElementById("lead-refresh-btn").addEventListener("click", () => {
+    const btn = document.getElementById("lead-refresh-btn");
+    btn.disabled = true;
+    updateLeadRefreshStatus("Refreshing from CRM… (takes ~1–2 min)");
+    const before = leadRefreshedAt;
+    fetch("/api/leads/refresh", { method: "POST" })
+      .then(res => {
+        if (res.status === 403) throw new Error("Only managers and builders can refresh");
+        if (!res.ok) throw new Error("Refresh request failed");
+        return res.json();
+      })
+      .then(() => pollLeadRefresh(before, 0))
+      .catch(err => { btn.disabled = false; updateLeadRefreshStatus(err.message); });
+  });
 
   function refreshLeadsIfActive() {
     if (leadsLoaded && document.getElementById("view-leads").style.display !== "none") loadLeads();

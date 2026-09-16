@@ -57,6 +57,7 @@ except (json.JSONDecodeError, AttributeError):
 CRM_BASE = "https://api.ninjavan.co/global/salescrm/api/v1"
 CRM_OPPORTUNITY_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Opportunity/records"
 CRM_TASK_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Task/records"
+CRM_LEAD_URL_BASE = "https://salescrm.ninjavan.co/nv/objects/Lead/records"
 RECORD_TYPE_INDONESIA = "12"
 # Leads use a different record type for Indonesia than Opportunities do.
 RECORD_TYPE_INDONESIA_LEAD = "9"
@@ -154,6 +155,7 @@ PIP_RED_THRESHOLD_PCT = 50
 
 _cache: dict[str, Any] = {
     "items": None, "notebook_last_touch": None, "tasks": None, "leads": None,
+    "leads_refreshed_at": None, "leads_refreshing": False,
     "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False, "last_attempt_at": None,
     "consecutive_failures": 0, "last_full_pull_at": None, "account_industry": None,
@@ -572,6 +574,7 @@ async def fetch_leads(client: httpx.AsyncClient) -> list[dict]:
         {
             "id": lead.get("id"),
             "owner_name": _normalize_owner_name(lead.get("owner_name")),
+            "company_name": lead.get("company_name"),
             "status": lead.get("status"),
             "created_at": lead.get("created_at"),
         }
@@ -1726,6 +1729,7 @@ async def _save_snapshot() -> None:
             "notebook_last_touch": _serialize_notebook_last_touch(_cache["notebook_last_touch"]),
             "tasks": _cache["tasks"],
             "leads": _cache["leads"],
+            "leads_refreshed_at": _cache["leads_refreshed_at"],
             "snapshot_at": _cache["snapshot_at"],
             "last_full_pull_at": _cache["last_full_pull_at"],
             "account_industry": {str(k): v for k, v in (_cache["account_industry"] or {}).items()},
@@ -1748,6 +1752,7 @@ async def _load_snapshot() -> None:
         _cache["notebook_last_touch"] = _deserialize_notebook_last_touch(data["notebook_last_touch"])
         _cache["tasks"] = data["tasks"]
         _cache["leads"] = data.get("leads")
+        _cache["leads_refreshed_at"] = data.get("leads_refreshed_at")
         for _l in _cache["leads"] or []:
             _l["owner_name"] = _normalize_owner_name(_l.get("owner_name"))
         # Snapshots written before owner_name canonicalization can hold stray
@@ -1859,13 +1864,20 @@ LEADS_STARTUP_DELAY_SECONDS = 60
 async def _refresh_leads_cache() -> None:
     """Best-effort independent refresh of the Leads cache. A failure here never
     touches the opportunity/notebook/task cache — it leaves the previous leads
-    in place (or None) to be retried on the next cycle."""
+    in place (or None) to be retried on the next cycle. Guarded so the scheduled
+    loop and a manual refresh can't run two lead pulls at once."""
+    if _cache.get("leads_refreshing"):
+        return
+    _cache["leads_refreshing"] = True
     try:
         async with httpx.AsyncClient() as client:
             _cache["leads"] = await fetch_leads(client)
+        _cache["leads_refreshed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         await _save_snapshot()
     except Exception:
         pass
+    finally:
+        _cache["leads_refreshing"] = False
 
 
 async def _leads_refresh_loop() -> None:
@@ -1985,6 +1997,29 @@ async def get_opportunities(
     }
 
 
+def _can_manual_refresh(request: Request) -> bool:
+    """Who may trigger a manual CRM refresh: app builders / admins (unmapped,
+    so unrestricted) and Sales Managers / Sales Heads (their identity scope
+    covers more than just themselves). A plain Salesperson (scope of exactly
+    one — their own) cannot."""
+    _, allowed_owners = _resolve_viewer(request)
+    return allowed_owners is None or len(allowed_owners) > 1
+
+
+@app.post("/api/leads/refresh")
+async def refresh_leads(request: Request):
+    """Manually pull leads from the CRM now, instead of waiting for the next
+    scheduled refresh. Restricted to builders and Sales Managers. Returns
+    immediately; the pull runs in the background (poll /api/leads and watch
+    leads_refreshed_at change)."""
+    if not _can_manual_refresh(request):
+        raise HTTPException(status_code=403, detail="Only managers and app builders can refresh.")
+    if _cache.get("leads_refreshing"):
+        return {"status": "already_refreshing", "leads_refreshed_at": _cache["leads_refreshed_at"]}
+    asyncio.create_task(_refresh_leads_cache())
+    return {"status": "started", "leads_refreshed_at": _cache["leads_refreshed_at"]}
+
+
 @app.get("/api/leads")
 async def get_leads(
     request: Request,
@@ -1992,6 +2027,7 @@ async def get_leads(
     managers: list[str] | None = Query(None),
     product_lines: list[str] | None = Query(None),
     service_levels: list[str] | None = Query(None),
+    industries: list[str] | None = Query(None),
 ):
     """Lead counts for the Leads tab: how many leads were created (this month,
     last month, and per month) with their status breakdown, plus how many leads
@@ -2024,10 +2060,23 @@ async def get_leads(
     created_status_counts: Counter = Counter()
     created_month_counts: Counter = Counter()
     open_status_counts: Counter = Counter()
+    open_by_owner: Counter = Counter()
+    open_rows: list[dict] = []
     for lead in leads:
         status = lead.get("status")
         if status in LEAD_OPEN_STATUSES:
             open_status_counts[status] += 1
+            owner = lead.get("owner_name") or "(unassigned)"
+            open_by_owner[owner] += 1
+            lead_id = lead.get("id")
+            open_rows.append({
+                "id": lead_id,
+                "owner_name": owner,
+                "company_name": lead.get("company_name"),
+                "status": status,
+                "created_at": lead.get("created_at"),
+                "crm_url": f"{CRM_LEAD_URL_BASE}/{lead_id}" if lead_id is not None else None,
+            })
         created = _parse_dt(lead.get("created_at"))
         if not created:
             continue
@@ -2054,8 +2103,20 @@ async def get_leads(
         "created_by_month": [
             {"month": mk, "count": created_month_counts.get(mk, 0)} for mk in month_keys
         ],
+        # Open leads as a per-salesperson table: total per owner, plus each
+        # open lead (company, status, link to the CRM record).
+        "open_by_owner": [
+            {"owner_name": name, "total": total}
+            for name, total in sorted(open_by_owner.items(), key=lambda kv: (-kv[1], kv[0]))
+        ],
+        "open_rows": sorted(
+            open_rows,
+            key=lambda r: (r["owner_name"], -(_parse_dt(r["created_at"]).timestamp() if _parse_dt(r["created_at"]) else 0)),
+        ),
         "total_in_scope": len(leads),
         "snapshot_at": _cache["snapshot_at"],
+        "leads_refreshed_at": _cache["leads_refreshed_at"],
+        "can_refresh": _can_manual_refresh(request),
         "viewer_name": viewer_name,
         "viewer_scoped": allowed_owners is not None,
     }
