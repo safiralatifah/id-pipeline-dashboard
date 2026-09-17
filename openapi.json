@@ -627,6 +627,38 @@
         }
       }
     },
+    "/api/pipeline/refresh": {
+      "post": {
+        "summary": "Manually pull the whole opportunity/notebook/task set from the CRM now \u2014 a full sync that also catches records a 15-minute delta may have missed. App builders only. Returns immediately; poll /api/pipeline and watch snapshot_at.",
+        "operationId": "refresh_pipeline",
+        "responses": {
+          "200": {
+            "description": "Full sync started (or already running).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "description": "started | already_refreshing"
+                    },
+                    "snapshot_at": {
+                      "type": "string",
+                      "nullable": true,
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller is not an app builder."
+          }
+        }
+      }
+    },
     "/api/opportunities": {
       "get": {
         "summary": "Flat per-opportunity rows for the Opportunity List tab — same filters and identity scoping as /api/pipeline, not pre-aggregated.",

@@ -1940,6 +1940,7 @@ async def get_pipeline(
     result["filter_options"] = _filter_options(_cache["items"], allowed_owners, effective_owners, managers)
     result["viewer_name"] = viewer_name
     result["viewer_scoped"] = allowed_owners is not None
+    result["can_refresh_pipeline"] = allowed_owners is None
     # Non-null only when the most recent background refresh attempt failed
     # — data below is still the last good snapshot (from snapshot_at), not
     # broken, but it's gone stale silently since that attempt.
@@ -1998,12 +1999,34 @@ async def get_opportunities(
 
 
 def _can_manual_refresh(request: Request) -> bool:
-    """Who may trigger a manual CRM refresh: app builders / admins (unmapped,
+    """Who may trigger a manual Leads refresh: app builders / admins (unmapped,
     so unrestricted) and Sales Managers / Sales Heads (their identity scope
     covers more than just themselves). A plain Salesperson (scope of exactly
     one — their own) cannot."""
     _, allowed_owners = _resolve_viewer(request)
     return allowed_owners is None or len(allowed_owners) > 1
+
+
+def _is_builder(request: Request) -> bool:
+    """App builders / admins only — an unmapped (unrestricted) viewer. Used to
+    gate the manual pipeline (opportunity) refresh, which does a full CRM pull."""
+    _, allowed_owners = _resolve_viewer(request)
+    return allowed_owners is None
+
+
+@app.post("/api/pipeline/refresh")
+async def refresh_pipeline(request: Request):
+    """Manually pull the whole opportunity/notebook/task set from the CRM now —
+    a full pull, so it also picks up records a 15-minute delta may have missed
+    (e.g. an update that landed while a refresh was failing). Restricted to app
+    builders. Returns immediately; poll /api/pipeline and watch snapshot_at."""
+    if not _is_builder(request):
+        raise HTTPException(status_code=403, detail="Only app builders can refresh the pipeline.")
+    if _cache["refreshing"]:
+        return {"status": "already_refreshing", "snapshot_at": _cache["snapshot_at"]}
+    _cache["last_full_pull_at"] = None  # force a full pull, not a delta
+    asyncio.create_task(_refresh_dashboard_cache())
+    return {"status": "started", "snapshot_at": _cache["snapshot_at"]}
 
 
 @app.post("/api/leads/refresh")

@@ -1111,6 +1111,8 @@
         </div>
       </div>
       <button type="button" id="filter-clear-all" style="display:none;">Clear filters</button>
+      <button type="button" id="pipeline-refresh-btn" style="display:none;" title="Builders only: pull the latest opportunities, tasks and notebooks from the CRM now (full sync)">&#8635; Refresh from CRM</button>
+      <span id="pipeline-refresh-status" style="display:none; font-size:12px; color:var(--text-muted); align-self:center;"></span>
     </div>
 
     <div class="stat-grid">
@@ -2349,6 +2351,8 @@
 
     setText("meta-snapshot", new Date(d.snapshot_at).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }));
     setText("meta-total", d.total);
+    pipelineSnapshotAt = d.snapshot_at;
+    document.getElementById("pipeline-refresh-btn").style.display = d.can_refresh_pipeline ? "" : "none";
     const refreshWarningRow = document.getElementById("meta-refresh-warning-row");
     if (d.last_refresh_error) {
       refreshWarningRow.style.display = "";
@@ -3267,6 +3271,53 @@
       .then(data => { if (data) render(data); })
       .catch(err => renderError(`Could not load live CRM data: ${err.message}`));
   }
+
+  let pipelineSnapshotAt = null;
+  let pipelineRefreshing = false;
+
+  function pollPipelineRefresh(before, tries) {
+    const st = document.getElementById("pipeline-refresh-status");
+    if (tries > 48) {  // ~4 min at 5s — a full CRM pull can be slow
+      pipelineRefreshing = false;
+      document.getElementById("pipeline-refresh-btn").disabled = false;
+      st.textContent = "Still syncing — give it another minute, then reload.";
+      return;
+    }
+    setTimeout(() => {
+      fetch(`/api/pipeline${filterQueryString()}`)
+        .then(r => r.ok ? r.json() : Promise.reject())
+        .then(d => {
+          if (d && d.snapshot_at && d.snapshot_at !== before) {
+            render(d);
+            pipelineRefreshing = false;
+            document.getElementById("pipeline-refresh-btn").disabled = false;
+            st.style.display = "";
+            st.textContent = "Updated ✓";
+          } else {
+            pollPipelineRefresh(before, tries + 1);
+          }
+        })
+        .catch(() => pollPipelineRefresh(before, tries + 1));
+    }, 5000);
+  }
+
+  document.getElementById("pipeline-refresh-btn").addEventListener("click", () => {
+    const btn = document.getElementById("pipeline-refresh-btn");
+    const st = document.getElementById("pipeline-refresh-status");
+    btn.disabled = true;
+    pipelineRefreshing = true;
+    st.style.display = "";
+    st.textContent = "Full sync from CRM… (can take a minute)";
+    const before = pipelineSnapshotAt;
+    fetch("/api/pipeline/refresh", { method: "POST" })
+      .then(res => {
+        if (res.status === 403) throw new Error("Builders only");
+        if (!res.ok) throw new Error("Refresh request failed");
+        return res.json();
+      })
+      .then(() => pollPipelineRefresh(before, 0))
+      .catch(err => { btn.disabled = false; pipelineRefreshing = false; st.textContent = err.message; });
+  });
 
   document.querySelectorAll(".age-mode-btn").forEach(btn => {
     btn.addEventListener("click", () => {
