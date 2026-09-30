@@ -98,6 +98,8 @@ PRODUCT_LINE_ORDER = [
     "Last Mile – Document", "Digital +", "Cross-border SG",
     "Forward Stocking Locations", "Ninja FieldSight",
 ]
+# Filter-only option for deals whose nv_product_line is empty.
+BLANK_PRODUCT_LINE = "(Blank)"
 # service_level and core_product are multi_picklist fields — membership uses
 # "contains", not "equals" (equals silently returns 0 rows for this field type).
 SERVICE_LEVEL_VALUES = ["Same Day", "Standard", "LTL", "Next Day", "FTL", "Dedicated", "FCL", "LCL"]
@@ -662,7 +664,9 @@ def _filter_options(
     return {
         "owners": sorted(result_owners),
         "managers": sorted(result_managers),
-        "product_lines": list(PRODUCT_LINE_ORDER),
+        # "(Blank)" matches deals with no NV Product Line, so ticking every
+        # option returns the same set as no filter at all.
+        "product_lines": [*PRODUCT_LINE_ORDER, BLANK_PRODUCT_LINE],
         "service_levels": list(SERVICE_LEVEL_VALUES),
         # Industry has no fixed display order like the two above (81+
         # picklist values on the CRM side) — just every value actually
@@ -693,7 +697,7 @@ def _apply_filters(
             return False
         if managers_set is not None and _name_key(_owner_manager(owner)) not in managers_set:
             return False
-        if product_lines_set is not None and r.get("nv_product_line") not in product_lines_set:
+        if product_lines_set is not None and (r.get("nv_product_line") or BLANK_PRODUCT_LINE) not in product_lines_set:
             return False
         if service_levels_set is not None and not (set(r.get("service_level") or []) & service_levels_set):
             return False

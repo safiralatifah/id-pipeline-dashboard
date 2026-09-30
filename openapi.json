@@ -35,7 +35,7 @@
         "parameters": [
           { "name": "owners", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and Tasks) owned by one of these owner_names. OR within this filter." },
           { "name": "managers", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and Tasks) whose owner's Manager (per team_roster.json) is one of these. Deals owned by someone not in the roster never match." },
-          { "name": "product_lines", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose nv_product_line is one of these. Does not filter Tasks." },
+          { "name": "product_lines", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose nv_product_line is one of these; \"(Blank)\" matches deals with no product line. Does not filter Tasks." },
           { "name": "service_levels", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose service_level (multi-select) includes at least one of these. Does not filter Tasks." },
           { "name": "industries", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose linked Account's industry is one of these (Opportunity has no industry of its own — resolved from account_id via the CRM's Account object and cached). Does not filter Tasks." }
         ],
@@ -666,7 +666,7 @@
         "parameters": [
           { "name": "owners", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and their joined Tasks) owned by one of these owner_names. OR within this filter." },
           { "name": "managers", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals (and their joined Tasks) whose owner's Manager (per team_roster.json) is one of these." },
-          { "name": "product_lines", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose nv_product_line is one of these." },
+          { "name": "product_lines", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose nv_product_line is one of these; \"(Blank)\" matches deals with no product line." },
           { "name": "service_levels", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose service_level (multi-select) includes at least one of these." },
           { "name": "industries", "in": "query", "required": false, "schema": { "type": "array", "items": { "type": "string" } }, "description": "Repeatable. Keep only deals whose linked Account's industry is one of these." }
         ],
