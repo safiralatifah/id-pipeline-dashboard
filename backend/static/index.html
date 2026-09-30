@@ -1116,7 +1116,7 @@
     </div>
 
     <div class="stat-grid">
-      <div class="stat accent">
+      <div class="stat accent" id="stat-created-card" style="cursor:pointer;" title="Click to see these opportunities in the Opportunity List">
         <span class="label">Created This Month</span>
         <span class="value" id="stat-total">&ndash;</span>
         <span class="sub" id="stat-total-sub">&nbsp;</span>
@@ -3080,6 +3080,17 @@
     switchToOpplist();
     loadOpportunities();
   }
+
+  // "Created This Month" card → the same created-cohort view as clicking a
+  // count in Created Opportunities by Manager & Salesperson, company-wide
+  // (the Overview filters still apply). Month is UTC, matching the backend.
+  document.getElementById("stat-created-card").addEventListener("click", () => {
+    const month = new Date().toISOString().slice(0, 7);
+    applyOppChartFilter(
+      { createdMonth: month, newBusinessOnly: true, cohort: true },
+      `Created this month · ${monthLabel(month)}`
+    );
+  });
 
   document.getElementById("opplist-chart-filter-clear").addEventListener("click", () => {
     oppStructFilter = null;
