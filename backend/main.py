@@ -1,6 +1,7 @@
 import asyncio
 import calendar
 import json
+import logging
 import os
 import re
 import time
@@ -15,6 +16,10 @@ from fastapi.responses import FileResponse
 from starlette.concurrency import run_in_threadpool
 
 import storage
+
+# uvicorn's own logger is already wired to stdout, so these lines land in the
+# pod log (/substrait:logs) without any extra logging setup.
+logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI()
 
@@ -494,6 +499,10 @@ async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, dict
         f"{CRM_BASE}/notebook/entries",
         {"X-API-Key": api_key},
         {"object_type": "Opportunity"},
+        # Sequential: this is an all-countries feed re-pulled in full every
+        # cycle (no delta), and fetching it 3 pages at a time kept hitting
+        # the CRM's 429 rate limit partway through.
+        page_concurrency=1,
     )
     last_touch: dict[int, dict] = {}
     for entry in entries:
@@ -1770,6 +1779,18 @@ async def _load_snapshot() -> None:
         pass  # no snapshot yet (first-ever deploy), or object storage not configured/reachable
 
 
+async def _fetch_or_keep_previous(cache_key: str, fetch):
+    """Await `fetch`; on failure fall back to the cached value under
+    `cache_key` (logged), or re-raise if nothing has been cached yet."""
+    try:
+        return await fetch
+    except Exception:
+        if _cache[cache_key] is None:
+            raise
+        logger.warning("Refreshing %s failed; keeping the previous copy", cache_key, exc_info=True)
+        return _cache[cache_key]
+
+
 async def _refresh_dashboard_cache() -> None:
     if _cache["refreshing"]:
         return
@@ -1812,8 +1833,15 @@ async def _refresh_dashboard_cache() -> None:
                     account_industry.update(await fetch_account_industries(client, missing_ids))
             for r in items:
                 r["industry"] = account_industry.get(r.get("account_id"))
-            notebook_last_touch = await fetch_notebook_last_touch(client)
-            tasks = await fetch_open_tasks(client)
+            # Notebook/Tasks only feed the "CRM Updated" overlay — if either
+            # fails (typically a 429 on the all-countries Notebook feed), keep
+            # the previous copy rather than throwing away a good Opportunity
+            # pull and freezing the whole dashboard. Only a first-ever pull,
+            # with nothing cached to fall back on, still fails the cycle.
+            notebook_last_touch = await _fetch_or_keep_previous(
+                "notebook_last_touch", fetch_notebook_last_touch(client)
+            )
+            tasks = await _fetch_or_keep_previous("tasks", fetch_open_tasks(client))
         # Only the raw fetch is cached — build_dashboard() re-runs per
         # request (cheap, pure in-memory aggregation) so the filter bar can
         # slice owners/managers/product lines/service levels without
@@ -1836,6 +1864,10 @@ async def _refresh_dashboard_cache() -> None:
     except Exception as e:
         _cache["error"] = str(e)
         _cache["consecutive_failures"] += 1
+        logger.exception(
+            "Pipeline refresh failed (%d in a row); serving snapshot from %s",
+            _cache["consecutive_failures"], _cache["snapshot_at"],
+        )
     finally:
         _cache["refreshing"] = False
 
@@ -1875,7 +1907,7 @@ async def _refresh_leads_cache() -> None:
         _cache["leads_refreshed_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         await _save_snapshot()
     except Exception:
-        pass
+        logger.exception("Leads refresh failed; keeping the previous leads")
     finally:
         _cache["leads_refreshing"] = False
 
