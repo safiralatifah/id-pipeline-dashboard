@@ -93,7 +93,7 @@ OPEN_STAGE_ORDER = [
 # and every other stage-grouped panel, just not given its own bar here.
 DISPLAY_STAGE_ORDER = [s for s in OPEN_STAGE_ORDER if s != "Prospecting"]
 PRODUCT_LINE_ORDER = [
-    "Restock", "LTL", "Cold Chain", "Cross-border", "Fulfillment",
+    "Restock", "LTL", "FTL", "Cold Chain", "Cross-border", "Fulfillment",
     "Last Mile – Parcel", "Complex Logistics", "Last Mile – Cargo",
     "Last Mile – Document", "Digital +", "Cross-border SG",
     "Forward Stocking Locations", "Ninja FieldSight",
@@ -243,7 +243,21 @@ def _normalize_opportunity(r: dict) -> dict:
     elif not sl:
         r["service_level"] = []
     r["owner_name"] = _normalize_owner_name(r.get("owner_name"))
+    r["nv_product_line"] = _normalize_product_line(r.get("nv_product_line"))
     return r
+
+
+_PRODUCT_LINE_BY_KEY = {_normalize_stage(p): p for p in PRODUCT_LINE_ORDER}
+
+
+def _normalize_product_line(value: str | None) -> str | None:
+    """Map a CRM nv_product_line onto its PRODUCT_LINE_ORDER spelling — the
+    CRM returns e.g. "Last Mile - Cargo" (hyphen) for "Last Mile – Cargo"
+    (en dash), which the exact-match filter/dropdown and the Product Line
+    chart otherwise silently drop. Unknown values pass through unchanged."""
+    if not value:
+        return value
+    return _PRODUCT_LINE_BY_KEY.get(_normalize_stage(value), value)
 
 
 def _parse_dt(s: str | None) -> datetime | None:
@@ -1769,6 +1783,7 @@ async def _load_snapshot() -> None:
         # first restart, not only after the next full pull re-ingests.
         for _r in _cache["items"] or []:
             _r["owner_name"] = _normalize_owner_name(_r.get("owner_name"))
+            _r["nv_product_line"] = _normalize_product_line(_r.get("nv_product_line"))
         for _t in _cache["tasks"] or []:
             _t["owner_name"] = _normalize_owner_name(_t.get("owner_name"))
         _cache["snapshot_at"] = data["snapshot_at"]
