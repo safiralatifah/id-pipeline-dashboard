@@ -107,7 +107,7 @@ SERVICE_LEVEL_VALUES = ["Same Day", "Standard", "LTL", "Next Day", "FTL", "Dedic
 # Industry lives on Account, not Opportunity — Opportunity only carries
 # account_id. Looked up in chunks via an `id in [...]` filter against
 # /objects/Account/records rather than pulling the whole Account table; see
-# fetch_account_industries. One request per chunk since page_size matches
+# fetch_accounts. One request per chunk since page_size matches
 # the chunk size, so every match for that chunk fits on page 1.
 ACCOUNT_INDUSTRY_CHUNK_SIZE = 100
 
@@ -165,7 +165,7 @@ _cache: dict[str, Any] = {
     "leads_refreshed_at": None, "leads_refreshing": False,
     "snapshot_at": None,
     "fetched_at": 0.0, "error": None, "refreshing": False, "last_attempt_at": None,
-    "consecutive_failures": 0, "last_full_pull_at": None, "account_industry": None,
+    "consecutive_failures": 0, "last_full_pull_at": None, "accounts": None,
 }
 # A full pull is ~730 paginated requests (72k+ Indonesia Opportunities,
 # all-time) — far too slow to run inside a request, so it only ever runs on
@@ -467,20 +467,20 @@ def _merge_opportunities(existing: list[dict], delta_raw: list[dict]) -> list[di
     return [r for r in by_id.values() if _in_window(r)]
 
 
-async def fetch_account_industries(client: httpx.AsyncClient, account_ids: list[int]) -> dict[int, str | None]:
-    """Industry for exactly the given account_ids, chunked through an `id in
-    [...]` filter against /objects/Account/records. Called only with
-    account_ids not already known (see _refresh_dashboard_cache) — on a
-    steady-state delta refresh that's typically zero or a handful, not the
-    whole Account table, which is what keeps this from being its own source
-    of CRM rate-limit pressure."""
+async def fetch_accounts(client: httpx.AsyncClient, account_ids: list[int]) -> dict[int, dict]:
+    """Name / industry / parent_account_id for exactly the given account_ids,
+    chunked through an `id in [...]` filter against /objects/Account/records.
+    Called only with account_ids not already known (see _resolve_accounts) —
+    on a steady-state delta refresh that's typically zero or a handful, not
+    the whole Account table, which is what keeps this from being its own
+    source of CRM rate-limit pressure."""
     if not account_ids:
         return {}
     api_key = os.environ.get("CRM_API_KEY")
     if not api_key:
         raise HTTPException(status_code=503, detail="CRM_API_KEY is not configured")
 
-    result: dict[int, str | None] = {}
+    result: dict[int, dict] = {}
     for i in range(0, len(account_ids), ACCOUNT_INDUSTRY_CHUNK_SIZE):
         chunk = account_ids[i : i + ACCOUNT_INDUSTRY_CHUNK_SIZE]
         filters = {"logic": "AND", "conditions": [{"field": "id", "operator": "in", "value": chunk}]}
@@ -494,8 +494,31 @@ async def fetch_account_industries(client: httpx.AsyncClient, account_ids: list[
         for acc in records:
             aid = acc.get("id")
             if aid is not None:
-                result[aid] = acc.get("industry")
+                result[aid] = {
+                    "name": acc.get("name"),
+                    "industry": acc.get("industry"),
+                    "parent_account_id": acc.get("parent_account_id"),
+                }
     return result
+
+
+async def _resolve_accounts(client: httpx.AsyncClient, items: list[dict], known: dict[int, dict]) -> dict[int, dict]:
+    """`known` topped up with every Opportunity's Account, then with those
+    Accounts' parents (a second pass — the parent's name lives on its own
+    Account record), fetching only ids not already in it. Pass {} to
+    re-resolve everything (the daily full pull)."""
+    account_ids = {r.get("account_id") for r in items if r.get("account_id") is not None}
+    missing = sorted(account_ids - known.keys())
+    if missing:
+        known.update(await fetch_accounts(client, missing))
+    parent_ids = {
+        known[a]["parent_account_id"] for a in account_ids
+        if a in known and known[a].get("parent_account_id") is not None
+    }
+    missing_parents = sorted(parent_ids - known.keys())
+    if missing_parents:
+        known.update(await fetch_accounts(client, missing_parents))
+    return known
 
 
 async def fetch_notebook_last_touch(client: httpx.AsyncClient) -> dict[int, dict]:
@@ -880,6 +903,8 @@ def _build_opportunity_rows(
             "id": rid,
             "name": r.get("name"),
             "crm_url": f"{CRM_OPPORTUNITY_URL_BASE}/{rid}" if rid is not None else None,
+            "parent_account_id": r.get("parent_account_id"),
+            "parent_account_name": r.get("parent_account_name"),
             "owner_name": owner or None,
             "manager": manager,
             "stage": r.get("stage"),
@@ -1759,7 +1784,7 @@ async def _save_snapshot() -> None:
             "leads_refreshed_at": _cache["leads_refreshed_at"],
             "snapshot_at": _cache["snapshot_at"],
             "last_full_pull_at": _cache["last_full_pull_at"],
-            "account_industry": {str(k): v for k, v in (_cache["account_industry"] or {}).items()},
+            "accounts": {str(k): v for k, v in (_cache["accounts"] or {}).items()},
         }).encode("utf-8")
         await run_in_threadpool(storage.put_bytes, _SNAPSHOT_KEY, payload, content_type="application/json")
     except Exception:
@@ -1792,7 +1817,10 @@ async def _load_snapshot() -> None:
             _t["owner_name"] = _normalize_owner_name(_t.get("owner_name"))
         _cache["snapshot_at"] = data["snapshot_at"]
         _cache["last_full_pull_at"] = data.get("last_full_pull_at")
-        _cache["account_industry"] = {int(k): v for k, v in (data.get("account_industry") or {}).items()}
+        # Snapshots from before parent accounts were tracked only hold
+        # "account_industry" — leaving accounts None makes the next delta
+        # re-resolve every account once (a few dozen requests), not a full pull.
+        _cache["accounts"] = {int(k): v for k, v in (data.get("accounts") or {}).items()} or None
         _cache["fetched_at"] = time.time()
     except Exception:
         pass  # no snapshot yet (first-ever deploy), or object storage not configured/reachable
@@ -1834,24 +1862,23 @@ async def _refresh_dashboard_cache() -> None:
             )
             if do_full_pull:
                 items = await fetch_all_opportunities(client)
-                # Full pull re-resolves industry for every account in play,
-                # so a changed Account.industry (rare, but it happens) is
-                # caught here rather than never.
-                account_ids = sorted({r.get("account_id") for r in items if r.get("account_id") is not None})
-                account_industry = await fetch_account_industries(client, account_ids)
+                # Full pull re-resolves every account in play (and its
+                # parent), so a changed Account.industry or parent (rare, but
+                # it happens) is caught here rather than never.
+                accounts = await _resolve_accounts(client, items, {})
             else:
                 delta = await fetch_opportunities_delta(client, _cache["snapshot_at"])
                 items = _merge_opportunities(_cache["items"], delta)
                 # Steady-state delta: only look up accounts we haven't seen
                 # before, typically zero or a handful — not the whole set of
                 # accounts behind every cached Opportunity.
-                account_industry = dict(_cache["account_industry"] or {})
-                account_ids = {r.get("account_id") for r in items if r.get("account_id") is not None}
-                missing_ids = sorted(account_ids - account_industry.keys())
-                if missing_ids:
-                    account_industry.update(await fetch_account_industries(client, missing_ids))
+                accounts = await _resolve_accounts(client, items, dict(_cache["accounts"] or {}))
             for r in items:
-                r["industry"] = account_industry.get(r.get("account_id"))
+                acc = accounts.get(r.get("account_id")) or {}
+                parent_id = acc.get("parent_account_id")
+                r["industry"] = acc.get("industry")
+                r["parent_account_id"] = parent_id
+                r["parent_account_name"] = (accounts.get(parent_id) or {}).get("name") if parent_id is not None else None
             # Notebook/Tasks only feed the "CRM Updated" overlay — if either
             # fails (typically a 429 on the all-countries Notebook feed), keep
             # the previous copy rather than throwing away a good Opportunity
@@ -1868,7 +1895,7 @@ async def _refresh_dashboard_cache() -> None:
         _cache["items"] = items
         _cache["notebook_last_touch"] = notebook_last_touch
         _cache["tasks"] = tasks
-        _cache["account_industry"] = account_industry
+        _cache["accounts"] = accounts
         _cache["snapshot_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         _cache["fetched_at"] = time.time()
         _cache["error"] = None

@@ -697,6 +697,8 @@
                           "type": { "type": "string", "nullable": true, "description": "Acquisition | Cross-Selling | Pricing | Up-Selling | Regain | Others." },
                           "nv_product_line": { "type": "string", "nullable": true },
                           "industry": { "type": "string", "nullable": true, "description": "From the linked Account (Opportunity.account_id), not a field on the Opportunity itself. Null if the Opportunity has no account_id or the Account has no industry set." },
+                          "parent_account_id": { "type": "integer", "nullable": true, "description": "The linked Account's parent_account_id. Null if the Account has no parent." },
+                          "parent_account_name": { "type": "string", "nullable": true, "description": "Name of that parent Account. Null if there is no parent, or the parent Account isn't readable with the app's CRM API key." },
                           "service_level": { "type": "array", "items": { "type": "string" } },
                           "created_at": { "type": "string", "format": "date-time" },
                           "aging_days": { "type": "integer", "nullable": true, "description": "Days since created_at — same definition as Deal Aging." },

@@ -1352,7 +1352,7 @@
     <p class="panel-sub" style="margin:-8px 0 20px;">Every matched opportunity, one row each &mdash; uses the same filters and identity scoping as Overview (set filters there, they apply here too).</p>
 
     <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:10px;">
-      <input type="text" id="opplist-search" placeholder="Search name, owner, manager, stage&hellip;" style="flex:1; min-width:220px; max-width:360px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
+      <input type="text" id="opplist-search" placeholder="Search name, parent account, owner, manager, stage&hellip;" style="flex:1; min-width:220px; max-width:360px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text-primary); font-family:inherit; font-size:13px;">
       <div style="display:flex; align-items:center; gap:14px;">
         <span id="opplist-count" style="font-size:12.5px; color:var(--text-muted);"></span>
         <button type="button" class="filter-btn" id="opplist-export-btn">&#8595; Export CSV</button>
@@ -2461,6 +2461,7 @@
   const OPP_COLUMNS = [
     { key: "id", label: "Opportunity ID" },
     { key: "name", label: "Opportunity Name" },
+    { key: "parent_account_name", label: "Parent Account" },
     { key: "owner_name", label: "Owner" },
     { key: "stage", label: "Stage" },
     { key: "type", label: "Type" },
@@ -2496,6 +2497,7 @@
   const OPP_COHORT_COLUMNS = [
     { key: "id", label: "Opportunity ID", sticky: 1 },
     { key: "name", label: "Opportunity Name", sticky: 2 },
+    { key: "parent_account_name", label: "Parent Account" },
     { key: "created_at", label: "Created Date" },
     { key: "owner_name", label: "Owner" },
     { key: "stage", label: "Stage" },
@@ -2579,6 +2581,14 @@
         return row.crm_url
           ? `<a class="opp-link" href="${row.crm_url}" target="_blank" rel="noopener" title="${v || ""}">${v || "(untitled)"}</a>`
           : (v || "&ndash;");
+      case "parent_account_name": {
+        // Name with its Account ID underneath, in one cell; an ID whose
+        // Account our API key can't read still shows, just without a name.
+        const pid = row.parent_account_id;
+        if (pid == null) return "&ndash;";
+        const idLine = `<span style="font-family:var(--font-mono, ui-monospace, monospace); font-size:0.85em; color:var(--text-muted);">${pid}</span>`;
+        return v ? `<div>${v}</div>${idLine}` : idLine;
+      }
       case "stage": {
         if (!v) return "&ndash;";
         const color = stageColor(v);
@@ -3102,7 +3112,7 @@
     const q = oppSearch.trim().toLowerCase();
     return oppAllRows.filter(r =>
       oppRowMatchesStructFilter(r, oppStructFilter) &&
-      (!q || ["name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q)))
+      (!q || ["name", "parent_account_name", "owner_name", "manager", "stage"].some(k => (r[k] || "").toLowerCase().includes(q)))
     );
   }
 
@@ -3135,6 +3145,8 @@
     { key: "id", label: "Opportunity ID" },
     { key: "name", label: "Opportunity Name" },
     { key: "crm_url", label: "CRM URL" },
+    { key: "parent_account_id", label: "Parent Account ID" },
+    { key: "parent_account_name", label: "Parent Account Name" },
     { key: "owner_name", label: "Owner" },
     { key: "manager", label: "Manager" },
     { key: "stage", label: "Stage" },
