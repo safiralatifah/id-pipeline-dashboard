@@ -1155,7 +1155,7 @@
 
     <div class="panel" style="margin-top:16px;">
       <h2>Created Opportunities by Manager &amp; Salesperson</h2>
-      <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only), with Closed-Won for the same months shown alongside. Current month shows progress toward each rep's monthly target of 10 created / 3 won.</p>
+      <p class="panel-sub" id="created-by-month-sub">Opportunities created per month, rolled up by reporting line (Active reps only), with Closed-Won for the same months shown alongside. Current month shows progress toward each rep's monthly target of 10 created / 3 won (6 / 1 for Willa Rivoni's team).</p>
       <div class="section-label">By Manager</div>
       <div id="table-by-manager"></div>
       <div class="section-label" style="margin-top:18px;">By Salesperson</div>
@@ -1400,12 +1400,12 @@
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
         <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Created Opportunities</span>
         <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">New opportunities logged this month (Acquisition / Cross&#8209;Selling only) &mdash; same definition as "Created Opportunities by Manager &amp; Salesperson."</p>
-        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 10 / month (pace&#8209;adjusted)</span>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 10 / month, 6 for Willa's team (pace&#8209;adjusted)</span>
       </div>
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
         <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Closed&ndash;Won</span>
         <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">Opportunities that actually closed this month, keyed by when the stage changed &mdash; not when they were created.</p>
-        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 3 / month (pace&#8209;adjusted)</span>
+        <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 3 / month, 1 for Willa's team (pace&#8209;adjusted)</span>
       </div>
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
         <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">CRM Updated %</span>
@@ -1528,7 +1528,7 @@
       <div class="notes">
         <ul>
           <li>A screening view over four signals, one row per rep in scope (same Salesperson/Manager filter scoping as Created Opportunities by Manager &amp; Salesperson) &mdash; this is a draft feature, thresholds below are a first guess and adjustable.</li>
-          <li><strong>Created</strong> and <strong>Closed&ndash;Won</strong>: the exact same this&#8209;month counts and targets (10 created, 3 won) as Created Opportunities by Manager &amp; Salesperson &mdash; no separate computation.</li>
+          <li><strong>Created</strong> and <strong>Closed&ndash;Won</strong>: the exact same this&#8209;month counts and targets (10 created, 3 won; 6 and 1 for Willa Rivoni's team) as Created Opportunities by Manager &amp; Salesperson &mdash; no separate computation.</li>
           <li><strong>CRM Updated %</strong>: the same combined Notebook + Task KPI as the Activity panel's By salesperson table, checked against an implied 90% target.</li>
           <li><strong>Pipeline Runway</strong>: sum of <code>committed_revenue_mth</code> across this rep's OPEN, non&#8209;Future&#8209;Opportunity opportunities whose <code>expected_close_date</code> falls in the current month or next &mdash; a forward check on whether next month's number is already in motion, not just this month's. Target: Rp30M/month (Rp60M across the 2&#8209;month window).</li>
           <li><strong>Suggested Action</strong>: Created and Closed&ndash;Won are scored against a pace&#8209;adjusted target (see below), CRM Updated % and Pipeline Runway against their target directly; a signal below 50% counts as "red." <strong>Productivity Concern</strong> = 2+ red signals, <strong>Watch</strong> = exactly 1, <strong>On Track</strong> = none.</li>
@@ -1567,7 +1567,7 @@
           <li><strong>Missing Revenue</strong>: <code>total_potential_revenue_mth</code> or <code>committed_revenue_mth</code> is blank on the CRM record (not filled in at all &mdash; a real, entered 0 doesn't count). Sorted by Aging, oldest first.</li>
           <li><strong>Tasks Awaiting Action</strong>: open Tasks (Not Started / In Progress) that aren't "Active" by the exact same rule the Activity panel's Task side uses (touched within 7 days AND not overdue), and whose linked Opportunity isn't Future Opportunity or Up&#8209;Selling/Pricing &mdash; same scope as the Activity panel's Task side.</li>
           <li>Viewing a single person's own pipeline shows up to 8 example opportunities per category (worst first), with the true total in the summary sentence. Viewing a Manager/Sales Head's team instead shows a per&#8209;rep breakdown &mdash; each rep's name with their own matching opportunities/tasks listed underneath, hyperlinked to CRM.</li>
-          <li><strong>Monthly Pace</strong>: every rep in scope against the same 10&#8209;opportunity monthly target as Created Opportunities by Manager &amp; Salesperson, sorted most&#8209;behind&#8209;target first &mdash; includes reps with 0 created this month.</li>
+          <li><strong>Monthly Pace</strong>: every rep in scope against the same monthly created target (10, or 6 for Willa Rivoni's team) as Created Opportunities by Manager &amp; Salesperson, sorted most&#8209;behind&#8209;target first &mdash; includes reps with 0 created this month.</li>
         </ul>
       </div>
     </div>
@@ -1653,10 +1653,10 @@
           <li>Population: opportunities (open + closed) whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> (same new&#8209;business filter as the "Created This Month" card), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
           <li><strong>By Manager</strong>: each opportunity's <code>owner_name</code> is looked up in a curated team roster (Active reps only &mdash; see <code>backend/team_roster.json</code>) to find that rep's Manager; owners not found in the roster are grouped as "Unmapped" (named in the panel's caption).</li>
           <li><strong>By Salesperson</strong>: one row per Active rep in scope, including reps who created nothing in this window (shown as 0) &mdash; unlike the other tables on this dashboard, this one isn't built only from matched opportunities, so a quiet rep is still visible. "In scope" respects the top filter bar: no Salesperson/Manager filter shows every Active rep; filtering to a Manager narrows this to just their reports; filtering to specific Salesperson(s) narrows it to just them.</li>
-          <li><strong>Target</strong>: each rep is expected to create 10 opportunities a month; a manager's target is 10 &times; their headcount (reps reporting to them, per the roster).</li>
+          <li><strong>Target</strong>: each rep is expected to create 10 opportunities a month (6 for Willa Rivoni's team); a manager's target is the sum of their reps' targets (reps reporting to them, per the roster).</li>
           <li><strong>Current month column</strong>: shows <code>count/target</code> plus a bar filled to <code>min(count &divide; target, 100%)</code>, colored red (&lt;50%), orange (50&#8209;74%), yellow (75&#8209;99%), or green (&ge;100%) &mdash; since the month is still in progress, this reads as "progress so far", not a final score.</li>
           <li><strong>Earlier months</strong>: show the count plus <code>(count &divide; target)</code> as a percentage &mdash; a finished month's actual achievement against the same target. A &#9650; green triangle means that month's count is higher than the month before it; &#9660; red means lower (the very first month shown has no prior month to compare against, so no triangle).</li>
-          <li><strong>"X won" sub&#8209;line</strong>: every month cell also shows Closed&ndash;Won opportunities for that same rep/manager and month &mdash; but keyed by when the opportunity actually closed (<code>stage_last_changed_at</code>, falling back to <code>updated_at</code>), not <code>created_at</code>, and <strong>not</strong> Type&#8209;filtered (matching the "Closed&ndash;Won This Month" summary card, unlike the Created count above it which is new&#8209;business only). Each rep's Closed&ndash;Won target is 3/month; a manager's is 3 &times; their headcount. Colored the same way as the Created target bar.</li>
+          <li><strong>"X won" sub&#8209;line</strong>: every month cell also shows Closed&ndash;Won opportunities for that same rep/manager and month &mdash; but keyed by when the opportunity actually closed (<code>stage_last_changed_at</code>, falling back to <code>updated_at</code>), not <code>created_at</code>, and <strong>not</strong> Type&#8209;filtered (matching the "Closed&ndash;Won This Month" summary card, unlike the Created count above it which is new&#8209;business only). Each rep's Closed&ndash;Won target is 3/month (1 for Willa Rivoni's team); a manager's is the sum of their reps' targets. Colored the same way as the Created target bar.</li>
         </ul>
       </div>
     </div>
@@ -2430,7 +2430,7 @@
     renderTeamTable("table-by-manager", d.created_by_month.by_manager, "manager");
     renderTeamTable("table-by-owner", d.created_by_month.by_owner, "owner_name");
     const unmapped = d.created_by_month.unmapped_owners || [];
-    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only), with Closed-Won for the same months shown alongside. Current month shows progress toward each rep's monthly target of 10 created / 3 won${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
+    setText("created-by-month-sub", `Opportunities created per month, rolled up by reporting line (Active reps only), with Closed-Won for the same months shown alongside. Current month shows progress toward each rep's monthly target of 10 created / 3 won (6 / 1 for Willa Rivoni's team)${unmapped.length ? ` — ${unmapped.length} owner(s) not in roster, grouped as "Unmapped": ${unmapped.join(", ")}` : ""}.`);
   }
 
   function renderError(message) {

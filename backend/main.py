@@ -137,19 +137,32 @@ ACTION_ITEM_STALE_STAGE_DAYS = 30
 ACTION_ITEM_STALE_NOTEBOOK_DAYS = 14
 ACTION_ITEM_LIST_LIMIT = 8
 
-# Each Active rep is expected to create 10 new opportunities a month; a
-# manager's target is just that number times their headcount. "Unmapped"
+# Each Active rep is expected to create 10 new opportunities a month and
+# close 3; a manager's target is the sum of their reps' targets. "Unmapped"
 # isn't a real manager, so it has no target (MANAGER_TARGETS.get returns
 # None for it).
 INDIVIDUAL_MONTHLY_TARGET = 10
-MANAGER_REP_COUNTS = Counter(v.get("manager") for v in TEAM_ROSTER.values() if v.get("manager"))
-MANAGER_TARGETS = {name: count * INDIVIDUAL_MONTHLY_TARGET for name, count in MANAGER_REP_COUNTS.items()}
-OWNER_TARGETS = {name: INDIVIDUAL_MONTHLY_TARGET for name in TEAM_ROSTER}
-
-# Same idea for Closed-Won, at a lower monthly bar per rep.
 CLOSED_WON_MONTHLY_TARGET = 3
-CLOSED_WON_MANAGER_TARGETS = {name: count * CLOSED_WON_MONTHLY_TARGET for name, count in MANAGER_REP_COUNTS.items()}
-CLOSED_WON_OWNER_TARGETS = {name: CLOSED_WON_MONTHLY_TARGET for name in TEAM_ROSTER}
+# Per-rep (created, closed-won) monthly targets for a manager's whole team,
+# where it differs from the defaults above.
+TEAM_TARGET_OVERRIDES = {"Willa Rivoni": (6, 1)}
+
+
+def _rep_targets(name: str) -> tuple[int, int]:
+    manager = TEAM_ROSTER[name].get("manager")
+    return TEAM_TARGET_OVERRIDES.get(manager, (INDIVIDUAL_MONTHLY_TARGET, CLOSED_WON_MONTHLY_TARGET))
+
+
+OWNER_TARGETS = {name: _rep_targets(name)[0] for name in TEAM_ROSTER}
+CLOSED_WON_OWNER_TARGETS = {name: _rep_targets(name)[1] for name in TEAM_ROSTER}
+MANAGER_TARGETS: dict[str, int] = {}
+CLOSED_WON_MANAGER_TARGETS: dict[str, int] = {}
+for _name, _info in TEAM_ROSTER.items():
+    if _info.get("manager"):
+        MANAGER_TARGETS[_info["manager"]] = MANAGER_TARGETS.get(_info["manager"], 0) + OWNER_TARGETS[_name]
+        CLOSED_WON_MANAGER_TARGETS[_info["manager"]] = (
+            CLOSED_WON_MANAGER_TARGETS.get(_info["manager"], 0) + CLOSED_WON_OWNER_TARGETS[_name]
+        )
 
 # PIP Radar: a screening view over four signals (Created, Closed-Won, CRM
 # Updated %, Pipeline Runway) to flag reps who may need a Performance
@@ -1041,7 +1054,7 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
             created_counts[r.get("owner_name")] += 1
     monthly_pace = sorted(
         (
-            {"name": name, "created": created_counts.get(name, 0), "target": INDIVIDUAL_MONTHLY_TARGET}
+            {"name": name, "created": created_counts.get(name, 0), "target": OWNER_TARGETS.get(name, INDIVIDUAL_MONTHLY_TARGET)}
             for name in roster_scope
         ),
         key=lambda p: p["created"] - p["target"],
