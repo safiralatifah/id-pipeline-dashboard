@@ -1399,7 +1399,7 @@
     <div class="params-grid">
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
         <span style="font-size:14.5px; font-weight:700; color:var(--text-primary);">Created Opportunities</span>
-        <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">New opportunities logged this month (Acquisition / Cross&#8209;Selling only) &mdash; same definition as "Created Opportunities by Manager &amp; Salesperson."</p>
+        <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.55; margin:0; flex:1;">New opportunities logged this month (Acquisition / Cross&#8209;Selling only, max one per account per month) &mdash; same definition as "Created Opportunities by Manager &amp; Salesperson."</p>
         <span style="font-family:'IBM Plex Mono', monospace; font-size:11.5px; font-weight:600; color:var(--accent); padding-top:8px; border-top:1px dashed var(--border);">Target: 10 / month, 6 for Willa's team (pace&#8209;adjusted)</span>
       </div>
       <div class="panel" style="padding:18px 18px 16px; display:flex; flex-direction:column; gap:8px;">
@@ -1576,7 +1576,7 @@
       <h2>Top summary cards</h2>
       <div class="notes">
         <ul>
-          <li><strong>Created This Month / vs last month</strong>: count of opportunities whose <code>created_at</code> falls in the current / previous calendar month <strong>and</strong> whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> &mdash; new business only, excluding Pricing/Up&#8209;Selling/Regain/Others opportunities raised against an existing account. The <strong>Created Opportunities by Manager &amp; Salesperson</strong> table below uses the same Type filter.</li>
+          <li><strong>Created This Month / vs last month</strong>: count of opportunities whose <code>created_at</code> falls in the current / previous calendar month <strong>and</strong> whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> &mdash; new business only, excluding Pricing/Up&#8209;Selling/Regain/Others opportunities raised against an existing account. <strong>One per account per month:</strong> if several qualifying opportunities share the same Account in the same month, only the earliest&#8209;created one counts (and its owner gets the credit); opportunities with no Account each count. The <strong>Created Opportunities by Manager &amp; Salesperson</strong> table below uses the same rules.</li>
           <li><strong>Open Pipeline</strong>: count of all OPEN opportunities (open_active + Future Opportunity). Not Type&#8209;filtered.</li>
           <li><strong>CRM Updated %</strong>: the final combined Activity KPI &mdash; see "Activity" below for the full definition.</li>
           <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of opportunities whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. opportunities that actually closed this month, not opportunities merely created this month. Not Type&#8209;filtered.</li>
@@ -1650,7 +1650,7 @@
       <h2>Created Opportunities by Manager &amp; Salesperson</h2>
       <div class="notes">
         <ul>
-          <li>Population: opportunities (open + closed) whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> (same new&#8209;business filter as the "Created This Month" card), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
+          <li>Population: opportunities (open + closed) whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> (same new&#8209;business filter and one&#8209;per&#8209;account&#8209;per&#8209;month rule as the "Created This Month" card), grouped by the month of <code>created_at</code>, for the current month and the two before it.</li>
           <li><strong>By Manager</strong>: each opportunity's <code>owner_name</code> is looked up in a curated team roster (Active reps only &mdash; see <code>backend/team_roster.json</code>) to find that rep's Manager; owners not found in the roster are grouped as "Unmapped" (named in the panel's caption).</li>
           <li><strong>By Salesperson</strong>: one row per Active rep in scope, including reps who created nothing in this window (shown as 0) &mdash; unlike the other tables on this dashboard, this one isn't built only from matched opportunities, so a quiet rep is still visible. "In scope" respects the top filter bar: no Salesperson/Manager filter shows every Active rep; filtering to a Manager narrows this to just their reports; filtering to specific Salesperson(s) narrows it to just them.</li>
           <li><strong>Target</strong>: each rep is expected to create 10 opportunities a month (6 for Willa Rivoni's team); a manager's target is the sum of their reps' targets (reps reporting to them, per the roster).</li>
@@ -3035,10 +3035,11 @@
     if (f.serviceLevel && !(r.service_level || []).includes(f.serviceLevel)) return false;
     if (f.overdue && !r.overdue) return false;
     // Created-cohort filter (from clicking a "created" count on Overview):
-    // the deal's created month, restricted to new-business Types, exactly as
+    // the deal's created month, restricted to the deals the backend counts
+    // as Created (new-business Types, one per Account per month), exactly as
     // the Overview "Created" number is counted.
     if (f.createdMonth && (r.created_at || "").slice(0, 7) !== f.createdMonth) return false;
-    if (f.newBusinessOnly && !["Acquisition", "Cross-Selling"].includes(r.type)) return false;
+    if (f.newBusinessOnly && !r.counts_as_created) return false;
     if (f.closeDateFrom && (!r.expected_close_date || r.expected_close_date < f.closeDateFrom)) return false;
     if (f.closeDateTo && (!r.expected_close_date || r.expected_close_date > f.closeDateTo)) return false;
     if (f.ageField) {

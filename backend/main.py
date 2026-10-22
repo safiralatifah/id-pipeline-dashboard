@@ -867,11 +867,46 @@ def _task_is_active(t: dict, now: datetime, today) -> bool:
     return recent and not_overdue
 
 
+def _created_counted_ids(items: list[dict]) -> set:
+    """Ids of the Opportunities that count toward "Created" — new-business
+    Types only, and at most one per Account per calendar month (the
+    earliest-created one, so its owner gets the credit). A rep logging a
+    second Acquisition/Cross-Selling deal on the same Account that month
+    doesn't add to the count. Opportunities with no account_id each count.
+
+    Run over the whole cached set, not a filtered slice, so a rep's or
+    manager's number always rolls up to the company-wide one."""
+    counted: set = set()
+    first_by_account_month: dict[tuple, tuple] = {}
+    for r in items:
+        if r.get("type") not in CREATED_OPPORTUNITY_TYPES:
+            continue
+        created = _parse_dt(r.get("created_at"))
+        if not created:
+            continue
+        account_id = r.get("account_id")
+        if account_id is None:
+            counted.add(r.get("id"))
+            continue
+        key = (account_id, created.strftime("%Y-%m"))
+        rank = (created, r.get("id") or 0)
+        best = first_by_account_month.get(key)
+        if best is None or rank < best[0]:
+            first_by_account_month[key] = (rank, r.get("id"))
+    counted.update(rid for _, rid in first_by_account_month.values())
+    return counted
+
+
 def _build_opportunity_rows(
-    items: list[dict], notebook_last_touch: dict[int, dict], tasks: list[dict] | None = None
+    items: list[dict],
+    notebook_last_touch: dict[int, dict],
+    tasks: list[dict] | None = None,
+    created_counted_ids: set | None = None,
 ) -> list[dict]:
     """One row per matched Opportunity for the Opportunity List tab — a flat
     detail view alongside the aggregated numbers build_dashboard() produces."""
+    if created_counted_ids is None:
+        created_counted_ids = _created_counted_ids(items)
     now = datetime.now(timezone.utc)
     today = now.date()
     won_norm = _normalize_stage("Closed–Won")
@@ -923,6 +958,9 @@ def _build_opportunity_rows(
             "stage": r.get("stage"),
             "stage_group": stage_group,
             "type": r.get("type"),
+            # Whether this deal is one of the "Created" numbers on Overview
+            # (see _created_counted_ids) — drives the created-cohort drill-down.
+            "counts_as_created": rid in created_counted_ids,
             "nv_product_line": r.get("nv_product_line"),
             "industry": r.get("industry"),
             "service_level": r.get("service_level") or [],
@@ -1050,7 +1088,7 @@ def _build_action_items(opp_rows: list[dict], tasks: list[dict], roster_scope: s
     created_counts: Counter = Counter()
     for r in opp_rows:
         created = _parse_dt(r.get("created_at"))
-        if created and created >= this_month_start and r.get("type") in CREATED_OPPORTUNITY_TYPES:
+        if created and created >= this_month_start and r.get("counts_as_created"):
             created_counts[r.get("owner_name")] += 1
     monthly_pace = sorted(
         (
@@ -1204,7 +1242,10 @@ def build_dashboard(
     tasks: list[dict],
     roster_scope: set[str] | None = None,
     include_action_items: bool = False,
+    created_counted_ids: set | None = None,
 ) -> dict:
+    if created_counted_ids is None:
+        created_counted_ids = _created_counted_ids(items)
     now = datetime.now(timezone.utc)
     total = len(items)
     # Which roster names the By Salesperson table pre-seeds with zero-count
@@ -1216,11 +1257,12 @@ def build_dashboard(
 
     # Opportunities created this calendar month vs last, for the headline
     # stat — "Created" only counts new-business Types (Acquisition,
-    # Cross-Selling), not Pricing/Up-Selling/Regain/Others on existing deals.
+    # Cross-Selling), not Pricing/Up-Selling/Regain/Others on existing deals,
+    # and only one per Account per month (see _created_counted_ids).
     this_month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     last_month_end = this_month_start - timedelta(seconds=1)
     last_month_start = last_month_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    new_business_items = [r for r in items if r.get("type") in CREATED_OPPORTUNITY_TYPES]
+    new_business_items = [r for r in items if r.get("id") in created_counted_ids]
     created_this_month = 0
     created_last_month = 0
     created_this_month_ids: set = set()
@@ -1756,7 +1798,11 @@ def build_dashboard(
         "crm_updated_denominator": crm_updated_denominator,
         "crm_updated_by_owner": crm_updated_by_owner,
         "action_items": (
-            _build_action_items(_build_opportunity_rows(items, notebook_last_touch, tasks), tasks_in_scope, roster_scope)
+            _build_action_items(
+                _build_opportunity_rows(items, notebook_last_touch, tasks, created_counted_ids),
+                tasks_in_scope,
+                roster_scope,
+            )
             if include_action_items else None
         ),
         "pip_radar": _build_pip_radar(items, created_by_month, crm_updated_by_owner, roster_scope, now),
@@ -2025,7 +2071,12 @@ async def get_pipeline(
     # to a Salesperson/Manager — never on an unfiltered, unrestricted view.
     show_action_items = allowed_owners is not None or bool(owners) or bool(managers)
     result = build_dashboard(
-        filtered_items, _cache["notebook_last_touch"], filtered_tasks, roster_scope, show_action_items
+        filtered_items,
+        _cache["notebook_last_touch"],
+        filtered_tasks,
+        roster_scope,
+        show_action_items,
+        _created_counted_ids(_cache["items"]),
     )
     result["snapshot_at"] = _cache["snapshot_at"]
     result["filter_options"] = _filter_options(_cache["items"], allowed_owners, effective_owners, managers)
@@ -2069,7 +2120,9 @@ async def get_opportunities(
         _cache["items"], effective_owners, managers, product_lines, service_levels, industries
     )
     all_tasks = _cache["tasks"] or []
-    rows = _build_opportunity_rows(filtered_items, _cache["notebook_last_touch"], all_tasks)
+    rows = _build_opportunity_rows(
+        filtered_items, _cache["notebook_last_touch"], all_tasks, _created_counted_ids(_cache["items"])
+    )
 
     # Task List: every open Task joined to its Opportunity row — scoped by
     # which opportunities matched above (Salesperson/Manager/Product
