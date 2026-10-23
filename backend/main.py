@@ -872,29 +872,25 @@ def _created_counted_ids(items: list[dict]) -> set:
     Types only, and at most one per Account per calendar month (the
     earliest-created one, so its owner gets the credit). A rep logging a
     second Acquisition/Cross-Selling deal on the same Account that month
-    doesn't add to the count. Opportunities with no account_id each count.
+    doesn't add to the count. Opportunities with no account_id don't count
+    at all — every real deal is expected to sit under an Account.
 
     Run over the whole cached set, not a filtered slice, so a rep's or
     manager's number always rolls up to the company-wide one."""
-    counted: set = set()
     first_by_account_month: dict[tuple, tuple] = {}
     for r in items:
         if r.get("type") not in CREATED_OPPORTUNITY_TYPES:
             continue
         created = _parse_dt(r.get("created_at"))
-        if not created:
-            continue
         account_id = r.get("account_id")
-        if account_id is None:
-            counted.add(r.get("id"))
+        if not created or account_id is None:
             continue
         key = (account_id, created.strftime("%Y-%m"))
         rank = (created, r.get("id") or 0)
         best = first_by_account_month.get(key)
         if best is None or rank < best[0]:
             first_by_account_month[key] = (rank, r.get("id"))
-    counted.update(rid for _, rid in first_by_account_month.values())
-    return counted
+    return {rid for _, rid in first_by_account_month.values()}
 
 
 def _build_opportunity_rows(

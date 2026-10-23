@@ -1576,7 +1576,7 @@
       <h2>Top summary cards</h2>
       <div class="notes">
         <ul>
-          <li><strong>Created This Month / vs last month</strong>: count of opportunities whose <code>created_at</code> falls in the current / previous calendar month <strong>and</strong> whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> &mdash; new business only, excluding Pricing/Up&#8209;Selling/Regain/Others opportunities raised against an existing account. <strong>One per account per month:</strong> if several qualifying opportunities share the same Account in the same month, only the earliest&#8209;created one counts (and its owner gets the credit); opportunities with no Account each count. The <strong>Created Opportunities by Manager &amp; Salesperson</strong> table below uses the same rules.</li>
+          <li><strong>Created This Month / vs last month</strong>: count of opportunities whose <code>created_at</code> falls in the current / previous calendar month <strong>and</strong> whose <code>type</code> is <strong>Acquisition</strong> or <strong>Cross&#8209;Selling</strong> &mdash; new business only, excluding Pricing/Up&#8209;Selling/Regain/Others opportunities raised against an existing account. <strong>One per account per month:</strong> if several qualifying opportunities share the same Account in the same month, only the earliest&#8209;created one counts (and its owner gets the credit); opportunities with no Account don&rsquo;t count at all. The <strong>Created Opportunities by Manager &amp; Salesperson</strong> table below uses the same rules.</li>
           <li><strong>Open Pipeline</strong>: count of all OPEN opportunities (open_active + Future Opportunity). Not Type&#8209;filtered.</li>
           <li><strong>CRM Updated %</strong>: the final combined Activity KPI &mdash; see "Activity" below for the full definition.</li>
           <li><strong>Closed&ndash;Won / Closed&ndash;Lost (This Month) / vs last month</strong>: count of opportunities whose stage is Closed&ndash;Won / Closed&ndash;Lost <strong>and</strong> whose <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) falls in the current / previous month &mdash; i.e. opportunities that actually closed this month, not opportunities merely created this month. Not Type&#8209;filtered.</li>
@@ -3036,7 +3036,7 @@
     if (f.overdue && !r.overdue) return false;
     // Created-cohort filter (from clicking a "created" count on Overview):
     // the deal's created month, restricted to the deals the backend counts
-    // as Created (new-business Types, one per Account per month), exactly as
+    // as Created (new-business Types, one per Account per month, Account required), exactly as
     // the Overview "Created" number is counted.
     if (f.createdMonth && (r.created_at || "").slice(0, 7) !== f.createdMonth) return false;
     if (f.newBusinessOnly && !r.counts_as_created) return false;

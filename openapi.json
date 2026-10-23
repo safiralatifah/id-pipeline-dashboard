@@ -48,7 +48,7 @@
                   "type": "object",
                   "properties": {
                     "total": { "type": "integer", "description": "Every open Indonesia Opportunity (any age) plus any Opportunity created in the last 12 months (open or closed) — not the true all-time count of 72,721, which is too large to fetch per refresh." },
-                    "created_this_month": { "type": "integer", "description": "New-business Opportunities (type Acquisition or Cross-Selling) created this calendar month, counting at most one per Account per month (the earliest-created)." },
+                    "created_this_month": { "type": "integer", "description": "New-business Opportunities (type Acquisition or Cross-Selling) created this calendar month, counting at most one per Account per month (the earliest-created); opportunities with no Account don't count." },
                     "created_last_month": { "type": "integer", "description": "Same Type filter as created_this_month, previous calendar month." },
                     "open_pipeline": { "type": "integer" },
                     "open_active": { "type": "integer" },
@@ -209,7 +209,7 @@
                     },
                     "created_by_month": {
                       "type": "object",
-                      "description": "New-business Opportunities (type Acquisition or Cross-Selling) created per month, at most one per Account per month (the earliest-created, credited to its owner), rolled up by Manager and by individual owner (Active-rep team roster). Each rep has a 10-per-month target (6 for Willa Rivoni's team); a manager's target is the sum of their reps' targets. Each row also carries Closed-Won counts for the same months (3-per-month target per rep, not Type-filtered) shown alongside Created.",
+                      "description": "New-business Opportunities (type Acquisition or Cross-Selling) created per month, at most one per Account per month (the earliest-created, credited to its owner; opportunities with no Account don't count), rolled up by Manager and by individual owner (Active-rep team roster). Each rep has a 10-per-month target (6 for Willa Rivoni's team); a manager's target is the sum of their reps' targets. Each row also carries Closed-Won counts for the same months (3-per-month target per rep, not Type-filtered) shown alongside Created.",
                       "properties": {
                         "months": { "type": "array", "items": { "type": "string" }, "description": "Sorted ascending — the last element is the current month." },
                         "by_manager": {
@@ -695,7 +695,7 @@
                           "stage": { "type": "string" },
                           "stage_group": { "type": "string", "description": "open | future | closed_won | closed_lost — which of the four Opportunity List sections this row belongs to." },
                           "type": { "type": "string", "nullable": true, "description": "Acquisition | Cross-Selling | Pricing | Up-Selling | Regain | Others." },
-                          "counts_as_created": { "type": "boolean", "description": "Whether this opportunity is counted in the Overview Created numbers: type Acquisition/Cross-Selling and the earliest-created such opportunity on its Account in its created month." },
+                          "counts_as_created": { "type": "boolean", "description": "Whether this opportunity is counted in the Overview Created numbers: type Acquisition/Cross-Selling, linked to an Account, and the earliest-created such opportunity on that Account in its created month." },
                           "nv_product_line": { "type": "string", "nullable": true },
                           "industry": { "type": "string", "nullable": true, "description": "From the linked Account (Opportunity.account_id), not a field on the Opportunity itself. Null if the Opportunity has no account_id or the Account has no industry set." },
                           "parent_account_id": { "type": "integer", "nullable": true, "description": "The linked Account's parent_account_id. Null if the Account has no parent." },
