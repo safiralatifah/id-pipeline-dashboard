@@ -34,8 +34,10 @@ contract; the essentials:
   qdrant: {}, object-storage: {}}`) — the platform provisions them and injects
   `REDIS_URL` / `KAFKA_BROKERS` / `QDRANT_URL` / `OBJECT_STORAGE_BUCKET` only for what's
   declared. The three pod services are ephemeral unless `persistent: true`;
-  `object-storage` is a private per-app file bucket — durable, no options, no credential
-  to configure, and removing the declaration never deletes the files.
+  `object-storage` is a private file bucket per app PER ENVIRONMENT — durable, no options,
+  no credential to configure, and removing the declaration never deletes the files. Read
+  `OBJECT_STORAGE_BUCKET` rather than hard-coding a name; a new environment's bucket
+  starts empty.
 - Custom env vars/secrets: declare in `backend/.env.example` (`NAME=value`, trailing
   `# secret` marks a secret) — the portal pre-creates them for the owner to fill in.
   Build-time frontend vars go in a committed `frontend/.env.production` (public,
