@@ -80,7 +80,13 @@ LEAD_STATUS_ORDER = [
 # disqualified leads on top of every open one. Open leads are pulled at any age.
 LEAD_CREATED_HISTORY_DAYS = 100
 CLOSED_HISTORY_DAYS = 365
-EXCLUDE_NAME_SUBSTR = "UNAUTHORIZED OPPORTUNITY"
+# Opportunity names that mark a record as not real pipeline: the CRM's own
+# "UNAUTHORIZED OPPORTUNITY" placeholder, and the EKYC test deals raised
+# against a dummy Account (8 of them in Oct 2026, all on account 1421021 --
+# without this they collapse to one per month under _created_counted_ids and
+# still count as Created). Plain substrings of Opportunity.name, matched
+# case-sensitively.
+EXCLUDE_NAME_SUBSTRS = ("UNAUTHORIZED OPPORTUNITY", "TEST EKYC")
 
 OPEN_STAGE_ORDER = [
     "Prospecting", "New", "Proposal Submitted", "Negotiation",
@@ -237,7 +243,8 @@ def _opportunity_included(r: dict) -> bool:
     a way that newly excludes it (e.g. its product line is edited to
     Cross-border) drops out on the next delta cycle instead of lingering
     forever."""
-    if EXCLUDE_NAME_SUBSTR in (r.get("name") or ""):
+    name = r.get("name") or ""
+    if any(sub in name for sub in EXCLUDE_NAME_SUBSTRS):
         return False
     product_line = _normalize_stage(r.get("nv_product_line") or "")
     if product_line in RESTRICTED_PRODUCT_LINES and _name_key(r.get("owner_name")) != _name_key("Raden Roro Inggil Pratiwi"):
