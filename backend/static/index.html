@@ -942,6 +942,14 @@
   .opplist-table .opp-note-toggle { cursor: pointer; text-decoration: underline dotted var(--text-muted); text-underline-offset: 2px; }
   .opplist-table .opp-note-toggle:hover { color: var(--text-primary); }
   .opplist-table tbody tr:hover { background: var(--surface-2); }
+  /* Opportunity ID: one click copies it (no double-click-to-select). */
+  .opplist-table .opp-id-copy {
+    font-family: var(--font-mono, ui-monospace, monospace); font-size: 0.85em; color: var(--text-muted);
+    cursor: copy; border-radius: 4px; padding: 1px 3px; margin: -1px -3px;
+  }
+  .opplist-table .opp-id-copy:hover { color: var(--text-primary); background: var(--surface-2); text-decoration: underline dotted; text-underline-offset: 2px; }
+  .opplist-table .opp-id-copy.copied { color: var(--status-good, #1a7f37); }
+  .opplist-table .opp-id-copy.copied::after { content: " ✓ Copied"; font-family: inherit; }
   /* Flat "created cohort" view: freeze Opportunity ID + Name while the wide
      column set scrolls horizontally. The two fixed widths must match the
      sticky-col-2 left offset below. */
@@ -2576,7 +2584,7 @@
       case "id":
         return v == null || v === ""
           ? "&ndash;"
-          : `<span style="font-family:var(--font-mono, ui-monospace, monospace); font-size:0.85em; color:var(--text-muted);">${v}</span>`;
+          : `<span class="opp-id-copy" data-copy="${v}" title="Click to copy">${v}</span>`;
       case "name":
         return row.crm_url
           ? `<a class="opp-link" href="${row.crm_url}" target="_blank" rel="noopener" title="${v || ""}">${v || "(untitled)"}</a>`
@@ -3269,6 +3277,38 @@
     OPP_SECTIONS.forEach(s => { oppSectionState[s.id].page = 1; });
     renderOpportunityList();
   });
+
+  // Opportunity ID cells (every Opportunity List table, cohort view included):
+  // a single click copies the id, with a brief "Copied" confirmation.
+  document.addEventListener("click", e => {
+    const el = e.target.closest(".opp-id-copy");
+    if (!el) return;
+    const text = el.dataset.copy;
+    const done = () => {
+      el.classList.add("copied");
+      clearTimeout(el._copiedTimer);
+      el._copiedTimer = setTimeout(() => el.classList.remove("copied"), 1200);
+    };
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text) && done());
+    } else if (fallbackCopy(text)) {
+      done();
+    }
+  });
+
+  function fallbackCopy(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand("copy"); } catch (_) { ok = false; }
+    ta.remove();
+    return ok;
+  }
 
   document.getElementById("opplist-sections").addEventListener("click", e => {
     const a = e.target.closest(".opp-note-toggle");
