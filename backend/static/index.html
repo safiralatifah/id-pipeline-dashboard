@@ -1563,7 +1563,7 @@
           <li>Every category below only considers <strong>OPEN, non&#8209;Future&#8209;Opportunity</strong> opportunities whose <code>type</code> isn't Up&#8209;Selling or Pricing (Future Opportunity is deliberately parked, not actively worked; Up&#8209;Selling/Pricing opportunities on an existing account aren't held to the same update cadence as new business) within whatever scope applies (your own pipeline, or your team's).</li>
           <li><strong>Overdue</strong>: <code>expected_close_date</code> has passed and the opportunity is still open. Sorted by days in the current stage, worst first.</li>
           <li><strong>Stalled in Stage</strong>: <code>stage_last_changed_at</code> (falling back to <code>updated_at</code>) is 30+ days old &mdash; the same threshold Stage Bottlenecks/Stage &times; Ageing use for their "30d+" tier.</li>
-          <li><strong>Notebook Needs Updating</strong>: last Notebook touch (or <code>created_at</code> if none) is 14+ days old &mdash; the same threshold the Activity panel's "14&#8209;30d" tier starts at.</li>
+          <li><strong>Notebook Needs Updating</strong>: last Notebook touch (or <code>created_at</code> if none) is 7+ days old &mdash; the same cutoff CRM Updated % uses (anything outside the &lt;7d tier), so every deal pulling CRM Updated % down is listed here.</li>
           <li><strong>Missing Revenue</strong>: <code>total_potential_revenue_mth</code> or <code>committed_revenue_mth</code> is blank on the CRM record (not filled in at all &mdash; a real, entered 0 doesn't count). Sorted by Aging, oldest first.</li>
           <li><strong>Tasks Awaiting Action</strong>: open Tasks (Not Started / In Progress) that aren't "Active" by the exact same rule the Activity panel's Task side uses (touched within 7 days AND not overdue), and whose linked Opportunity isn't Future Opportunity or Up&#8209;Selling/Pricing &mdash; same scope as the Activity panel's Task side.</li>
           <li>Viewing a single person's own pipeline shows up to 8 example opportunities per category (worst first), with the true total in the summary sentence. Viewing a Manager/Sales Head's team instead shows a per&#8209;rep breakdown &mdash; each rep's name with their own matching opportunities/tasks listed underneath, hyperlinked to CRM.</li>
@@ -2059,7 +2059,7 @@
       t => `${t} opportunit${t === 1 ? "y" : "ies"} with no stage movement in 30+ days.`);
     aiSection("ai-notebook-section", "ai-notebook-list", "ai-notebook-sentence", ai.notebook_stale, scopeSize,
       r => aiItemHtml(r, "since note"),
-      t => `${t} opportunit${t === 1 ? "y" : "ies"} without a Notebook update in 14+ days.`);
+      t => `${t} opportunit${t === 1 ? "y" : "ies"} without a Notebook update in 7+ days.`);
     aiSection("ai-revenue-section", "ai-revenue-list", "ai-revenue-sentence", ai.missing_revenue, scopeSize,
       aiRevenueItemHtml,
       t => `${t} opportunit${t === 1 ? "y" : "ies"} missing potential or committed revenue.`);

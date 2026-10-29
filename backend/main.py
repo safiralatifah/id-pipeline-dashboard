@@ -137,10 +137,11 @@ EXCLUDED_ACTIVITY_TYPES = {"Up-Selling", "Pricing"}
 
 # Action Items thresholds — deliberately the same numbers already used
 # elsewhere on the dashboard (Stage Bottlenecks' implicit "long" stage stay,
-# and the Notebook Activity 14d tier) so this panel doesn't introduce a
-# second, inconsistent definition of "stuck".
+# and CRM Updated %'s 7-day Notebook cutoff — every deal that drags CRM
+# Updated % down is listed here) so this panel doesn't introduce a second,
+# inconsistent definition of "stuck".
 ACTION_ITEM_STALE_STAGE_DAYS = 30
-ACTION_ITEM_STALE_NOTEBOOK_DAYS = 14
+ACTION_ITEM_STALE_NOTEBOOK_DAYS = 7
 ACTION_ITEM_LIST_LIMIT = 8
 
 # Each Active rep is expected to create 10 new opportunities a month and

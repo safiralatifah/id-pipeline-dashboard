@@ -429,7 +429,7 @@
                         },
                         "notebook_stale": {
                           "type": "object",
-                          "description": "Open (non-Future-Opportunity, Type not Up-Selling/Pricing) deals without a Notebook update in 14+ days, worst first. Same {total, items, by_owner} shape as overdue.",
+                          "description": "Open (non-Future-Opportunity, Type not Up-Selling/Pricing) deals without a Notebook update in 7+ days (same cutoff as CRM Updated %), worst first. Same {total, items, by_owner} shape as overdue.",
                           "properties": {
                             "total": { "type": "integer" },
                             "items": {
