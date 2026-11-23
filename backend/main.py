@@ -901,6 +901,43 @@ def _created_counted_ids(items: list[dict]) -> set:
     return {rid for _, rid in first_by_account_month.values()}
 
 
+def _conversion_for_window(
+    items: list[dict], created_counted_ids: set, start: datetime, end: datetime
+) -> tuple[int, int]:
+    """(Closed-Won, unique deals in play) for the window [start, end], the
+    same definition as the headline Pipeline Conversion card, applied to a
+    past period.
+
+    The CRM keeps no stage history, so "open during the window" is rebuilt
+    from what each deal looks like today: still open and created by `end`,
+    or closed after `end` but created by then. A deal that was closed and
+    later reopened is miscounted; with end=now this reproduces the current
+    month's card exactly."""
+    won_norm = _normalize_stage("Closed–Won")
+    lost_norm = _normalize_stage("Closed–Lost")
+    won_count = 0
+    in_play: set = set()
+    for r in items:
+        rid = r.get("id")
+        stage_norm = _normalize_stage(r.get("stage") or "")
+        created = _parse_dt(r.get("created_at"))
+        if rid in created_counted_ids and created and start <= created <= end:
+            in_play.add(rid)
+        if stage_norm in (won_norm, lost_norm):
+            changed = _parse_dt(r.get("stage_last_changed_at")) or _parse_dt(r.get("updated_at"))
+            if not changed:
+                continue
+            if start <= changed <= end:
+                in_play.add(rid)
+                if stage_norm == won_norm:
+                    won_count += 1
+            elif changed > end and created and created <= end:
+                in_play.add(rid)
+        elif created is None or created <= end:
+            in_play.add(rid)
+    return won_count, len(in_play)
+
+
 def _build_opportunity_rows(
     items: list[dict],
     notebook_last_touch: dict[int, dict],
@@ -1750,6 +1787,30 @@ def build_dashboard(
         if pipeline_conversion_denominator else 0.0
     )
 
+    # The same ratio for each of the last 3 calendar months (current month
+    # to date), plus all 3 taken together as one window.
+    def _pct(num: int, den: int) -> float:
+        return round(num / den * 100, 1) if den else 0.0
+
+    trend_starts = [this_month_start]
+    for _ in range(2):
+        prev_end = trend_starts[0] - timedelta(microseconds=1)
+        trend_starts.insert(0, prev_end.replace(day=1, hour=0, minute=0, second=0, microsecond=0))
+    pipeline_conversion_trend = []
+    for i, start in enumerate(trend_starts):
+        is_current = i == len(trend_starts) - 1
+        end = now if is_current else trend_starts[i + 1] - timedelta(microseconds=1)
+        num, den = _conversion_for_window(items, created_counted_ids, start, end)
+        pipeline_conversion_trend.append({
+            "month": start.strftime("%Y-%m"),
+            "pct": _pct(num, den),
+            "numerator": num,
+            "denominator": den,
+            "month_to_date": is_current,
+        })
+    num_3m, den_3m = _conversion_for_window(items, created_counted_ids, trend_starts[0], now)
+    pipeline_conversion_3m = {"pct": _pct(num_3m, den_3m), "numerator": num_3m, "denominator": den_3m}
+
     return {
         "total": total,
         "created_this_month": created_this_month,
@@ -1767,6 +1828,8 @@ def build_dashboard(
         "pipeline_conversion_pct": pipeline_conversion_pct,
         "pipeline_conversion_numerator": closed_won_this_month,
         "pipeline_conversion_denominator": pipeline_conversion_denominator,
+        "pipeline_conversion_trend": pipeline_conversion_trend,
+        "pipeline_conversion_3m": pipeline_conversion_3m,
         "lead_time_to_won_avg_days": lead_time_to_won_avg_days,
         "lead_time_to_won_count": lead_time_to_won_count,
         "revenue_potential_mth": revenue,

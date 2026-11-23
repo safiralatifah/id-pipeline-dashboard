@@ -59,6 +59,8 @@
                     "pipeline_conversion_pct": { "type": "number", "description": "Closed-Won this month / count of unique deals across (Created this month, Open Pipeline, Closed-Won this month, Closed-Lost this month), deduplicated by id." },
                     "pipeline_conversion_numerator": { "type": "integer" },
                     "pipeline_conversion_denominator": { "type": "integer" },
+                    "pipeline_conversion_trend": { "type": "array", "description": "Pipeline Conversion for each of the last 3 calendar months, oldest first; the current month is month-to-date. Past months rebuild 'open' from today's stage and stage_last_changed_at, since the CRM keeps no stage history.", "items": { "type": "object", "properties": { "month": { "type": "string", "description": "YYYY-MM" }, "pct": { "type": "number" }, "numerator": { "type": "integer" }, "denominator": { "type": "integer" }, "month_to_date": { "type": "boolean" } } } },
+                    "pipeline_conversion_3m": { "type": "object", "description": "Pipeline Conversion with the last 3 months taken as one window.", "properties": { "pct": { "type": "number" }, "numerator": { "type": "integer" }, "denominator": { "type": "integer" } } },
                     "lead_time_to_won_avg_days": { "type": "number", "nullable": true, "description": "Average days from created_at to the stage change that closed each Closed-Won deal (created_at stands in for a missing 'entered New stage' timestamp). Null if there are no Closed-Won deals in range." },
                     "lead_time_to_won_count": { "type": "integer", "description": "Number of Closed-Won deals included in the lead-time average." },
                     "revenue_potential_mth": { "type": "number" },
